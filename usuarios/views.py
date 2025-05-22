@@ -7,21 +7,22 @@ from .forms import LoginForm, EmpleadoForm, ClienteForm
 from usuarios.decorators import solo_admin,solo_cliente,solo_empleado
 
 def login_view(request):
-    if request.user.is_authenticated:
+    if request.user.is_authenticated: 
         return redirect('redireccionar_por_rol')
 
-    if request.method == 'POST':
-        form = LoginForm(request.POST)
+    if request.method == 'POST': #Si el usuario hace submit del fomrulario
+        form = LoginForm(request.POST) # Sacamos los datos
         if form.is_valid():
             user = form.cleaned_data.get('user')  
-            if user:  # Verifica que el usuario exista
-                login(request, user)
+            if user:  # Verificamos que el usuario exista
+                login(request, user) # Lo logeamos
                 return redirect('redireccionar_por_rol')
         # Si el formulario no es válido, muestra los errores
         for field, errors in form.errors.items():
             for error in errors:
                 messages.error(request, f"{field}: {error}")
-    else:
+    
+    else: # Se muestra fomrulario vacio (con la peticion GET)
         form = LoginForm()
 
     return render(request, 'usuarios/login.html', {'form': form})
@@ -34,6 +35,7 @@ def logout_view(request):
 
 @login_required
 def redireccionar_por_rol(request):
+    # Chequea el tipo de usuario, y lo redirecciona a sus paneles
     if request.user.tipo == 'ADMIN':
         return redirect('panel_admin')
     elif request.user.tipo == 'EMPLEADO':
@@ -59,13 +61,13 @@ def cliente_panel_view(request):
 @login_required
 @solo_admin
 def crear_empleado_view(request):
-    if request.method == 'POST':
-        form = EmpleadoForm(request.POST)
+    if request.method == 'POST': # Cuando se aprieta el boton de submit
+        form = EmpleadoForm(request.POST) # Extrae los datos llenados por el usuario
         if form.is_valid():
             try:
-                empleado = form.save()
+                empleado = form.save() # Ejecuta la funcion save del form definido en forms.py (Guarda empleado)
                 messages.success(request, f'Empleado {empleado.nombre} registrado exitosamente!')
-                return redirect('crear_empleado')  # Cambia esto por tu URL de listado
+                return redirect('crear_empleado')  # ACA IRIA EL LISTADO DE EMPLEADOS
             except Exception as e:
                 messages.error(request, f'Ocurrió un error al registrar el empleado: {str(e)}')
         else:
@@ -73,8 +75,8 @@ def crear_empleado_view(request):
             for field, errors in form.errors.items():
                 for error in errors:
                     messages.error(request, f"{form.fields[field].label}: {error}")
-    else:
-        form = EmpleadoForm()
+    else: 
+        form = EmpleadoForm() # Se muestra el formulario
 
     context = {
         'form': form,
@@ -85,13 +87,13 @@ def crear_empleado_view(request):
 @login_required
 @solo_empleado
 def crear_cliente_view(request):
-    if request.method == 'POST':
-        form = ClienteForm(request.POST)
+    if request.method == 'POST': # Cuando se aprieta el boton de submit dle formulario
+        form = ClienteForm(request.POST) # Extraemos los datos que puso el usuario
         if form.is_valid():
             try:
-                cliente = form.save()
+                cliente = form.save() # Lo guardamos en la base de datos
                 messages.success(request, f'Cliente {cliente.nombre} registrado exitosamente!')
-                return redirect('crear_cliente')  # Cambia esto por tu URL de listado
+                return redirect('crear_cliente')  # PONER LISTADO DE CLIENTES
             except Exception as e:
                 messages.error(request, f'Ocurrió un error al registrar el cliente: {str(e)}')
         else:
@@ -100,7 +102,7 @@ def crear_cliente_view(request):
                 for error in errors:
                     messages.error(request, f"{form.fields[field].label}: {error}")
     else:
-        form = ClienteForm()
+        form = ClienteForm() # Se muestra el formulario
 
     context = {
         'form': form,

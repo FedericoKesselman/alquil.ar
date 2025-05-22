@@ -2,6 +2,7 @@
 from django.urls import path
 from .views import login_view, logout_view, redireccionar_por_rol,admin_panel_view,crear_empleado_view,empleado_panel_view,cliente_panel_view,crear_cliente_view
 
+# Cuando se accede al path, se ejecuta la view indicada.
 urlpatterns = [
     path('login/', login_view, name='login'),
     path('logout/', logout_view, name='logout'),

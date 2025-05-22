@@ -8,6 +8,7 @@ from django.core.validators import RegexValidator
 User = get_user_model()
 
 class LoginForm(forms.Form):
+    #Declarar los campos del formulario
     email = forms.EmailField(
         label="Email",
         widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'Email'})
@@ -19,12 +20,12 @@ class LoginForm(forms.Form):
 
     def clean(self):
         cleaned_data = super().clean()
-        email = cleaned_data.get('email')
+        email = cleaned_data.get('email') #Extraer la info de los campos
         password = cleaned_data.get('password')
 
         if email and password:
             try:
-                user = User.objects.get(email=email)
+                user = User.objects.get(email=email) #Traigo el usuario correspondiente a ese mail
                 if not user.is_active:
                     raise forms.ValidationError('Esta cuenta está inactiva.')
                 if not user.check_password(password):
@@ -36,6 +37,7 @@ class LoginForm(forms.Form):
         return cleaned_data
 
 class EmpleadoForm(forms.Form):
+    # Declaro los campos del fomrulario
     email = forms.EmailField(
         label="Email",
         widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'Email del empleado'})
@@ -71,6 +73,7 @@ class EmpleadoForm(forms.Form):
         widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Repetir contraseña'})
     )
 
+    # Extraigo la info de los campos y la chequeo
     def clean_email(self):
         email = self.cleaned_data.get('email')
         if User.objects.filter(email=email).exists():
@@ -93,7 +96,7 @@ class EmpleadoForm(forms.Form):
 
         return cleaned_data
 
-    def save(self):
+    def save(self): #Se guarde el usuario
         user = User.objects.create_user(
             username=self.cleaned_data['email'],  # Usamos el email como username
             email=self.cleaned_data['email'],
@@ -107,6 +110,7 @@ class EmpleadoForm(forms.Form):
         return user
     
 class ClienteForm(forms.Form):
+    # Declaramos los campos
     email = forms.EmailField(
         label="Email",
         widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'Email del cliente'})
@@ -136,6 +140,7 @@ class ClienteForm(forms.Form):
         widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Repetir contraseña'})
     )
 
+    # Extraemos los campos y chequeamos info
     def clean_email(self):
         email = self.cleaned_data.get('email')
         if User.objects.filter(email=email).exists():
@@ -158,7 +163,7 @@ class ClienteForm(forms.Form):
 
         return cleaned_data
 
-    def save(self):
+    def save(self): #Guardar los datos
         user = User.objects.create_user(
             username=self.cleaned_data['email'],
             email=self.cleaned_data['email'],
@@ -166,6 +171,6 @@ class ClienteForm(forms.Form):
             nombre=self.cleaned_data['nombre'],
             dni=self.cleaned_data['dni'],
             telefono=self.cleaned_data['telefono'],
-            tipo='CLIENTE'  # Rol de cliente
+            tipo='CLIENTE' 
         )
         return user
