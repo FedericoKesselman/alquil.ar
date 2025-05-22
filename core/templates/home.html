@@ -9,9 +9,6 @@
     <p class="lead">Sistema de gestión de alquiler de maquinarias</p>
     <hr class="my-4">
     <p>Alquila las mejores maquinarias para tus proyectos con solo unos clics.</p>
-    {% if not user.is_authenticated %}
-    <a class="btn btn-primary btn-lg" href="{% url 'login' %}" role="button">Iniciar Sesión</a>
-    {% endif %}
 </div>
 
 <div class="row">
