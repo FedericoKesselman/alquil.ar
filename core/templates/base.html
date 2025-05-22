@@ -34,11 +34,17 @@
                             <a href="{% url 'crear_empleado' %}" class="nav-link admin-link">
                                 <i class="bi bi-person-plus"></i> Registrar Empleado
                             </a>
+                            <a href="{% url 'listar_empleados' %}" class="nav-link admin-link">
+                                <i class="bi bi-person-plus"></i> Ver Empleados
+                            </a>
                         </li>
                         {% elif user.tipo == 'EMPLEADO' %}
                         <li class="nav-item">
                             <a href="{% url 'crear_cliente' %}" class="nav-link empleado-link">
                                 <i class="bi bi-person-plus"></i> Registrar Cliente
+                            </a>
+                            <a href="{% url 'listar_clientes' %}" class="nav-link empleado-link">
+                                <i class="bi bi-person-plus"></i> Ver Clientes
                             </a>
                         </li>
                         {% elif user.tipo == 'CLIENTE' %}

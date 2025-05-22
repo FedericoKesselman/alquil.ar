@@ -3,8 +3,10 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from .models import Usuario
 from .forms import LoginForm, EmpleadoForm, ClienteForm
 from usuarios.decorators import solo_admin,solo_cliente,solo_empleado
+from django.core.paginator import Paginator
 
 def login_view(request):
     if request.user.is_authenticated: 
@@ -109,3 +111,37 @@ def crear_cliente_view(request):
         'titulo': 'Registrar Nuevo Cliente'
     }
     return render(request, 'usuarios/form_generico.html', context)
+
+@login_required
+@solo_admin
+def listar_empleados_view(request):
+    empleados = Usuario.objects.filter(tipo="EMPLEADO").order_by('nombre') #Extraigo los empleados de la base de datos
+
+    paginator = Paginator(empleados, 10) # 10 item por pagina
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'empleados': page_obj,
+        'total_empleados': empleados.count(),
+        'titulo': 'Listado de Empleados'
+    }
+
+    return render(request, 'usuarios/listar_empleados.html', context) # Context tiene la info que voy a utilizar en el html
+
+@login_required
+@solo_empleado
+def listar_clientes_view(request):
+    clientes = Usuario.objects.filter(tipo="CLIENTE").order_by('nombre') #Extraigo los clientes de la base de datos
+
+    paginator = Paginator(clientes, 10) # 10 item por pagina
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'clientes': page_obj,
+        'total_clientes': clientes.count(),
+        'titulo': 'Listado de Clientes'
+    }
+
+    return render(request, 'usuarios/listar_clientes.html', context) # Context tiene la info que voy a utilizar en el html

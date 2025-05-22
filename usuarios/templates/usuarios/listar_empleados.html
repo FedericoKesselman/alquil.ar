@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3 class="mb-0">{{ titulo }}</h3>
+                <a href="{% url 'crear_empleado' %}" class="btn btn-light btn-sm">
+                    <i class="fas fa-plus me-1"></i> Nuevo Empleado
+                </a>
+            </div>
+        </div>
+        
+        <div class="card-body">
+            {% if empleados %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Email</th>
+                                <th>DNI</th>
+                                <th>Teléfono</th>
+                                <th>Sucursal</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for empleado in empleados %}
+                            <tr>
+                                <td>{{ empleado.nombre }}</td>
+                                <td>{{ empleado.email }}</td>
+                                <td>{{ empleado.dni }}</td>
+                                <td>{{ empleado.telefono }}</td>
+                                <td>{{ empleado.sucursal.nombre|default:"-" }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'crear_empleado' %}" class="btn btn-warning" title="Editar">
+                                            <i class="fas fa-edit"></i>
+                                        </a> <!-- Aca iria el editar empleado (Hay que mandarle despues de la url empleado.id) -->
+                                        <a href="{% url 'crear_empleado' %}" class="btn btn-danger" title="Eliminar">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </a><!-- Aca iria el eliminar empleado -->
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Paginación -->
+                <div class="d-flex justify-content-between mt-3">
+                    <div>
+                        <span class="text-muted">
+                            Mostrando {{ empleados.start_index }} - {{ empleados.end_index }} de {{ total_empleados }} registros
+                        </span>
+                    </div>
+                    <ul class="pagination">
+                        {% if empleados.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1">&laquo; Primera</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ empleados.previous_page_number }}">Anterior</a>
+                            </li>
+                        {% endif %}
+                        
+                        <li class="page-item active">
+                            <span class="page-link">
+                                Página {{ empleados.number }} de {{ empleados.paginator.num_pages }}
+                            </span>
+                        </li>
+                        
+                        {% if empleados.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ empleados.next_page_number }}">Siguiente</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ empleados.paginator.num_pages }}">Última &raquo;</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    No hay empleados registrados.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
