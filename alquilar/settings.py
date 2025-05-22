@@ -37,7 +37,24 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'usuarios',
+    'reservas',
+    'maquinarias',
+    'core',
+    'crispy_forms',
+    'crispy_bootstrap5',
 ]
+
+# -----------------------------------------
+AUTH_USER_MODEL = 'usuarios.Usuario'
+
+CRISPY_ALLOWED_TEMPLATE_PACKS = ['bootstrap5']
+CRISPY_TEMPLATE_PACK = "bootstrap5"
+
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'redireccionar_por_rol'
+LOGOUT_REDIRECT_URL = 'home'
+# -----------------------------------------
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
