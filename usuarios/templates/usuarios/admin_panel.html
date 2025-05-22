@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block title %}Panel de Administrador{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col">
+        <h2 class="mb-4">Panel de Administrador</h2>
+        <p>Bienvenido, {{ user.get_full_name }}. Seleccioná una opción:</p>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-body text-center">
+                <h5 class="card-title">Usuarios</h5>
+                <p class="card-text">Gestioná empleados y clientes del sistema.</p>
+                <a href="{% url 'admin_usuarios' %}" class="btn btn-primary">Administrar</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-body text-center">
+                <h5 class="card-title">Reservas</h5>
+                <p class="card-text">Visualizá y administrá las reservas activas.</p>
+                <a href="{% url 'admin_reservas' %}" class="btn btn-primary">Ver reservas</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-body text-center">
+                <h5 class="card-title">Maquinarias</h5>
+                <p class="card-text">Agregá o editá maquinarias disponibles para alquilar.</p>
+                <a href="{% url 'admin_maquinarias' %}" class="btn btn-primary">Gestionar</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

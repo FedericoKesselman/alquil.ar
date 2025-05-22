@@ -6,11 +6,6 @@ from django.core.validators import RegexValidator
 class Sucursal(models.Model):
     nombre = models.CharField(max_length=100)
     direccion = models.CharField(max_length=200)
-    telefono_regex = RegexValidator(
-        regex=r'^\+?1?\d{9,15}$',
-        message="El teléfono debe estar en formato: '+999999999'."
-    )
-    telefono = models.CharField(validators=[telefono_regex], max_length=17)
     latitud = models.FloatField()
     longitud = models.FloatField()
     activa = models.BooleanField(default=True)
@@ -26,9 +21,9 @@ class Usuario(AbstractUser):
     ]
     
     tipo = models.CharField(max_length=10, choices=TIPO_CHOICES, default='CLIENTE')
-    dni = models.CharField(max_length=20, unique=True, null=True, blank=True)
-    telefono = models.CharField(max_length=20, null=True, blank=True)
-    direccion = models.CharField(max_length=200, null=True, blank=True)
+    dni = models.CharField(max_length=20, unique=True)
+    mail = models.CharField(max_length=200, unique=True)
+    telefono = models.CharField(max_length=20)
     sucursal = models.ForeignKey(Sucursal, on_delete=models.SET_NULL, null=True, blank=True)
     
     def __str__(self):

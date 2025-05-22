@@ -24,21 +24,21 @@
                     </li>
                 </ul>
                 <ul class="navbar-nav">
-                    {% if user.is_authenticated %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-person-circle"></i> {{ user.get_short_name }}
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="{% url 'redireccionar_por_rol' %}">Mi Panel</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{% url 'logout' %}">Cerrar Sesión</a></li>
-                        </ul>
-                    </li>
+                    {% if user.is_authenticated %} <!-- Si el usuario está autenticado -->
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                <i class="bi bi-person-circle"></i> {{ user.get_short_name }}
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="{% url 'redireccionar_por_rol' %}">Mi Panel</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{% url 'logout' %}">Cerrar Sesión</a></li>
+                            </ul>
+                        </li>
                     {% else %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'login' %}">Iniciar Sesión</a>
-                    </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'login' %}">Iniciar Sesión</a>
+                        </li>
                     {% endif %}
                 </ul>
             </div>
