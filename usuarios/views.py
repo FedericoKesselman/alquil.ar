@@ -3,8 +3,8 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from .forms import LoginForm
-from usuarios.decorators import solo_admin
+from .forms import LoginForm, EmpleadoForm, ClienteForm
+from usuarios.decorators import solo_admin,solo_cliente,solo_empleado
 
 def login_view(request):
     if request.user.is_authenticated:
@@ -13,13 +13,14 @@ def login_view(request):
     if request.method == 'POST':
         form = LoginForm(request.POST)
         if form.is_valid():
-            user = form.cleaned_data['user']
-            login(request, user)
-            messages.success(request, f'Bienvenido {user.get_full_name()}!')
-            return redirect('redireccionar_por_rol')
-        else:
-            for error in form.errors.values():
-                messages.error(request, error)
+            user = form.cleaned_data.get('user')  
+            if user:  # Verifica que el usuario exista
+                login(request, user)
+                return redirect('redireccionar_por_rol')
+        # Si el formulario no es válido, muestra los errores
+        for field, errors in form.errors.items():
+            for error in errors:
+                messages.error(request, f"{field}: {error}")
     else:
         form = LoginForm()
 
@@ -43,4 +44,66 @@ def redireccionar_por_rol(request):
 @login_required
 @solo_admin
 def admin_panel_view(request):
-    render(request, 'usuarios/admin_panel.html')
+    return render(request, 'usuarios/admin_panel.html')
+
+@login_required
+@solo_empleado
+def empleado_panel_view(request):
+    return render(request, 'usuarios/empleado_panel.html')
+
+@login_required
+@solo_cliente
+def cliente_panel_view(request):
+    return render(request, 'usuarios/cliente_panel.html')
+
+@login_required
+@solo_admin
+def crear_empleado_view(request):
+    if request.method == 'POST':
+        form = EmpleadoForm(request.POST)
+        if form.is_valid():
+            try:
+                empleado = form.save()
+                messages.success(request, f'Empleado {empleado.nombre} registrado exitosamente!')
+                return redirect('crear_empleado')  # Cambia esto por tu URL de listado
+            except Exception as e:
+                messages.error(request, f'Ocurrió un error al registrar el empleado: {str(e)}')
+        else:
+            # Mostrar todos los errores del formulario
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{form.fields[field].label}: {error}")
+    else:
+        form = EmpleadoForm()
+
+    context = {
+        'form': form,
+        'titulo': 'Registrar Nuevo Empleado'
+    }
+    return render(request, 'usuarios/form_generico.html', context)
+
+@login_required
+@solo_empleado
+def crear_cliente_view(request):
+    if request.method == 'POST':
+        form = ClienteForm(request.POST)
+        if form.is_valid():
+            try:
+                cliente = form.save()
+                messages.success(request, f'Cliente {cliente.nombre} registrado exitosamente!')
+                return redirect('crear_cliente')  # Cambia esto por tu URL de listado
+            except Exception as e:
+                messages.error(request, f'Ocurrió un error al registrar el cliente: {str(e)}')
+        else:
+            # Mostrar todos los errores del formulario
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{form.fields[field].label}: {error}")
+    else:
+        form = ClienteForm()
+
+    context = {
+        'form': form,
+        'titulo': 'Registrar Nuevo Cliente'
+    }
+    return render(request, 'usuarios/form_generico.html', context)

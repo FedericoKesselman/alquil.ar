@@ -3,25 +3,15 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container mt-5" style="max-width: 400px;">
-    <h2 class="text-center mb-4">Iniciar sesión</h2>
-    <form method="post" novalidate>
-        {% csrf_token %}
-        <div class="mb-3">
-            {{ form.mail.label_tag }}
-            {{ form.mail }}
-            {% if form.mail.errors %}
-                <div class="text-danger">{{ form.mail.errors }}</div>
-            {% endif %}
-        </div>
-        <div class="mb-3">
-            {{ form.password.label_tag }}
-            {{ form.password }}
-            {% if form.password.errors %}
-                <div class="text-danger">{{ form.password.errors }}</div>
-            {% endif %}
-        </div>
-        <button type="submit" class="btn btn-primary w-100">Entrar</button>
-    </form>
-</div>
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+{% endif %}
+
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Login</button>
+</form>
 {% endblock %}

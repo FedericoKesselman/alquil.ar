@@ -20,9 +20,10 @@ class Usuario(AbstractUser):
         ('ADMIN', 'Administrador'),
     ]
     
+    nombre = models.CharField(max_length=200)
     tipo = models.CharField(max_length=10, choices=TIPO_CHOICES, default='CLIENTE')
     dni = models.CharField(max_length=20, unique=True)
-    mail = models.CharField(max_length=200, unique=True)
+    email = models.CharField(max_length=200, unique=True)
     telefono = models.CharField(max_length=20)
     sucursal = models.ForeignKey(Sucursal, on_delete=models.SET_NULL, null=True, blank=True)
     

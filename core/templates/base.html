@@ -25,6 +25,17 @@
                 </ul>
                 <ul class="navbar-nav">
                     {% if user.is_authenticated %} <!-- Si el usuario está autenticado -->
+                        {% if user.tipo == 'ADMIN' %}
+                            <!-- Nav solo para ADMIN -->
+                            <a href="{% url 'crear_empleado' %}" class="admin-link text-white">Registrar Empleado</a>
+                        {% elif user.tipo == 'EMPLEADO' %}
+                            <!-- Nav solo para EMPLEADO -->
+                            <a href="{% url 'crear_cliente' %}" class="empleado-link text-white">Registrar Cliente</a>
+                            
+                        {% elif user.tipo == 'CLIENTE' %}
+                            <!-- Nav solo para CLIENTE -->
+                            <a href="{% url 'panel_cliente' %}" class="cliente-link">Mi Perfil</a>
+                        {% endif %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                                 <i class="bi bi-person-circle"></i> {{ user.get_short_name }}

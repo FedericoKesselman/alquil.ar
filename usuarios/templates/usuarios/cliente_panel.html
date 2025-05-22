@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
 
-{% block title %}Panel de Administrador{% endblock %}
+{% block title %}Panel de Cliente{% endblock %}
 
 {% block content %}
-<h1>Panel de Administración</h1>
+<h1>Panel de Cliente</h1>
 <p>Bienvenido {{ user.nombre }} ({{ user.get_tipo_display }})</p>
 <a href="{% url 'logout' %}">Cerrar sesión</a>
 {% endblock %}
