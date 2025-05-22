@@ -1,0 +1,43 @@
+<!-- templates/home.html -->
+{% extends 'base.html' %}
+
+{% block title %}Inicio - Alquil.AR{% endblock %}
+
+{% block content %}
+<div class="jumbotron bg-light p-5 rounded-lg m-3">
+    <h1 class="display-4">Bienvenido a Alquil.AR</h1>
+    <p class="lead">Sistema de gestión de alquiler de maquinarias</p>
+    <hr class="my-4">
+    <p>Alquila las mejores maquinarias para tus proyectos con solo unos clics.</p>
+    {% if not user.is_authenticated %}
+    <a class="btn btn-primary btn-lg" href="{% url 'login' %}" role="button">Iniciar Sesión</a>
+    {% endif %}
+</div>
+
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-tools"></i> Amplio Catálogo</h5>
+                <p class="card-text">Contamos con una amplia variedad de maquinarias para todas tus necesidades.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-geo-alt"></i> Múltiples Sucursales</h5>
+                <p class="card-text">Retira y devuelve tus maquinarias en cualquiera de nuestras sucursales.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-shield-lock"></i> Pago Seguro</h5>
+                <p class="card-text">Sistema de pagos electrónicos con las mayores medidas de seguridad.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
