@@ -1,23 +1,28 @@
 # Alquil.AR
 
-## Equipo de Desarrollo
-- Ignacio Battaglino
-- Joaquin Di Lorenzo
-- Federico Kesselman
-- Baltazar Menvielle
+Plataforma integral para la gestión de alquiler de maquinarias.  
+Proyecto desarrollado en el marco de la materia **Ingeniería de Software 2**.
 
-## Información
+---
 
-### Este es un proyecto de la materia Ingeniería de Software 2, en el que desarrollamos una plataforma completa para un negocio de alquiler de maquinarias. 
+## 👨‍💻 Equipo de Desarrollo
 
-## Tecnologías
-### Base de Datos: PostgreSQL
-### Backend: Framework Django
-### Frontend: Bootstrap
+- Ignacio Battaglino  
+- Joaquín Di Lorenzo  
+- Federico Kesselman  
+- Baltazar Menvielle  
 
-## Instrucciones de Ejecución
+---
 
-### Requisitos
+## 🧰 Tecnologías Utilizadas
+
+- **Base de Datos:** PostgreSQL  
+- **Backend:** Django (Python)  
+- **Frontend:** Bootstrap  
+
+---
+
+## ⚙️ Requisitos
 Para ejecutar este proyecto, necesitará tener instalado Python en su sistema. Además, asegúrese de tener instalada las bibliotecas detalladas en requirements.txt o instalelas directamente desde su consala con el siguiente comando.
 
 ```bash
