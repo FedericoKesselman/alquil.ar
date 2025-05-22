@@ -5,7 +5,7 @@ Proyecto desarrollado en el marco de la materia **Ingeniería de Software 2**.
 
 ---
 
-## 👨‍💻 Equipo de Desarrollo
+## Equipo de Desarrollo
 
 - Ignacio Battaglino  
 - Joaquín Di Lorenzo  
@@ -14,7 +14,7 @@ Proyecto desarrollado en el marco de la materia **Ingeniería de Software 2**.
 
 ---
 
-## 🧰 Tecnologías Utilizadas
+## Tecnologías Utilizadas
 
 - **Base de Datos:** PostgreSQL  
 - **Backend:** Django (Python)  
