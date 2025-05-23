@@ -69,7 +69,7 @@ def crear_empleado_view(request):
             try:
                 empleado = form.save() # Ejecuta la funcion save del form definido en forms.py (Guarda empleado)
                 messages.success(request, f'Empleado {empleado.nombre} registrado exitosamente!')
-                return redirect('crear_empleado')  # ACA IRIA EL LISTADO DE EMPLEADOS
+                return redirect('lista_empleados')  
             except Exception as e:
                 messages.error(request, f'Ocurrió un error al registrar el empleado: {str(e)}')
         else:
@@ -84,6 +84,7 @@ def crear_empleado_view(request):
         'form': form,
         'titulo': 'Registrar Nuevo Empleado'
     }
+
     return render(request, 'usuarios/form_generico.html', context)
 
 @login_required
@@ -95,7 +96,7 @@ def crear_cliente_view(request):
             try:
                 cliente = form.save() # Lo guardamos en la base de datos
                 messages.success(request, f'Cliente {cliente.nombre} registrado exitosamente!')
-                return redirect('crear_cliente')  # PONER LISTADO DE CLIENTES
+                return redirect('listar_clientes')  # PONER LISTADO DE CLIENTES
             except Exception as e:
                 messages.error(request, f'Ocurrió un error al registrar el cliente: {str(e)}')
         else:
