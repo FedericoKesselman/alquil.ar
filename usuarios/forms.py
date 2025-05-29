@@ -4,6 +4,11 @@ from django.contrib.auth.forms import AuthenticationForm
 from .models import Sucursal
 from django.contrib.auth import get_user_model
 from django.core.validators import RegexValidator
+import random
+import string
+from django.core.mail import send_mail
+from django.conf import settings
+from datetime import date
 
 User = get_user_model()
 
@@ -131,13 +136,14 @@ class ClienteForm(forms.Form):
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Número de teléfono'}),
         validators=[RegexValidator(r'^\d+$', 'Solo se permiten números en el teléfono')]
     )
-    password = forms.CharField(
-        label="Contraseña",
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Contraseña'})
-    )
-    confirm_password = forms.CharField(
-        label="Confirmar contraseña",
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Repetir contraseña'})
+    fecha_nacimiento = forms.DateField(
+        label="Fecha de nacimiento",
+        widget=forms.DateInput(
+            attrs={
+                'class': 'form-control', 
+                'type': 'date'  # Esto hace que aparezca un selector de fecha
+            }
+        )
     )
 
     # Extraemos los campos y chequeamos info
@@ -153,6 +159,15 @@ class ClienteForm(forms.Form):
             raise forms.ValidationError('Este DNI ya está registrado.')
         return dni
 
+    def clean_fecha_nacimiento(self):
+        fecha_nacimiento = self.cleaned_data.get('fecha_nacimiento')
+        hoy = date.today()
+        edad = hoy.year - fecha_nacimiento.year - ((hoy.month, hoy.day) < (fecha_nacimiento.month, fecha_nacimiento.day))
+        
+        if edad < 18:
+            raise forms.ValidationError("El cliente debe ser mayor de 18 años para registrarse")
+        return fecha_nacimiento
+
     def clean(self):
         cleaned_data = super().clean()
         password = cleaned_data.get('password')
@@ -163,14 +178,41 @@ class ClienteForm(forms.Form):
 
         return cleaned_data
 
-    def save(self): #Guardar los datos
+    def save(self):
+        # Generar contraseña aleatoria de 12 caracteres
+        caracteres = string.ascii_letters + string.digits
+        password = ''.join(random.choice(caracteres) for i in range(12))
+        
+        # Crear el usuario
         user = User.objects.create_user(
             username=self.cleaned_data['email'],
             email=self.cleaned_data['email'],
-            password=self.cleaned_data['password'],
+            password=password,
             nombre=self.cleaned_data['nombre'],
             dni=self.cleaned_data['dni'],
             telefono=self.cleaned_data['telefono'],
-            tipo='CLIENTE' 
+            fecha_nacimiento=self.cleaned_data['fecha_nacimiento'],
+            tipo='CLIENTE'
         )
+        
+        # Enviar email con la contraseña
+        send_mail(
+            'Bienvenido a Alquil.ar',
+            f'''Hola {self.cleaned_data['nombre']},
+        
+Tu cuenta ha sido creada exitosamente.
+        
+Tus credenciales de acceso son:
+Email: {self.cleaned_data['email']}
+Contraseña temporal: {password}
+        
+Por favor, ingresa al sistema y cambia tu contraseña por seguridad.
+        
+Saludos,
+Equipo de Alquil.ar''',
+            'alquil.ar2025@gmail.com',
+            [self.cleaned_data['email']],
+            fail_silently=False,
+        )
+    
         return user

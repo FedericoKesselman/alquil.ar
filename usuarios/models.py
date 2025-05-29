@@ -28,6 +28,7 @@ class Usuario(AbstractUser):
     email = models.CharField(max_length=200, unique=True)
     telefono = models.CharField(max_length=20)
     sucursal = models.ForeignKey(Sucursal, on_delete=models.SET_NULL, null=True, blank=True)
+    fecha_nacimiento = models.DateField(null=True)  # Agregamos este campo
     
     def __str__(self):
         return f"{self.get_full_name()} ({self.get_tipo_display()})"
