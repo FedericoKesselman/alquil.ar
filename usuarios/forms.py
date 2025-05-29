@@ -91,16 +91,6 @@ class EmpleadoForm(forms.Form):
             raise forms.ValidationError('Este DNI ya está registrado.')
         return dni
 
-    def clean(self):
-        cleaned_data = super().clean()
-        password = cleaned_data.get('password')
-        confirm_password = cleaned_data.get('confirm_password')
-
-        if password and confirm_password and password != confirm_password:
-            raise forms.ValidationError('Las contraseñas no coinciden.')
-
-        return cleaned_data
-
     def save(self): #Se guarde el usuario
         user = User.objects.create_user(
             username=self.cleaned_data['email'],  # Usamos el email como username
@@ -176,16 +166,6 @@ class ClienteForm(forms.Form):
         if edad < 18:
             raise forms.ValidationError("El cliente debe ser mayor de 18 años para registrarse")
         return fecha_nacimiento
-
-    def clean(self):
-        cleaned_data = super().clean()
-        password = cleaned_data.get('password')
-        confirm_password = cleaned_data.get('confirm_password')
-
-        if password and confirm_password and password != confirm_password:
-            raise forms.ValidationError('Las contraseñas no coinciden.')
-
-        return cleaned_data
 
     def save(self):
         # Generar contraseña aleatoria de 12 caracteres
