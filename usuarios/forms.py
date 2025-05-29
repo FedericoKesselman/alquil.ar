@@ -126,9 +126,18 @@ class ClienteForm(forms.Form):
     )
     dni = forms.CharField(
         label="DNI",
-        max_length=20,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Documento de identidad'}),
-        validators=[RegexValidator(r'^\d+$', 'Solo se permiten números en el DNI')]
+        max_length=8,  # Cambiamos a 8 para DNI argentino
+        min_length=7,  # Mínimo 7 dígitos
+        widget=forms.TextInput(attrs={
+            'class': 'form-control', 
+            'placeholder': 'DNI (7-8 dígitos)'
+        }),
+        validators=[
+            RegexValidator(
+                r'^\d{7,8}$', 
+                'El DNI debe tener 7 u 8 dígitos numéricos'
+            )
+        ]
     )
     telefono = forms.CharField(
         label="Teléfono",
@@ -150,15 +159,15 @@ class ClienteForm(forms.Form):
     def clean_email(self):
         email = self.cleaned_data.get('email')
         if User.objects.filter(email=email).exists():
-            raise forms.ValidationError('Este email ya está registrado.')
+            raise forms.ValidationError('El correo electrónico ingresado ya se encuentra registrado')
         return email
 
     def clean_dni(self):
         dni = self.cleaned_data.get('dni')
         if User.objects.filter(dni=dni).exists():
-            raise forms.ValidationError('Este DNI ya está registrado.')
+            raise forms.ValidationError('El DNI ingresado ya se encuentra registrado en el sistema')
         return dni
-
+    
     def clean_fecha_nacimiento(self):
         fecha_nacimiento = self.cleaned_data.get('fecha_nacimiento')
         hoy = date.today()
