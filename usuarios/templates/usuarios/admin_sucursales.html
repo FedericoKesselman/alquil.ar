@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<h2>Administrar Sucursales</h2>
+<div id="map" style="height: 600px;"></div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+  const map = L.map('map').setView([-34.92145, -57.95453], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+  // Cargar sucursales
+  fetch("{% url 'sucursales_json' %}")
+    .then(res => res.json())
+    .then(data => {
+      data.forEach(sucursal => {
+        const marker = L.marker([sucursal.latitud, sucursal.longitud], {
+            draggable: true  // 👈 permite mover el marcador
+        }).addTo(map);
+
+        marker.bindPopup(`
+            <b>${sucursal.nombre}</b><br>${sucursal.direccion}<br>
+            Estado: ${sucursal.activa ? "✅ Activa" : "❌ Inactiva"}<br>
+            <button onclick="editarSucursal(${sucursal.id}, '${sucursal.nombre}', '${sucursal.direccion}')">Editar</button><br>
+            <button onclick="toggleEstadoSucursal(${sucursal.id}, ${sucursal.activa})">
+            ${sucursal.activa ? "Desactivar" : "Activar"}
+            </button>
+        `);
+
+        // 👇 Evento cuando se suelta el marcador
+        marker.on('dragend', function (e) {
+        const newLat = e.target.getLatLng().lat;
+        const newLng = e.target.getLatLng().lng;
+
+        // Agregá un botón en el popup del marcador
+        const confirmButton = `
+            <button onclick="actualizarUbicacion(${sucursal.id}, ${newLat}, ${newLng})">
+            Confirmar nueva ubicación
+            </button>
+        `;
+        e.target.bindPopup(confirmButton).openPopup();
+        });
+
+        });
+      });
+
+
+  // Agregar nueva sucursal
+    let nuevoMarker;
+
+    map.on('click', function(e) {
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
+
+        if (nuevoMarker) {
+            map.removeLayer(nuevoMarker);
+        }
+
+        nuevoMarker = L.marker([lat, lng], { draggable: true }).addTo(map);
+
+        nuevoMarker.bindPopup(`
+            <b>Nueva Sucursal</b><br>
+            <input type="text" id="nombreInput" placeholder="Nombre"><br>
+            <input type="text" id="direccionInput" placeholder="Dirección"><br>
+            <button onclick="guardarSucursal(${lat}, ${lng})">Guardar</button>
+        `).openPopup();
+    });
+
+  // Editar sucursal
+  function editarSucursal(id, nombreActual, direccionActual) {
+    const nuevoNombre = prompt("Editar nombre:", nombreActual);
+    const nuevaDireccion = prompt("Editar dirección:", direccionActual);
+    if (nuevoNombre && nuevaDireccion) {
+      fetch(`/usuarios/api/sucursales/editar/${id}/`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": "{{ csrf_token }}"
+        },
+        body: JSON.stringify({ nombre: nuevoNombre, direccion: nuevaDireccion })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'ok') {
+          alert("Sucursal actualizada");
+          location.reload();
+        } else {
+          alert("Error al actualizar");
+        }
+      });
+    }
+  }
+
+function actualizarUbicacion(id, lat, lng) {
+    fetch(`/usuarios/api/sucursales/actualizar_ubicacion/${id}/`, {
+        method: "PUT",
+        headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": "{{ csrf_token }}"
+        },
+        body: JSON.stringify({ latitud: lat, longitud: lng })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === "ok") {
+            alert("Ubicación actualizada");
+
+            print("PUTO")
+
+            // Restaurar popup (opcional)
+            marker.bindPopup(`
+                <b>${sucursal.nombre}</b><br>${sucursal.direccion}<br>
+                Estado: ${sucursal.activa ? "✅ Activa" : "❌ Inactiva"}<br>
+                <button onclick="editarSucursal(${sucursal.id}, '${sucursal.nombre}', '${sucursal.direccion}')">Editar</button><br>
+                <button onclick="toggleEstadoSucursal(${sucursal.id}, ${sucursal.activa})">
+                ${sucursal.activa ? "Desactivar" : "Activar"}
+                </button>
+            `);
+        } else {
+            alert("Error al actualizar ubicación");
+        }
+    });
+
+    
+}
+
+
+   function toggleEstadoSucursal(id, estadoActual) {
+    fetch(`/usuarios/api/sucursales/estado/${id}/`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": "{{ csrf_token }}"
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === 'ok') {
+        alert(`Sucursal ahora está ${data.activa ? 'activa' : 'inactiva'}`);
+        location.reload();
+      } else {
+        alert("Error al cambiar estado");
+      }
+    });
+  }
+
+  function guardarSucursal(lat, lng) {
+  const nombre = document.getElementById("nombreInput").value;
+  const direccion = document.getElementById("direccionInput").value;
+
+  if (!nombre || !direccion) {
+    alert("Completá todos los campos");
+    return;
+  }
+
+  fetch("{% url 'crear_sucursal' %}", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": "{{ csrf_token }}"
+    },
+    body: JSON.stringify({ nombre, direccion, latitud: lat, longitud: lng })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.status === "ok") {
+      alert("Sucursal creada");
+      location.reload();
+    } else {
+      alert("Error al crear sucursal");
+    }
+  });
+}
+
+</script>
+{% endblock %}

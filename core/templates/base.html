@@ -37,6 +37,9 @@
                             <a href="{% url 'listar_empleados' %}" class="nav-link admin-link">
                                 <i class="bi bi-person-plus"></i> Ver Empleados
                             </a>
+                            <a href="{% url 'admin_sucursales' %}" class="nav-link admin-link">
+                                <i class="bi bi-person-plus"></i> Administrar Sucursales
+                            </a>
                         </li>
                         {% elif user.tipo == 'EMPLEADO' %}
                         <li class="nav-item">

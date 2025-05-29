@@ -7,6 +7,11 @@ from .models import Usuario
 from .forms import LoginForm, EmpleadoForm, ClienteForm
 from usuarios.decorators import solo_admin,solo_cliente,solo_empleado
 from django.core.paginator import Paginator
+import json
+from django.http import JsonResponse
+from .models import Sucursal
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 
 def login_view(request):
     if request.user.is_authenticated: 
@@ -146,3 +151,65 @@ def listar_clientes_view(request):
     }
 
     return render(request, 'usuarios/listar_clientes.html', context) # Context tiene la info que voy a utilizar en el html
+
+@solo_admin
+def admin_sucursales(request):
+    return render(request, 'usuarios/admin_sucursales.html')
+
+def sucursales_json_publico(request):
+    data = list(Sucursal.objects.filter(activa=True).values('id', 'nombre', 'direccion', 'latitud', 'longitud'))
+    return JsonResponse(data, safe=False)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@solo_admin
+def crear_sucursal(request):
+    data = json.loads(request.body)
+    sucursal = Sucursal.objects.create(
+        nombre=data['nombre'],
+        direccion=data['direccion'],
+        latitud=data['latitud'],
+        longitud=data['longitud']
+    )
+    return JsonResponse({'status': 'ok', 'id': sucursal.id})
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+@solo_admin
+def editar_sucursal(request, id):
+    data = json.loads(request.body)
+    try:
+        sucursal = Sucursal.objects.get(id=id)
+        sucursal.nombre = data['nombre']
+        sucursal.direccion = data['direccion']
+        sucursal.save()
+        return JsonResponse({'status': 'ok'})
+    except Sucursal.DoesNotExist:
+        return JsonResponse({'error': 'Sucursal no encontrada'}, status=404)
+    
+@csrf_exempt
+@require_http_methods(["PUT"])
+@solo_admin
+def cambiar_estado_sucursal(request, id):
+    try:
+        sucursal = Sucursal.objects.get(id=id)
+        sucursal.activa = not sucursal.activa
+        sucursal.save()
+        return JsonResponse({'status': 'ok', 'activa': sucursal.activa})
+    except Sucursal.DoesNotExist:
+        return JsonResponse({'error': 'Sucursal no encontrada'}, status=404)
+    
+@csrf_exempt
+@require_http_methods(["PUT"])
+@solo_admin
+def actualizar_ubicacion_sucursal(request, id):
+    try:
+        sucursal = Sucursal.objects.get(id=id)
+        data = json.loads(request.body)
+        sucursal.latitud = data.get('latitud')
+        sucursal.longitud = data.get('longitud')
+        sucursal.save()
+        print("LLEGUE")
+        return JsonResponse({'status': 'ok'})
+    except Sucursal.DoesNotExist:
+        return JsonResponse({'error': 'Sucursal no encontrada'}, status=404)
