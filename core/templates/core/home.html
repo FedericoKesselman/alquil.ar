@@ -37,4 +37,93 @@
         </div>
     </div>
 </div>
+
+<h2>Administrar Sucursales</h2>
+<div id="map" style="height: 600px; border: 2px solid #ddd; border-radius: 8px;"></div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    
+  const map = L.map('map').setView([-34.92145, -57.95453], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+  let markers = {};
+  let nuevoMarker = null;
+
+  // Función para mostrar alertas con estilo
+  function mostrarMensaje(mensaje, tipo = 'info') {
+    const colores = {
+      'success': '#28a745',
+      'error': '#dc3545',
+      'info': '#007bff'
+    };
+    
+    const div = document.createElement('div');
+    div.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: ${colores[tipo]};
+      color: white;
+      padding: 15px 20px;
+      border-radius: 5px;
+      z-index: 10000;
+      font-weight: bold;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    `;
+    div.textContent = mensaje;
+    document.body.appendChild(div);
+    
+    setTimeout(() => {
+      document.body.removeChild(div);
+    }, 4000);
+  }
+
+  // Cargar todas las sucursales (incluyendo inactivas para admin)
+  function cargarSucursales() {
+  fetch("{% url 'sucursales_json' %}")
+    .then(res => {
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+      return res.json();
+    })
+    .then(data => {
+      // Limpiar markers existentes
+      console.log("Sucursales cargadas:", data);
+      Object.values(markers).forEach(marker => {
+        map.removeLayer(marker);
+      });
+      markers = {};
+      
+      data.forEach(sucursal => {
+        const marker = L.marker([sucursal.latitud, sucursal.longitud], {
+          draggable: false
+        }).addTo(map);
+        
+        markers[sucursal.id] = marker;
+        
+        // Solo mostrar información básica en el popup
+        marker.bindPopup(`
+          <div class="popup-content">
+            <b>${sucursal.nombre}</b><br>
+            <strong>Dirección:</strong> ${sucursal.direccion || 'No especificada'}<br>
+            <strong>Teléfono:</strong> ${sucursal.telefono || 'No especificado'}<br>
+          </div>
+        `);
+      });
+    })
+    .catch(error => {
+      console.error('Error al cargar sucursales:', error);
+      mostrarMensaje('Error al cargar las sucursales', 'error');
+    });
+}
+  
+
+  cargarSucursales();
+
+</script>
+
 {% endblock %}

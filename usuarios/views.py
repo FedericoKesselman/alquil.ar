@@ -43,13 +43,10 @@ def logout_view(request):
 
 @login_required
 def redireccionar_por_rol(request):
-    # Chequea el tipo de usuario, y lo redirecciona a sus paneles
     if request.user.tipo == 'ADMIN':
-        return redirect('panel_admin')
-    elif request.user.tipo == 'EMPLEADO':
-        return redirect('panel_empleado')
+        return redirect('panel_admin')  # Admin va a su panel
     else:
-        return redirect('panel_cliente')
+        return redirect('home')  
 
 @login_required
 @solo_admin
