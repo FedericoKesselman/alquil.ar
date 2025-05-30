@@ -37,26 +37,28 @@ class LoginForm(forms.Form):
                 if not user.check_password(password):
                     raise forms.ValidationError('Contraseña incorrecta')
                 
-                # Verificar si la cuenta está activa
-                if not user.is_active:
-                    raise forms.ValidationError('Esta cuenta está inactiva')
-
                 # Si es admin, generar y enviar token
                 if user.tipo == 'ADMIN':
                     try:
                         token = ''.join(random.choices(string.digits, k=6))
+                        
                         # Actualizar usuario con nuevo token
                         User.objects.filter(id=user.id).update(
                             token_2fa=token,
                             token_2fa_timestamp=timezone.now()
                         )
                         
-                        # Enviar token por email
-                        self._enviar_token_email(user, token)
-                        cleaned_data['needs_2fa'] = True
-                        
+                        try:
+                            # Enviar token por email
+                            self._enviar_token_email(user, token)
+                            cleaned_data['needs_2fa'] = True
+                        except Exception as e:
+                            print(f"Error al enviar email: {str(e)}")  # Para debug
+                            raise forms.ValidationError(f'Error al enviar el código de verificación: {str(e)}')
+                            
                     except Exception as e:
-                        raise forms.ValidationError('Ocurrió un problema al verificar el token')
+                        print(f"Error al generar token: {str(e)}")  # Para debug
+                        raise forms.ValidationError(f'Error al generar el código de verificación: {str(e)}')
                 
                 cleaned_data['user'] = user
                 
