@@ -12,6 +12,7 @@ from django.http import JsonResponse
 from .models import Sucursal
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from django.db.models import Q
 
 def login_view(request):
     if request.user.is_authenticated: 
@@ -157,35 +158,100 @@ def admin_sucursales(request):
     return render(request, 'usuarios/admin_sucursales.html')
 
 def sucursales_json_publico(request):
-    data = list(Sucursal.objects.filter(activa=True).values('id', 'nombre', 'direccion', 'latitud', 'longitud'))
+    data = list(Sucursal.objects.filter(activa=True).values('id', 'nombre', 'direccion', 'latitud', 'longitud', 'activa'))
+    return JsonResponse(data, safe=False)
+
+def todas_sucursales_json(request):
+    """API para obtener todas las sucursales (para el admin)"""
+    data = list(Sucursal.objects.all().values('id', 'nombre', 'direccion', 'latitud', 'longitud', 'activa'))
     return JsonResponse(data, safe=False)
 
 @csrf_exempt
 @require_http_methods(["POST"])
 @solo_admin
 def crear_sucursal(request):
-    data = json.loads(request.body)
-    sucursal = Sucursal.objects.create(
-        nombre=data['nombre'],
-        direccion=data['direccion'],
-        latitud=data['latitud'],
-        longitud=data['longitud']
-    )
-    return JsonResponse({'status': 'ok', 'id': sucursal.id})
+    try:
+        data = json.loads(request.body)
+        nombre = data.get('nombre', '').strip()
+        direccion = data.get('direccion', '').strip()
+        latitud = data.get('latitud')
+        longitud = data.get('longitud')
+        
+        # Validaciones
+        if not nombre:
+            return JsonResponse({'error': 'El nombre es obligatorio'}, status=400)
+        
+        if not direccion:
+            return JsonResponse({'error': 'La dirección es obligatoria'}, status=400)
+        
+        if latitud is None or longitud is None:
+            return JsonResponse({'error': 'Coordenadas inválidas'}, status=400)
+        
+        # Verificar duplicados
+        if Sucursal.objects.filter(nombre__iexact=nombre).exists():
+            return JsonResponse({'error': 'Ya existe una sucursal con este nombre'}, status=400)
+        
+        if Sucursal.objects.filter(direccion__iexact=direccion).exists():
+            return JsonResponse({'error': 'Ya existe una sucursal en esta dirección'}, status=400)
+        
+        sucursal = Sucursal.objects.create(
+            nombre=nombre,
+            direccion=direccion,
+            latitud=latitud,
+            longitud=longitud
+        )
+        
+        return JsonResponse({
+            'status': 'ok', 
+            'id': sucursal.id,
+            'mensaje': 'Sucursal creada exitosamente'
+        })
+    
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Datos JSON inválidos'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': f'Error interno: {str(e)}'}, status=500)
 
 @csrf_exempt
 @require_http_methods(["PUT"])
 @solo_admin
 def editar_sucursal(request, id):
-    data = json.loads(request.body)
     try:
+        data = json.loads(request.body)
         sucursal = Sucursal.objects.get(id=id)
-        sucursal.nombre = data['nombre']
-        sucursal.direccion = data['direccion']
+        
+        nombre = data.get('nombre', '').strip()
+        direccion = data.get('direccion', '').strip()
+        
+        # Validaciones
+        if not nombre:
+            return JsonResponse({'error': 'El nombre es obligatorio'}, status=400)
+        
+        if not direccion:
+            return JsonResponse({'error': 'La dirección es obligatoria'}, status=400)
+        
+        # Verificar duplicados (excluyendo la sucursal actual)
+        if Sucursal.objects.filter(nombre__iexact=nombre).exclude(id=id).exists():
+            return JsonResponse({'error': 'Ya existe otra sucursal con este nombre'}, status=400)
+        
+        if Sucursal.objects.filter(direccion__iexact=direccion).exclude(id=id).exists():
+            return JsonResponse({'error': 'Ya existe otra sucursal en esta dirección'}, status=400)
+        
+        sucursal.nombre = nombre
+        sucursal.direccion = direccion
         sucursal.save()
-        return JsonResponse({'status': 'ok'})
+        
+        return JsonResponse({
+            'status': 'ok',
+            'mensaje': 'Sucursal actualizada exitosamente'
+        })
+        
     except Sucursal.DoesNotExist:
         return JsonResponse({'error': 'Sucursal no encontrada'}, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Datos JSON inválidos'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': f'Error interno: {str(e)}'}, status=500)
     
 @csrf_exempt
 @require_http_methods(["PUT"])
@@ -195,9 +261,15 @@ def cambiar_estado_sucursal(request, id):
         sucursal = Sucursal.objects.get(id=id)
         sucursal.activa = not sucursal.activa
         sucursal.save()
-        return JsonResponse({'status': 'ok', 'activa': sucursal.activa})
+        return JsonResponse({
+            'status': 'ok', 
+            'activa': sucursal.activa,
+            'mensaje': f'Sucursal {("activada" if sucursal.activa else "desactivada")} exitosamente'
+        })
     except Sucursal.DoesNotExist:
         return JsonResponse({'error': 'Sucursal no encontrada'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': f'Error interno: {str(e)}'}, status=500)
     
 @csrf_exempt
 @require_http_methods(["PUT"])
@@ -206,10 +278,42 @@ def actualizar_ubicacion_sucursal(request, id):
     try:
         sucursal = Sucursal.objects.get(id=id)
         data = json.loads(request.body)
-        sucursal.latitud = data.get('latitud')
-        sucursal.longitud = data.get('longitud')
+        
+        latitud = data.get('latitud')
+        longitud = data.get('longitud')
+        
+        if latitud is None or longitud is None:
+            return JsonResponse({'error': 'Coordenadas inválidas'}, status=400)
+        
+        sucursal.latitud = latitud
+        sucursal.longitud = longitud
         sucursal.save()
-        print("LLEGUE")
-        return JsonResponse({'status': 'ok'})
+        
+        return JsonResponse({
+            'status': 'ok',
+            'mensaje': 'Ubicación actualizada exitosamente'
+        })
+        
     except Sucursal.DoesNotExist:
         return JsonResponse({'error': 'Sucursal no encontrada'}, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Datos JSON inválidos'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': f'Error interno: {str(e)}'}, status=500)
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+@solo_admin
+def eliminar_sucursal(request, id):
+    try:
+        sucursal = Sucursal.objects.get(id=id)
+        nombre_sucursal = sucursal.nombre
+        sucursal.delete()
+        return JsonResponse({
+            'status': 'ok',
+            'mensaje': f'Sucursal "{nombre_sucursal}" eliminada exitosamente'
+        })
+    except Sucursal.DoesNotExist:
+        return JsonResponse({'error': 'Sucursal no encontrada'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': f'Error interno: {str(e)}'}, status=500)

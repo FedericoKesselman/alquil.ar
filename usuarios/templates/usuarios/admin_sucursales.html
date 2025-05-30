@@ -3,132 +3,337 @@
 
 {% block content %}
 <h2>Administrar Sucursales</h2>
-<div id="map" style="height: 600px;"></div>
+<div id="map" style="height: 600px; border: 2px solid #ddd; border-radius: 8px;"></div>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+  .popup-button {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    margin: 2px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  
+  .popup-button:hover {
+    background: #0056b3;
+  }
+  
+  .popup-button.danger {
+    background: #dc3545;
+  }
+  
+  .popup-button.danger:hover {
+    background: #c82333;
+  }
+  
+  .popup-button.success {
+    background: #28a745;
+  }
+  
+  .popup-button.success:hover {
+    background: #218838;
+  }
+  
+  .popup-input {
+    width: 100%;
+    padding: 4px;
+    margin: 2px 0;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    font-size: 12px;
+  }
+  
+  .popup-content {
+    font-size: 13px;
+  }
+  
+  .status-active {
+    color: #28a745;
+    font-weight: bold;
+  }
+  
+  .status-inactive {
+    color: #dc3545;
+    font-weight: bold;
+  }
+</style>
 
 <script>
   const map = L.map('map').setView([-34.92145, -57.95453], 12);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-  // Cargar sucursales
-  fetch("{% url 'sucursales_json' %}")
-    .then(res => res.json())
-    .then(data => {
-      data.forEach(sucursal => {
-        const marker = L.marker([sucursal.latitud, sucursal.longitud], {
-            draggable: true  // 👈 permite mover el marcador
-        }).addTo(map);
+  let markers = {};
+  let nuevoMarker = null;
 
-        marker.bindPopup(`
-            <b>${sucursal.nombre}</b><br>${sucursal.direccion}<br>
-            Estado: ${sucursal.activa ? "✅ Activa" : "❌ Inactiva"}<br>
-            <button onclick="editarSucursal(${sucursal.id}, '${sucursal.nombre}', '${sucursal.direccion}')">Editar</button><br>
-            <button onclick="toggleEstadoSucursal(${sucursal.id}, ${sucursal.activa})">
-            ${sucursal.activa ? "Desactivar" : "Activar"}
-            </button>
-        `);
+  // Función para mostrar alertas con estilo
+  function mostrarMensaje(mensaje, tipo = 'info') {
+    const colores = {
+      'success': '#28a745',
+      'error': '#dc3545',
+      'info': '#007bff'
+    };
+    
+    const div = document.createElement('div');
+    div.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: ${colores[tipo]};
+      color: white;
+      padding: 15px 20px;
+      border-radius: 5px;
+      z-index: 10000;
+      font-weight: bold;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    `;
+    div.textContent = mensaje;
+    document.body.appendChild(div);
+    
+    setTimeout(() => {
+      document.body.removeChild(div);
+    }, 4000);
+  }
 
-        // 👇 Evento cuando se suelta el marcador
-        marker.on('dragend', function (e) {
-        const newLat = e.target.getLatLng().lat;
-        const newLng = e.target.getLatLng().lng;
-
-        // Agregá un botón en el popup del marcador
-        const confirmButton = `
-            <button onclick="actualizarUbicacion(${sucursal.id}, ${newLat}, ${newLng})">
-            Confirmar nueva ubicación
-            </button>
-        `;
-        e.target.bindPopup(confirmButton).openPopup();
-        });
-
-        });
-      });
-
-
-  // Agregar nueva sucursal
-    let nuevoMarker;
-
-    map.on('click', function(e) {
-        const lat = e.latlng.lat;
-        const lng = e.latlng.lng;
-
-        if (nuevoMarker) {
-            map.removeLayer(nuevoMarker);
-        }
-
-        nuevoMarker = L.marker([lat, lng], { draggable: true }).addTo(map);
-
-        nuevoMarker.bindPopup(`
-            <b>Nueva Sucursal</b><br>
-            <input type="text" id="nombreInput" placeholder="Nombre"><br>
-            <input type="text" id="direccionInput" placeholder="Dirección"><br>
-            <button onclick="guardarSucursal(${lat}, ${lng})">Guardar</button>
-        `).openPopup();
-    });
-
-  // Editar sucursal
-  function editarSucursal(id, nombreActual, direccionActual) {
-    const nuevoNombre = prompt("Editar nombre:", nombreActual);
-    const nuevaDireccion = prompt("Editar dirección:", direccionActual);
-    if (nuevoNombre && nuevaDireccion) {
-      fetch(`/usuarios/api/sucursales/editar/${id}/`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": "{{ csrf_token }}"
-        },
-        body: JSON.stringify({ nombre: nuevoNombre, direccion: nuevaDireccion })
-      })
+  // Cargar todas las sucursales (incluyendo inactivas para admin)
+  function cargarSucursales() {
+    fetch("{% url 'todas_sucursales_json' %}")
       .then(res => res.json())
       .then(data => {
-        if (data.status === 'ok') {
-          alert("Sucursal actualizada");
-          location.reload();
-        } else {
-          alert("Error al actualizar");
-        }
+        // Limpiar markers existentes
+        Object.values(markers).forEach(marker => {
+          map.removeLayer(marker);
+        });
+        markers = {};
+        
+        data.forEach(sucursal => {
+          const marker = L.marker([sucursal.latitud, sucursal.longitud], {
+            draggable: true
+          }).addTo(map);
+          
+          markers[sucursal.id] = marker;
+          
+          actualizarPopupSucursal(marker, sucursal);
+          
+          // Evento de arrastre
+          marker.on('dragend', function (e) {
+            const newLat = e.target.getLatLng().lat;
+            const newLng = e.target.getLatLng().lng;
+            
+            marker.bindPopup(`
+              <div class="popup-content">
+                <b>Confirmar nueva ubicación</b><br>
+                <b>${sucursal.nombre}</b><br>
+                Nueva posición: ${newLat.toFixed(6)}, ${newLng.toFixed(6)}<br><br>
+                <button class="popup-button success" onclick="confirmarUbicacion(${sucursal.id}, ${newLat}, ${newLng})">
+                  ✓ Confirmar ubicación
+                </button>
+                <button class="popup-button" onclick="cancelarMovimiento(${sucursal.id})">
+                  ✗ Cancelar
+                </button>
+              </div>
+            `).openPopup();
+          });
+        });
+      })
+      .catch(error => {
+        console.error('Error al cargar sucursales:', error);
+        mostrarMensaje('Error al cargar las sucursales', 'error');
       });
+  }
+
+  function actualizarPopupSucursal(marker, sucursal) {
+    const estadoTexto = sucursal.activa 
+      ? '<span class="status-active">✅ Activa</span>' 
+      : '<span class="status-inactive">❌ Inactiva</span>';
+    
+    marker.bindPopup(`
+      <div class="popup-content">
+        <b>${sucursal.nombre}</b><br>
+        📍 ${sucursal.direccion}<br>
+        Estado: ${estadoTexto}<br><br>
+        <button class="popup-button" onclick="editarSucursal(${sucursal.id}, '${sucursal.nombre.replace(/'/g, "\\'")}', '${sucursal.direccion.replace(/'/g, "\\'")}')">
+          ✏️ Editar
+        </button>
+        <button class="popup-button ${sucursal.activa ? 'danger' : 'success'}" onclick="toggleEstadoSucursal(${sucursal.id}, ${sucursal.activa})">
+          ${sucursal.activa ? '❌ Desactivar' : '✅ Activar'}
+        </button>
+        <button class="popup-button danger" onclick="eliminarSucursal(${sucursal.id}, '${sucursal.nombre.replace(/'/g, "\\'")}')">
+          🗑️ Eliminar
+        </button>
+      </div>
+    `);
+  }
+
+  // Agregar nueva sucursal
+  map.on('click', function(e) {
+    const lat = e.latlng.lat;
+    const lng = e.latlng.lng;
+
+    if (nuevoMarker) {
+      map.removeLayer(nuevoMarker);
+    }
+
+    nuevoMarker = L.marker([lat, lng], { draggable: true }).addTo(map);
+
+    nuevoMarker.bindPopup(`
+      <div class="popup-content">
+        <b>Nueva Sucursal</b><br>
+        <input type="text" id="nombreInput" class="popup-input" placeholder="Nombre de la sucursal" maxlength="100"><br>
+        <input type="text" id="direccionInput" class="popup-input" placeholder="Dirección completa" maxlength="200"><br>
+        <small>Coordenadas: ${lat.toFixed(6)}, ${lng.toFixed(6)}</small><br><br>
+        <button class="popup-button success" onclick="guardarSucursal(${lat}, ${lng})">
+          ✓ Guardar sucursal
+        </button>
+        <button class="popup-button danger" onclick="cancelarNuevaSucursal()">
+          ✗ Cancelar
+        </button>
+      </div>
+    `).openPopup();
+  });
+
+  function cancelarNuevaSucursal() {
+    if (nuevoMarker) {
+      map.removeLayer(nuevoMarker);
+      nuevoMarker = null;
     }
   }
 
-function actualizarUbicacion(id, lat, lng) {
-    fetch(`/usuarios/api/sucursales/actualizar_ubicacion/${id}/`, {
-        method: "PUT",
-        headers: {
+  function guardarSucursal(lat, lng) {
+    const nombre = document.getElementById("nombreInput").value.trim();
+    const direccion = document.getElementById("direccionInput").value.trim();
+
+    if (!nombre) {
+      mostrarMensaje("El nombre es obligatorio", 'error');
+      return;
+    }
+
+    if (!direccion) {
+      mostrarMensaje("La dirección es obligatoria", 'error');
+      return;
+    }
+
+    if (!confirm(`¿Confirmar creación de la sucursal "${nombre}"?`)) {
+      return;
+    }
+
+    fetch("{% url 'crear_sucursal' %}", {
+      method: "POST",
+      headers: {
         "Content-Type": "application/json",
         "X-CSRFToken": "{{ csrf_token }}"
-        },
-        body: JSON.stringify({ latitud: lat, longitud: lng })
+      },
+      body: JSON.stringify({ nombre, direccion, latitud: lat, longitud: lng })
     })
     .then(res => res.json())
     .then(data => {
-        if (data.status === "ok") {
-            alert("Ubicación actualizada");
-
-            print("PUTO")
-
-            // Restaurar popup (opcional)
-            marker.bindPopup(`
-                <b>${sucursal.nombre}</b><br>${sucursal.direccion}<br>
-                Estado: ${sucursal.activa ? "✅ Activa" : "❌ Inactiva"}<br>
-                <button onclick="editarSucursal(${sucursal.id}, '${sucursal.nombre}', '${sucursal.direccion}')">Editar</button><br>
-                <button onclick="toggleEstadoSucursal(${sucursal.id}, ${sucursal.activa})">
-                ${sucursal.activa ? "Desactivar" : "Activar"}
-                </button>
-            `);
-        } else {
-            alert("Error al actualizar ubicación");
-        }
+      if (data.status === "ok") {
+        mostrarMensaje(data.mensaje || "Sucursal creada exitosamente", 'success');
+        cancelarNuevaSucursal();
+        cargarSucursales();
+      } else {
+        mostrarMensaje(data.error || "Error al crear sucursal", 'error');
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      mostrarMensaje("Error de conexión", 'error');
     });
+  }
 
+  function editarSucursal(id, nombreActual, direccionActual) {
+    // Escapar comillas para evitar problemas
+    const nombreSeguro = nombreActual.replace(/"/g, '&quot;');
+    const direccionSegura = direccionActual.replace(/"/g, '&quot;');
     
-}
+    const nuevoNombre = prompt("Editar nombre:", nombreActual);
+    if (nuevoNombre === null) return; // Cancelado
+    
+    const nuevaDireccion = prompt("Editar dirección:", direccionActual);
+    if (nuevaDireccion === null) return; // Cancelado
+    
+    if (!nuevoNombre.trim()) {
+      mostrarMensaje("El nombre no puede estar vacío", 'error');
+      return;
+    }
+    
+    if (!nuevaDireccion.trim()) {
+      mostrarMensaje("La dirección no puede estar vacía", 'error');
+      return;
+    }
+    
+    if (!confirm(`¿Confirmar cambios en la sucursal?\nNombre: ${nuevoNombre}\nDirección: ${nuevaDireccion}`)) {
+      return;
+    }
 
+    fetch(`/usuarios/api/sucursales/editar/${id}/`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": "{{ csrf_token }}"
+      },
+      body: JSON.stringify({ nombre: nuevoNombre.trim(), direccion: nuevaDireccion.trim() })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === 'ok') {
+        mostrarMensaje(data.mensaje || "Sucursal actualizada exitosamente", 'success');
+        cargarSucursales();
+      } else {
+        mostrarMensaje(data.error || "Error al actualizar", 'error');
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      mostrarMensaje("Error de conexión", 'error');
+    });
+  }
 
-   function toggleEstadoSucursal(id, estadoActual) {
+  function confirmarUbicacion(id, lat, lng) {
+    if (!confirm(`¿Confirmar nueva ubicación?\nCoordenadas: ${lat.toFixed(6)}, ${lng.toFixed(6)}`)) {
+      return;
+    }
+    
+    fetch(`/usuarios/api/sucursales/actualizar_ubicacion/${id}/`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": "{{ csrf_token }}"
+      },
+      body: JSON.stringify({ latitud: lat, longitud: lng })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === "ok") {
+        mostrarMensaje(data.mensaje || "Ubicación actualizada exitosamente", 'success');
+        cargarSucursales();
+      } else {
+        mostrarMensaje(data.error || "Error al actualizar ubicación", 'error');
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      mostrarMensaje("Error de conexión", 'error');
+    });
+  }
+
+  function cancelarMovimiento(id) {
+    // Recargar sucursales para restaurar posición original
+    cargarSucursales();
+  }
+
+  function toggleEstadoSucursal(id, estadoActual) {
+    const accion = estadoActual ? 'desactivar' : 'activar';
+    
+    if (!confirm(`¿Confirmar ${accion} esta sucursal?`)) {
+      return;
+    }
+    
     fetch(`/usuarios/api/sucursales/estado/${id}/`, {
       method: "PUT",
       headers: {
@@ -139,41 +344,52 @@ function actualizarUbicacion(id, lat, lng) {
     .then(res => res.json())
     .then(data => {
       if (data.status === 'ok') {
-        alert(`Sucursal ahora está ${data.activa ? 'activa' : 'inactiva'}`);
-        location.reload();
+        mostrarMensaje(data.mensaje || `Sucursal ${data.activa ? 'activada' : 'desactivada'} exitosamente`, 'success');
+        cargarSucursales();
       } else {
-        alert("Error al cambiar estado");
+        mostrarMensaje(data.error || "Error al cambiar estado", 'error');
       }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      mostrarMensaje("Error de conexión", 'error');
     });
   }
 
-  function guardarSucursal(lat, lng) {
-  const nombre = document.getElementById("nombreInput").value;
-  const direccion = document.getElementById("direccionInput").value;
-
-  if (!nombre || !direccion) {
-    alert("Completá todos los campos");
-    return;
+  function eliminarSucursal(id, nombre) {
+    if (!confirm(`¿Estás seguro de que deseas ELIMINAR PERMANENTEMENTE la sucursal "${nombre}"?\n\nEsta acción no se puede deshacer.`)) {
+      return;
+    }
+    
+    // Confirmación adicional para eliminación
+    if (!confirm(`CONFIRMACIÓN FINAL:\nSe eliminará permanentemente "${nombre}"\n\n¿Continuar?`)) {
+      return;
+    }
+    
+    fetch(`/usuarios/api/sucursales/eliminar/${id}/`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": "{{ csrf_token }}"
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === 'ok') {
+        mostrarMensaje(data.mensaje || "Sucursal eliminada exitosamente", 'success');
+        cargarSucursales();
+      } else {
+        mostrarMensaje(data.error || "Error al eliminar sucursal", 'error');
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      mostrarMensaje("Error de conexión", 'error');
+    });
   }
 
-  fetch("{% url 'crear_sucursal' %}", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-CSRFToken": "{{ csrf_token }}"
-    },
-    body: JSON.stringify({ nombre, direccion, latitud: lat, longitud: lng })
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === "ok") {
-      alert("Sucursal creada");
-      location.reload();
-    } else {
-      alert("Error al crear sucursal");
-    }
-  });
-}
+  // Cargar sucursales al inicializar
+  cargarSucursales();
 
 </script>
 {% endblock %}
