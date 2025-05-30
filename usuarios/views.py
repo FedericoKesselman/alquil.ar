@@ -3,31 +3,67 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from .models import Usuario
-from .forms import LoginForm, EmpleadoForm, ClienteForm
-from usuarios.decorators import solo_admin,solo_cliente,solo_empleado
+from .forms import (
+    LoginForm, 
+    EmpleadoForm, 
+    ClienteForm, 
+    TokenVerificationForm  # Agregamos esta importación
+)
+from usuarios.decorators import solo_admin, solo_cliente, solo_empleado
 from django.core.paginator import Paginator
 
+User = get_user_model()  # Agregamos esta línea
+
 def login_view(request):
-    if request.user.is_authenticated: 
+    if request.user.is_authenticated:
         return redirect('redireccionar_por_rol')
 
-    if request.method == 'POST': #Si el usuario hace submit del fomrulario
-        form = LoginForm(request.POST) # Sacamos los datos
+    if request.method == 'POST':
+        form = LoginForm(request.POST)
         if form.is_valid():
-            user = form.cleaned_data.get('user')  
-            if user:  # Verificamos que el usuario exista
-                login(request, user) # Lo logeamos
-                return redirect('redireccionar_por_rol')
-        # Si el formulario no es válido, muestra los errores
-        for field, errors in form.errors.items():
-            for error in errors:
-                messages.error(request, f"{field}: {error}")
-    
-    else: # Se muestra fomrulario vacio (con la peticion GET)
+            user = form.cleaned_data['user']
+            
+            # Si es admin, redirigir a verificación
+            if user.tipo == 'ADMIN' and form.cleaned_data.get('needs_2fa'):
+                request.session['admin_user_id'] = user.id
+                return redirect('verificar_token')
+                
+            # Para otros usuarios, login directo
+            login(request, user)
+            return redirect('redireccionar_por_rol')
+    else:
         form = LoginForm()
 
     return render(request, 'usuarios/login.html', {'form': form})
+
+def verificar_token_view(request):
+    user_id = request.session.get('admin_user_id')
+    if not user_id:
+        return redirect('login')
+        
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return redirect('login')
+
+    if request.method == 'POST':
+        form = TokenVerificationForm(user, request.POST)
+        if form.is_valid():
+            # Limpiar token (Regla 2: se invalida al usarlo)
+            user.token_2fa = None
+            user.token_2fa_timestamp = None
+            user.save()
+            
+            # Login exitoso
+            login(request, user)
+            del request.session['admin_user_id']
+            return redirect('redireccionar_por_rol')
+    else:
+        form = TokenVerificationForm(user)
+
+    return render(request, 'usuarios/verificar_token.html', {'form': form})
 
 @login_required
 def logout_view(request):

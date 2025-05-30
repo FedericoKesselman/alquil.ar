@@ -23,12 +23,17 @@ class Usuario(AbstractUser):
     ]
     
     nombre = models.CharField(max_length=200)
-    tipo = models.CharField(max_length=10, choices=TIPO_CHOICES, default='CLIENTE')
+    tipo = models.CharField(
+        max_length=10,
+        choices=TIPO_CHOICES,
+        default='CLIENTE',
+        verbose_name="Tipo de usuario"
+    )
     dni = models.CharField(max_length=20, unique=True)
     email = models.CharField(max_length=200, unique=True)
     telefono = models.CharField(max_length=20)
     sucursal = models.ForeignKey(Sucursal, on_delete=models.SET_NULL, null=True, blank=True)
-    fecha_nacimiento = models.DateField(null=True)  # Agregamos este campo
     
     def __str__(self):
-        return f"{self.get_full_name()} ({self.get_tipo_display()})"
+        tipo_display = dict(self.TIPO_CHOICES).get(self.tipo, self.tipo)
+        return f"{self.get_full_name()} ({tipo_display})"

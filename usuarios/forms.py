@@ -1,14 +1,14 @@
 # usuarios/forms.py
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
-from .models import Sucursal
 from django.contrib.auth import get_user_model
 from django.core.validators import RegexValidator
+from django.core.mail import send_mail
+from django.utils import timezone
+from datetime import date
 import random
 import string
-from django.core.mail import send_mail
-from django.conf import settings
-from datetime import date
+from .models import Sucursal, Usuario
 
 User = get_user_model()
 
@@ -23,24 +23,67 @@ class LoginForm(forms.Form):
         widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Contraseña'})
     )
 
+    # Los campos actuales están bien
     def clean(self):
         cleaned_data = super().clean()
-        email = cleaned_data.get('email') #Extraer la info de los campos
+        email = cleaned_data.get('email')
         password = cleaned_data.get('password')
 
         if email and password:
             try:
-                user = User.objects.get(email=email) #Traigo el usuario correspondiente a ese mail
-                if not user.is_active:
-                    raise forms.ValidationError('Esta cuenta está inactiva.')
+                user = User.objects.get(email=email)
+                
+                # Verificar contraseña primero
                 if not user.check_password(password):
-                    raise forms.ValidationError('Contraseña incorrecta.')
+                    raise forms.ValidationError('Contraseña incorrecta')
+                
+                # Verificar si la cuenta está activa
+                if not user.is_active:
+                    raise forms.ValidationError('Esta cuenta está inactiva')
+
+                # Si es admin, generar y enviar token
+                if user.tipo == 'ADMIN':
+                    try:
+                        token = ''.join(random.choices(string.digits, k=6))
+                        # Actualizar usuario con nuevo token
+                        User.objects.filter(id=user.id).update(
+                            token_2fa=token,
+                            token_2fa_timestamp=timezone.now()
+                        )
+                        
+                        # Enviar token por email
+                        self._enviar_token_email(user, token)
+                        cleaned_data['needs_2fa'] = True
+                        
+                    except Exception as e:
+                        raise forms.ValidationError('Ocurrió un problema al verificar el token')
+                
                 cleaned_data['user'] = user
+                
             except User.DoesNotExist:
-                raise forms.ValidationError('El email no está registrado.')
+                raise forms.ValidationError('No existe ese mail en el sistema')
         
         return cleaned_data
 
+    def _enviar_token_email(self, user, token):
+        """Método auxiliar para enviar el email con el token"""
+        send_mail(
+            'Código de verificación - Alquil.ar',
+            f'''Hola {user.nombre},
+            
+Se ha solicitado acceso a tu cuenta de administrador.
+Tu código de verificación es: {token}
+
+Este código es válido por 5 minutos.
+Si no solicitaste este código, ignora este mensaje.
+
+Saludos,
+Equipo de Alquil.ar''',
+            'alquil.ar2025@gmail.com',
+            [user.email],
+            fail_silently=False,
+        )
+        
 class EmpleadoForm(forms.Form):
     # Declaro los campos del fomrulario
     email = forms.EmailField(
@@ -160,11 +203,16 @@ class ClienteForm(forms.Form):
     
     def clean_fecha_nacimiento(self):
         fecha_nacimiento = self.cleaned_data.get('fecha_nacimiento')
+        
+        if not fecha_nacimiento:
+            raise forms.ValidationError("La fecha de nacimiento es obligatoria")
+            
         hoy = date.today()
         edad = hoy.year - fecha_nacimiento.year - ((hoy.month, hoy.day) < (fecha_nacimiento.month, fecha_nacimiento.day))
         
         if edad < 18:
             raise forms.ValidationError("El cliente debe ser mayor de 18 años para registrarse")
+    
         return fecha_nacimiento
 
     def save(self):
@@ -205,3 +253,44 @@ Equipo de Alquil.ar''',
         )
     
         return user
+
+class TokenVerificationForm(forms.Form):
+    token = forms.CharField(
+        label="Código de verificación",
+        max_length=6,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Ingrese el código de 6 dígitos'
+        }),
+        validators=[
+            RegexValidator(
+                r'^\d{6}$', 
+                'El código debe contener exactamente 6 dígitos'
+            )
+        ]
+    )
+
+    def __init__(self, user=None, *args, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+    def clean_token(self):
+        token = self.cleaned_data.get('token')
+        
+        if not self.user or not self.user.token_2fa:
+            raise forms.ValidationError('Sesión de verificación inválida')
+            
+        if token != self.user.token_2fa:
+            raise forms.ValidationError('Código de verificación incorrecto')
+    
+        # Verificar si pasaron más de 5 minutos
+        tiempo_actual = timezone.now()
+        if tiempo_actual > (self.user.token_2fa_timestamp + timezone.timedelta(minutes=5)):
+            # Limpiar token expirado
+            User.objects.filter(id=self.user.id).update(
+                token_2fa=None,
+                token_2fa_timestamp=None
+            )
+            raise forms.ValidationError('El código ha expirado. Por favor, solicita uno nuevo.')
+            
+        return token
