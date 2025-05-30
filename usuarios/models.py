@@ -8,6 +8,7 @@ from django.core.validators import RegexValidator
 class Sucursal(models.Model):
     nombre = models.CharField(max_length=100)
     direccion = models.CharField(max_length=200)
+    telefono = models.CharField(max_length=20, default="0")  # ✅ Campo teléfono agregado
     latitud = models.FloatField()
     longitud = models.FloatField()
     activa = models.BooleanField(default=True)

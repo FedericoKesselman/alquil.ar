@@ -156,8 +156,9 @@
       <div class="popup-content">
         <b>${sucursal.nombre}</b><br>
         📍 ${sucursal.direccion}<br>
+        📞 ${sucursal.telefono}<br>
         Estado: ${estadoTexto}<br><br>
-        <button class="popup-button" onclick="editarSucursal(${sucursal.id}, '${sucursal.nombre.replace(/'/g, "\\'")}', '${sucursal.direccion.replace(/'/g, "\\'")}')">
+        <button class="popup-button" onclick="editarSucursal(${sucursal.id}, '${sucursal.nombre.replace(/'/g, "\\'")}', '${sucursal.direccion.replace(/'/g, "\\'")}', '${sucursal.telefono.replace(/'/g, "\\'")}')">
           ✏️ Editar
         </button>
         <button class="popup-button ${sucursal.activa ? 'danger' : 'success'}" onclick="toggleEstadoSucursal(${sucursal.id}, ${sucursal.activa})">
@@ -186,6 +187,7 @@
         <b>Nueva Sucursal</b><br>
         <input type="text" id="nombreInput" class="popup-input" placeholder="Nombre de la sucursal" maxlength="100"><br>
         <input type="text" id="direccionInput" class="popup-input" placeholder="Dirección completa" maxlength="200"><br>
+        <input type="text" id="telefonoInput" class="popup-input" placeholder="Teléfono" maxlength="20"><br>
         <small>Coordenadas: ${lat.toFixed(6)}, ${lng.toFixed(6)}</small><br><br>
         <button class="popup-button success" onclick="guardarSucursal(${lat}, ${lng})">
           ✓ Guardar sucursal
@@ -207,6 +209,7 @@
   function guardarSucursal(lat, lng) {
     const nombre = document.getElementById("nombreInput").value.trim();
     const direccion = document.getElementById("direccionInput").value.trim();
+    const telefono = document.getElementById("telefonoInput").value.trim();
 
     if (!nombre) {
       mostrarMensaje("El nombre es obligatorio", 'error');
@@ -218,7 +221,12 @@
       return;
     }
 
-    if (!confirm(`¿Confirmar creación de la sucursal "${nombre}"?`)) {
+    if (!telefono) {
+      mostrarMensaje("El teléfono es obligatorio", 'error');
+      return;
+    }
+
+    if (!confirm(`¿Confirmar creación de la sucursal "${nombre}"?\nDirección: ${direccion}\nTeléfono: ${telefono}`)) {
       return;
     }
 
@@ -228,7 +236,7 @@
         "Content-Type": "application/json",
         "X-CSRFToken": "{{ csrf_token }}"
       },
-      body: JSON.stringify({ nombre, direccion, latitud: lat, longitud: lng })
+      body: JSON.stringify({ nombre, direccion, telefono, latitud: lat, longitud: lng })
     })
     .then(res => res.json())
     .then(data => {
@@ -246,16 +254,15 @@
     });
   }
 
-  function editarSucursal(id, nombreActual, direccionActual) {
-    // Escapar comillas para evitar problemas
-    const nombreSeguro = nombreActual.replace(/"/g, '&quot;');
-    const direccionSegura = direccionActual.replace(/"/g, '&quot;');
-    
+  function editarSucursal(id, nombreActual, direccionActual, telefonoActual) {
     const nuevoNombre = prompt("Editar nombre:", nombreActual);
     if (nuevoNombre === null) return; // Cancelado
     
     const nuevaDireccion = prompt("Editar dirección:", direccionActual);
     if (nuevaDireccion === null) return; // Cancelado
+    
+    const nuevoTelefono = prompt("Editar teléfono:", telefonoActual);
+    if (nuevoTelefono === null) return; // Cancelado
     
     if (!nuevoNombre.trim()) {
       mostrarMensaje("El nombre no puede estar vacío", 'error');
@@ -267,7 +274,12 @@
       return;
     }
     
-    if (!confirm(`¿Confirmar cambios en la sucursal?\nNombre: ${nuevoNombre}\nDirección: ${nuevaDireccion}`)) {
+    if (!nuevoTelefono.trim()) {
+      mostrarMensaje("El teléfono no puede estar vacío", 'error');
+      return;
+    }
+    
+    if (!confirm(`¿Confirmar cambios en la sucursal?\nNombre: ${nuevoNombre}\nDirección: ${nuevaDireccion}\nTeléfono: ${nuevoTelefono}`)) {
       return;
     }
 
@@ -277,7 +289,11 @@
         "Content-Type": "application/json",
         "X-CSRFToken": "{{ csrf_token }}"
       },
-      body: JSON.stringify({ nombre: nuevoNombre.trim(), direccion: nuevaDireccion.trim() })
+      body: JSON.stringify({ 
+        nombre: nuevoNombre.trim(), 
+        direccion: nuevaDireccion.trim(),
+        telefono: nuevoTelefono.trim()
+      })
     })
     .then(res => res.json())
     .then(data => {

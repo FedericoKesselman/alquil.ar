@@ -158,12 +158,12 @@ def admin_sucursales(request):
     return render(request, 'usuarios/admin_sucursales.html')
 
 def sucursales_json_publico(request):
-    data = list(Sucursal.objects.filter(activa=True).values('id', 'nombre', 'direccion', 'latitud', 'longitud', 'activa'))
+    data = list(Sucursal.objects.filter(activa=True).values('id', 'nombre', 'direccion', 'telefono', 'latitud', 'longitud', 'activa'))
     return JsonResponse(data, safe=False)
 
 def todas_sucursales_json(request):
     """API para obtener todas las sucursales (para el admin)"""
-    data = list(Sucursal.objects.all().values('id', 'nombre', 'direccion', 'latitud', 'longitud', 'activa'))
+    data = list(Sucursal.objects.all().values('id', 'nombre', 'direccion', 'telefono', 'latitud', 'longitud', 'activa'))
     return JsonResponse(data, safe=False)
 
 @csrf_exempt
@@ -174,6 +174,7 @@ def crear_sucursal(request):
         data = json.loads(request.body)
         nombre = data.get('nombre', '').strip()
         direccion = data.get('direccion', '').strip()
+        telefono = data.get('telefono', '').strip()
         latitud = data.get('latitud')
         longitud = data.get('longitud')
         
@@ -183,6 +184,9 @@ def crear_sucursal(request):
         
         if not direccion:
             return JsonResponse({'error': 'La dirección es obligatoria'}, status=400)
+        
+        if not telefono:
+            return JsonResponse({'error': 'El teléfono es obligatorio'}, status=400)
         
         if latitud is None or longitud is None:
             return JsonResponse({'error': 'Coordenadas inválidas'}, status=400)
@@ -194,9 +198,13 @@ def crear_sucursal(request):
         if Sucursal.objects.filter(direccion__iexact=direccion).exists():
             return JsonResponse({'error': 'Ya existe una sucursal en esta dirección'}, status=400)
         
+        if Sucursal.objects.filter(telefono=telefono).exists():
+            return JsonResponse({'error': 'Ya existe una sucursal con este teléfono'}, status=400)
+        
         sucursal = Sucursal.objects.create(
             nombre=nombre,
             direccion=direccion,
+            telefono=telefono,
             latitud=latitud,
             longitud=longitud
         )
@@ -222,6 +230,7 @@ def editar_sucursal(request, id):
         
         nombre = data.get('nombre', '').strip()
         direccion = data.get('direccion', '').strip()
+        telefono = data.get('telefono', '').strip()
         
         # Validaciones
         if not nombre:
@@ -230,6 +239,9 @@ def editar_sucursal(request, id):
         if not direccion:
             return JsonResponse({'error': 'La dirección es obligatoria'}, status=400)
         
+        if not telefono:
+            return JsonResponse({'error': 'El teléfono es obligatorio'}, status=400)
+        
         # Verificar duplicados (excluyendo la sucursal actual)
         if Sucursal.objects.filter(nombre__iexact=nombre).exclude(id=id).exists():
             return JsonResponse({'error': 'Ya existe otra sucursal con este nombre'}, status=400)
@@ -237,8 +249,12 @@ def editar_sucursal(request, id):
         if Sucursal.objects.filter(direccion__iexact=direccion).exclude(id=id).exists():
             return JsonResponse({'error': 'Ya existe otra sucursal en esta dirección'}, status=400)
         
+        if Sucursal.objects.filter(telefono=telefono).exclude(id=id).exists():
+            return JsonResponse({'error': 'Ya existe otra sucursal con este teléfono'}, status=400)
+        
         sucursal.nombre = nombre
         sucursal.direccion = direccion
+        sucursal.telefono = telefono
         sucursal.save()
         
         return JsonResponse({
