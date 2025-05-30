@@ -366,3 +366,6 @@ def eliminar_sucursal(request, id):
         return JsonResponse({'error': 'Sucursal no encontrada'}, status=404)
     except Exception as e:
         return JsonResponse({'error': f'Error interno: {str(e)}'}, status=500)
+    
+
+    
