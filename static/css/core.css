@@ -1,28 +1,32 @@
 /* static/css/core.css */
 :root {
-  /* Paleta naranja profesional */
-  --color-primary: #FF7F33;    /* Naranja principal más suave */
-  --color-primary-dark: #E6712E; /* 10% más oscuro */
-  --color-primary-darker: #CC6529; /* Para hover */
-  --color-primary-light: #FF9966; /* Para efectos */
-  --color-primary-lighter: #FFB380; /* Para fondos claros */
-  
-  /* Colores neutrales */
-  --color-dark: #333333;
-  --color-gray: #666666;
-  --color-light: #F8F9FA;
-  --color-white: #FFFFFF;
-  
-  /* Sombras */
-  --shadow-sm: 0 2px 4px rgba(0,0,0,0.1);
-  --shadow-md: 0 4px 6px rgba(0,0,0,0.15);
+    /* Paleta naranja profesional */
+    --color-primary: #42cee3;
+    --color-primary-dark: #369aa9;
+    /* 10% más oscuro */
+    --color-primary-darker: #2b7b87;
+    /* Para hover */
+    --color-primary-light: #86e6f5;
+    /* Para efectos */
+    --color-primary-lighter: #a8f1fd;
+    /* Para fondos claros */
+
+    /* Colores neutrales */
+    --color-dark: #333333;
+    --color-gray: #666666;
+    --color-light: #F8F9FA;
+    --color-white: #FFFFFF;
+
+    /* Sombras */
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.15);
 }
 
 /* Navbar */
 .navbar-custom {
     background-color: var(--color-primary);
     padding: 0.5rem 0;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .navbar-custom .navbar-brand {
@@ -36,7 +40,7 @@
 }
 
 .navbar-custom .nav-link {
-    color: rgba(255,255,255,0.9);
+    color: rgba(255, 255, 255, 0.9);
     font-weight: 500;
 }
 
