@@ -2,104 +2,254 @@
 {% load static %}
 
 <!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<html lang="es" class="h-100">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Alquil.AR - {% block title %}{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="{% static 'css/core.css' %}">
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css"
+    />
+    <link rel="stylesheet" href="{% static 'css/core.css' %}" />
     {% block extra_css %}{% endblock %}
-</head>
-<body>
+    <style>
+      body {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      main {
+        flex: 1 0 auto;
+      }
+      footer {
+        flex-shrink: 0;
+      }
+    </style>
+  </head>
+  <body class="d-flex flex-column h-100">
     <nav class="navbar navbar-expand-lg navbar-custom">
-        <div class="container">
-            <a class="navbar-brand" href="{% url 'home' %}">
-                <img src="{% static 'img/logo.png' %}" alt="Alquil.AR" height="100" class="d-inline-block align-top me-2">
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'home' %}">Inicio</a>
-                    </li>
-                </ul>
-                <ul class="navbar-nav">
-                    {% if user.is_authenticated %}
-                        {% if user.tipo == 'ADMIN' %}
-                        <li class="nav-item">
-                            <a href="{% url 'crear_empleado' %}" class="nav-link admin-link">
-                                <i class="bi bi-person-plus"></i> Registrar Empleado
-                            </a>
-                            <a href="{% url 'listar_empleados' %}" class="nav-link admin-link">
-                                <i class="bi bi-person-plus"></i> Ver Empleados
-                            </a>
-                            <a href="{% url 'admin_sucursales' %}" class="nav-link admin-link">
-                                <i class="bi bi-person-plus"></i> Administrar Sucursales
-                            </a>
-                        </li>
-                        {% elif user.tipo == 'EMPLEADO' %}
-                        <li class="nav-item">
-                            <a href="{% url 'crear_cliente' %}" class="nav-link empleado-link">
-                                <i class="bi bi-person-plus"></i> Registrar Cliente
-                            </a>
-                            <a href="{% url 'listar_clientes' %}" class="nav-link empleado-link">
-                                <i class="bi bi-person-plus"></i> Ver Clientes
-                            </a>
-                        </li>
-                        {% elif user.tipo == 'CLIENTE' %}
-                        <!-- Nav solo para CLIENTE -->
-                         
-                        {% endif %}
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                                <i class="bi bi-person-circle"></i> {{ user.get_short_name }}
-                            </a>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="{% url 'redireccionar_por_rol' %}">
-                                    <i class="bi bi-speedometer2"></i> Mi Panel
-                                </a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="{% url 'logout' %}">
-                                    <i class="bi bi-box-arrow-right"></i> Cerrar Sesión
-                                </a></li>
-                            </ul>
-                        </li>
-                    {% else %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{% url 'login' %}">
-                                <i class="bi bi-box-arrow-in-right"></i> Iniciar Sesión
-                            </a>
-                        </li>
-                    {% endif %}
-                </ul>
-            </div>
+      <div class="container">
+        <a class="navbar-brand" href="{% url 'home' %}">
+          <img
+            src="{% static 'img/logo.png' %}"
+            alt="Alquil.AR"
+            height="100"
+            class="d-inline-block align-top me-2"
+          />
+        </a>
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarNav"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'home' %}">Inicio</a>
+            </li>
+            {% if user.is_authenticated and user.tipo == 'CLIENTE' %}
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'maquinaria_list_cliente' %}"
+                >Catálogo de Maquinarias</a
+              >
+            </li>
+            {% endif %}
+          </ul>
+          <ul class="navbar-nav">
+            {% if user.is_authenticated %} {% if user.tipo == 'ADMIN' %}
+            <li class="nav-item dropdown">
+              <a
+                class="nav-link dropdown-toggle admin-link"
+                href="#"
+                role="button"
+                data-bs-toggle="dropdown"
+              >
+                <i class="bi bi-tools"></i> Maquinarias
+              </a>
+              <ul class="dropdown-menu">
+                <li>
+                  <a class="dropdown-item" href="{% url 'maquinaria_list' %}">
+                    <i class="bi bi-list-ul"></i> Listar Maquinarias
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="{% url 'maquinaria_create' %}">
+                    <i class="bi bi-plus-circle"></i> Nueva Maquinaria
+                  </a>
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{% url 'tipo_maquinaria_list' %}"
+                  >
+                    <i class="bi bi-tags"></i> Tipos de Maquinaria
+                  </a>
+                </li>
+              </ul>
+            </li>
+            <li class="nav-item dropdown">
+              <a
+                class="nav-link dropdown-toggle admin-link"
+                href="#"
+                role="button"
+                data-bs-toggle="dropdown"
+              >
+                <i class="bi bi-people"></i> Empleados
+              </a>
+              <ul class="dropdown-menu">
+                <li>
+                  <a class="dropdown-item" href="{% url 'crear_empleado' %}">
+                    <i class="bi bi-person-plus"></i> Nuevo Empleado
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="{% url 'listar_empleados' %}">
+                    <i class="bi bi-list-ul"></i> Ver Empleados
+                  </a>
+                </li>
+              </ul>
+            </li>
+            <li class="nav-item">
+              <a
+                href="{% url 'admin_sucursales' %}"
+                class="nav-link admin-link"
+              >
+                <i class="bi bi-building"></i> Sucursales
+              </a>
+            </li>
+            {% elif user.tipo == 'EMPLEADO' %}
+            <li class="nav-item dropdown">
+              <a
+                class="nav-link dropdown-toggle empleado-link"
+                href="#"
+                role="button"
+                data-bs-toggle="dropdown"
+              >
+                <i class="bi bi-tools"></i> Maquinarias
+              </a>
+              <ul class="dropdown-menu">
+                <li>
+                  <a class="dropdown-item" href="{% url 'maquinaria_list' %}">
+                    <i class="bi bi-list-ul"></i> Listar Maquinarias
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="{% url 'maquinaria_create' %}">
+                    <i class="bi bi-plus-circle"></i> Nueva Maquinaria
+                  </a>
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{% url 'tipo_maquinaria_list' %}"
+                  >
+                    <i class="bi bi-tags"></i> Tipos de Maquinaria
+                  </a>
+                </li>
+              </ul>
+            </li>
+            <li class="nav-item dropdown">
+              <a
+                class="nav-link dropdown-toggle empleado-link"
+                href="#"
+                role="button"
+                data-bs-toggle="dropdown"
+              >
+                <i class="bi bi-people"></i> Clientes
+              </a>
+              <ul class="dropdown-menu">
+                <li>
+                  <a class="dropdown-item" href="{% url 'crear_cliente' %}">
+                    <i class="bi bi-person-plus"></i> Nuevo Cliente
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="{% url 'listar_clientes' %}">
+                    <i class="bi bi-list-ul"></i> Ver Clientes
+                  </a>
+                </li>
+              </ul>
+            </li>
+            {% elif user.tipo == 'CLIENTE' %}
+            <!-- Nav solo para CLIENTE -->
+
+            {% endif %}
+            <li class="nav-item dropdown">
+              <a
+                class="nav-link dropdown-toggle"
+                href="#"
+                role="button"
+                data-bs-toggle="dropdown"
+              >
+                <i class="bi bi-person-circle"></i> {{ user.get_short_name }}
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end">
+                {% if user.tipo == 'ADMIN' %}
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{% url 'redireccionar_por_rol' %}"
+                  >
+                    <i class="bi bi-speedometer2"></i> Mi Panel
+                  </a>
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                {% endif %}
+                <li>
+                  <a class="dropdown-item" href="{% url 'logout' %}">
+                    <i class="bi bi-box-arrow-right"></i> Cerrar Sesión
+                  </a>
+                </li>
+              </ul>
+            </li>
+            {% else %}
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'login' %}">
+                <i class="bi bi-box-arrow-in-right"></i> Iniciar Sesión
+              </a>
+            </li>
+            {% endif %}
+          </ul>
         </div>
+      </div>
     </nav>
 
-    <main class="container my-4">
-        {% if messages %}
-            {% for message in messages %}
-            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-            {% endfor %}
-        {% endif %}
-        
-        {% block content %}{% endblock %}
+    <main class="flex-shrink-0">
+      <div class="container my-4">
+        {% if messages %} {% for message in messages %}
+        <div
+          class="alert alert-{{ message.tags }} alert-dismissible fade show"
+          role="alert"
+        >
+          {{ message }}
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="alert"
+            aria-label="Close"
+          ></button>
+        </div>
+        {% endfor %} {% endif %} {% block content %}{% endblock %}
+      </div>
     </main>
 
-    <footer class="bg-info text-white py-3 mt-5">
-        <div class="container text-center">
-            <p>&copy; {% now "Y" %} Alquil.AR - Todos los derechos reservados</p>
-        </div>
+    <footer class="bg-info text-white py-3 mt-auto">
+      <div class="container text-center">
+        <p class="mb-0">
+          &copy; {% now "Y" %} Alquil.AR - Todos los derechos reservados
+        </p>
+      </div>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     {% block extra_js %}{% endblock %}
-</body>
+  </body>
 </html>

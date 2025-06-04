@@ -1,0 +1,115 @@
+{% extends 'base.html' %} {% block content %}
+<div class="container-fluid mt-4">
+  <div class="row">
+    <div class="col-12">
+      <h2 class="mb-4">Catálogo de Maquinarias</h2>
+    </div>
+  </div>
+
+  {% if messages %}
+  <div class="messages mb-3">
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
+    {% for maquinaria in maquinarias %}
+    <div class="col">
+      <div class="card h-100 shadow-sm">
+        {% if maquinaria.imagen %}
+        <img
+          src="{{ maquinaria.imagen.url }}"
+          class="card-img-top"
+          alt="{{ maquinaria.nombre }}"
+          style="height: 200px; object-fit: cover"
+        />
+        {% else %}
+        <div class="card-img-top bg-light text-center py-5">
+          <i class="fas fa-tools fa-4x text-muted"></i>
+        </div>
+        {% endif %}
+        <div class="card-body">
+          <h5 class="card-title">{{ maquinaria.nombre }}</h5>
+          <p class="card-text">
+            <small class="text-muted">{{ maquinaria.tipo }}</small><br />
+            {{ maquinaria.marca }} / {{ maquinaria.modelo }}<br />
+            <strong class="text-primary"
+              >${{ maquinaria.precio_por_dia|floatformat:2 }} por día</strong
+            >
+          </p>
+          <p class="card-text">{{ maquinaria.descripcion|truncatewords:30 }}</p>
+          <div class="small text-muted mt-2">
+            <strong>Política de cancelación:</strong><br />
+            - Reembolso total: {{ maquinaria.cantDias_total }}+ días de
+            anticipación<br />
+            - Reembolso parcial: {{ maquinaria.cantDias_parcial }} días<br />
+            - Sin reembolso: menos de {{ maquinaria.cantDias_nulo }} días
+          </div>
+        </div>
+        <div class="card-footer bg-transparent border-top-0">
+          <a
+            href="{% url 'maquinaria_detail' maquinaria.pk %}"
+            class="btn btn-primary w-100"
+          >
+            <i class="fas fa-info-circle"></i> Ver Detalles
+          </a>
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+      <div class="alert alert-info">
+        No hay maquinarias disponibles en este momento.
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if maquinarias.has_other_pages %}
+  <div class="row mt-4">
+    <div class="col-12">
+      <nav aria-label="Paginación de maquinarias">
+        <ul class="pagination justify-content-center">
+          {% if maquinarias.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?page=1">&laquo; Primera</a>
+          </li>
+          <li class="page-item">
+            <a
+              class="page-link"
+              href="?page={{ maquinarias.previous_page_number }}"
+              >Anterior</a
+            >
+          </li>
+          {% endif %}
+
+          <li class="page-item active">
+            <span class="page-link">
+              Página {{ maquinarias.number }} de {{
+              maquinarias.paginator.num_pages }}
+            </span>
+          </li>
+
+          {% if maquinarias.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ maquinarias.next_page_number }}"
+              >Siguiente</a
+            >
+          </li>
+          <li class="page-item">
+            <a
+              class="page-link"
+              href="?page={{ maquinarias.paginator.num_pages }}"
+              >Última &raquo;</a
+            >
+          </li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

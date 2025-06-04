@@ -1,6 +1,5 @@
 # usuarios/urls.py
 from django.urls import path
-
 from . import views
 
 # Cuando se accede al path, se ejecuta la view indicada.

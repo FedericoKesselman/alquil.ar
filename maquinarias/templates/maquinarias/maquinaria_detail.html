@@ -1,0 +1,144 @@
+{% extends 'base.html' %} {% block content %}
+<div class="container mt-4">
+  <div class="row">
+    <div class="col-md-8 offset-md-2">
+      <div class="card">
+        <div class="card-header">
+          <h3 class="mb-0">{{ maquinaria.nombre }}</h3>
+        </div>
+        {% if maquinaria.imagen %}
+        <img
+          src="{{ maquinaria.imagen.url }}"
+          class="card-img-top"
+          alt="{{ maquinaria.nombre }}"
+          style="max-height: 400px; object-fit: contain"
+        />
+        {% else %}
+        <div class="card-img-top bg-light text-center py-5">
+          <i class="fas fa-tools fa-5x text-muted"></i>
+        </div>
+        {% endif %}
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <h5>Información General</h5>
+              <dl class="row">
+                <dt class="col-sm-4">Tipo</dt>
+                <dd class="col-sm-8">{{ maquinaria.tipo }}</dd>
+
+                <dt class="col-sm-4">Marca</dt>
+                <dd class="col-sm-8">{{ maquinaria.marca }}</dd>
+
+                <dt class="col-sm-4">Modelo</dt>
+                <dd class="col-sm-8">{{ maquinaria.modelo }}</dd>
+
+                <dt class="col-sm-4">Año</dt>
+                <dd class="col-sm-8">{{ maquinaria.anio }}</dd>
+
+                <dt class="col-sm-4">Precio/día</dt>
+                <dd class="col-sm-8">
+                  ${{ maquinaria.precio_por_dia|floatformat:2 }}
+                </dd>
+              </dl>
+            </div>
+            {% if user.tipo == 'EMPLEADO' or user.tipo == 'ADMIN' %}
+            <div class="col-md-6">
+              <h5>Stock y Disponibilidad</h5>
+              <dl class="row">
+                <dt class="col-sm-6">Stock Total</dt>
+                <dd class="col-sm-6">{{ maquinaria.stock_total }}</dd>
+
+                <dt class="col-sm-6">Stock Disponible</dt>
+                <dd class="col-sm-6">
+                  <span
+                    class="badge {% if maquinaria.stock_disponible > maquinaria.minimo %}bg-success{% elif maquinaria.stock_disponible > 0 %}bg-warning{% else %}bg-danger{% endif %}"
+                  >
+                    {{ maquinaria.stock_disponible }}
+                  </span>
+                </dd>
+
+                <dt class="col-sm-6">Mínimo</dt>
+                <dd class="col-sm-6">{{ maquinaria.minimo }}</dd>
+
+                <dt class="col-sm-6">Máximo</dt>
+                <dd class="col-sm-6">{{ maquinaria.maximo }}</dd>
+              </dl>
+            </div>
+            {% endif %}
+          </div>
+
+          <div class="mt-4">
+            <h5>Descripción</h5>
+            <p>{{ maquinaria.descripcion|linebreaks }}</p>
+          </div>
+
+          <div class="mt-4">
+            <h5>Política de Cancelación</h5>
+            <div class="row">
+              <div class="col-md-4">
+                <div class="card bg-success text-white">
+                  <div class="card-body text-center">
+                    <h6>Reembolso Total</h6>
+                    <h4>{{ maquinaria.cantDias_total }}+ días</h4>
+                    <small>de anticipación</small>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card bg-warning text-dark">
+                  <div class="card-body text-center">
+                    <h6>Reembolso Parcial</h6>
+                    <h4>{{ maquinaria.cantDias_parcial }} días</h4>
+                    <small>de anticipación</small>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card bg-danger text-white">
+                  <div class="card-body text-center">
+                    <h6>Sin Reembolso</h6>
+                    <h4>< {{ maquinaria.cantDias_nulo }} días</h4>
+                    <small>de anticipación</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="d-flex justify-content-between">
+            {% if user.tipo == 'CLIENTE' %}
+            <a
+              href="{% url 'maquinaria_list_cliente' %}"
+              class="btn btn-secondary"
+            >
+              <i class="fas fa-arrow-left"></i> Volver al Catálogo
+            </a>
+            {% else %}
+            <a href="{% url 'maquinaria_list' %}" class="btn btn-secondary">
+              <i class="fas fa-arrow-left"></i> Volver al Listado
+            </a>
+            {% endif %} {% if user.tipo == 'EMPLEADO' or user.tipo == 'ADMIN' %}
+            <div>
+              <a
+                href="{% url 'maquinaria_update' maquinaria.pk %}"
+                class="btn btn-warning"
+              >
+                <i class="fas fa-edit"></i> Editar
+              </a>
+              <a
+                href="{% url 'maquinaria_delete' maquinaria.pk %}"
+                class="btn btn-danger"
+                onclick="return confirm('¿Está seguro que desea eliminar esta maquinaria?')"
+              >
+                <i class="fas fa-trash"></i> Eliminar
+              </a>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -3,7 +3,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
 
-#Aca van las declaraciones de las tablas de la base de datos
+# Aca van las declaraciones de las tablas de la base de datos
 
 class Sucursal(models.Model):
     nombre = models.CharField(max_length=100)
