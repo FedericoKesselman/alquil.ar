@@ -55,6 +55,13 @@
             <li class="nav-item">
               <a class="nav-link" href="{% url 'home' %}">Inicio</a>
             </li>
+            {% if not user.is_authenticated %}
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'maquinaria_list_cliente' %}"
+                >Catálogo de Maquinarias</a
+              >
+            </li>
+            {% endif %}
             {% if user.is_authenticated and user.tipo == 'CLIENTE' %}
             <li class="nav-item">
               <a class="nav-link" href="{% url 'maquinaria_list_cliente' %}"

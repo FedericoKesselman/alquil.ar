@@ -1,4 +1,5 @@
-{% extends 'base.html' %} {% block content %}
+{% extends 'base.html' %} 
+{% block content %}
 <div class="container mt-4">
   <div class="card">
     <div class="card-header">
@@ -13,51 +14,75 @@
       </div>
       {% endif %}
 
+      <!-- AGREGADO: Mostrar errores generales del formulario -->
+      {% if form.non_field_errors %}
+      <div class="alert alert-danger mb-3">
+        {% for error in form.non_field_errors %}
+          <div>{{ error }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
       <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
         <div class="row">
           <div class="col-md-6">
             <div class="form-group mb-3">
               <label>{{ form.nombre.label }}</label>
-              {{ form.nombre }} {% if form.nombre.errors %}
+              {{ form.nombre }} 
+              {% if form.nombre.errors %}
               <div class="invalid-feedback d-block">
-                {{ form.nombre.errors.0 }}
+                {% for error in form.nombre.errors %}
+                  <div>{{ error }}</div>
+                {% endfor %}
               </div>
               {% endif %}
             </div>
 
             <div class="form-group mb-3">
               <label>{{ form.tipo.label }}</label>
-              {{ form.tipo }} {% if form.tipo.errors %}
+              {{ form.tipo }} 
+              {% if form.tipo.errors %}
               <div class="invalid-feedback d-block">
-                {{ form.tipo.errors.0 }}
+                {% for error in form.tipo.errors %}
+                  <div>{{ error }}</div>
+                {% endfor %}
               </div>
               {% endif %}
             </div>
 
             <div class="form-group mb-3">
               <label>{{ form.marca.label }}</label>
-              {{ form.marca }} {% if form.marca.errors %}
+              {{ form.marca }} 
+              {% if form.marca.errors %}
               <div class="invalid-feedback d-block">
-                {{ form.marca.errors.0 }}
+                {% for error in form.marca.errors %}
+                  <div>{{ error }}</div>
+                {% endfor %}
               </div>
               {% endif %}
             </div>
 
             <div class="form-group mb-3">
               <label>{{ form.modelo.label }}</label>
-              {{ form.modelo }} {% if form.modelo.errors %}
+              {{ form.modelo }} 
+              {% if form.modelo.errors %}
               <div class="invalid-feedback d-block">
-                {{ form.modelo.errors.0 }}
+                {% for error in form.modelo.errors %}
+                  <div>{{ error }}</div>
+                {% endfor %}
               </div>
               {% endif %}
             </div>
 
             <div class="form-group mb-3">
               <label>{{ form.anio.label }}</label>
-              {{ form.anio }} {% if form.anio.errors %}
+              {{ form.anio }} 
+              {% if form.anio.errors %}
               <div class="invalid-feedback d-block">
-                {{ form.anio.errors.0 }}
+                {% for error in form.anio.errors %}
+                  <div>{{ error }}</div>
+                {% endfor %}
               </div>
               {% endif %}
             </div>
@@ -66,45 +91,60 @@
           <div class="col-md-6">
             <div class="form-group mb-3">
               <label>{{ form.precio_por_dia.label }}</label>
-              {{ form.precio_por_dia }} {% if form.precio_por_dia.errors %}
+              {{ form.precio_por_dia }} 
+              {% if form.precio_por_dia.errors %}
               <div class="invalid-feedback d-block">
-                {{ form.precio_por_dia.errors.0 }}
+                {% for error in form.precio_por_dia.errors %}
+                  <div>{{ error }}</div>
+                {% endfor %}
               </div>
               {% endif %}
             </div>
 
             <div class="form-group mb-3">
               <label>{{ form.stock_total.label }}</label>
-              {{ form.stock_total }} {% if form.stock_total.errors %}
+              {{ form.stock_total }} 
+              {% if form.stock_total.errors %}
               <div class="invalid-feedback d-block">
-                {{ form.stock_total.errors.0 }}
+                {% for error in form.stock_total.errors %}
+                  <div>{{ error }}</div>
+                {% endfor %}
               </div>
               {% endif %}
             </div>
 
             <div class="form-group mb-3">
               <label>{{ form.minimo.label }}</label>
-              {{ form.minimo }} {% if form.minimo.errors %}
+              {{ form.minimo }} 
+              {% if form.minimo.errors %}
               <div class="invalid-feedback d-block">
-                {{ form.minimo.errors.0 }}
+                {% for error in form.minimo.errors %}
+                  <div>{{ error }}</div>
+                {% endfor %}
               </div>
               {% endif %}
             </div>
 
             <div class="form-group mb-3">
               <label>{{ form.maximo.label }}</label>
-              {{ form.maximo }} {% if form.maximo.errors %}
+              {{ form.maximo }} 
+              {% if form.maximo.errors %}
               <div class="invalid-feedback d-block">
-                {{ form.maximo.errors.0 }}
+                {% for error in form.maximo.errors %}
+                  <div>{{ error }}</div>
+                {% endfor %}
               </div>
               {% endif %}
             </div>
 
             <div class="form-group mb-3">
               <label>{{ form.imagen.label }}</label>
-              {{ form.imagen }} {% if form.imagen.errors %}
+              {{ form.imagen }} 
+              {% if form.imagen.errors %}
               <div class="invalid-feedback d-block">
-                {{ form.imagen.errors.0 }}
+                {% for error in form.imagen.errors %}
+                  <div>{{ error }}</div>
+                {% endfor %}
               </div>
               {% endif %}
             </div>
@@ -113,9 +153,12 @@
           <div class="col-12">
             <div class="form-group mb-3">
               <label>{{ form.descripcion.label }}</label>
-              {{ form.descripcion }} {% if form.descripcion.errors %}
+              {{ form.descripcion }} 
+              {% if form.descripcion.errors %}
               <div class="invalid-feedback d-block">
-                {{ form.descripcion.errors.0 }}
+                {% for error in form.descripcion.errors %}
+                  <div>{{ error }}</div>
+                {% endfor %}
               </div>
               {% endif %}
             </div>
@@ -124,9 +167,12 @@
           <div class="col-md-4">
             <div class="form-group mb-3">
               <label>{{ form.cantDias_total.label }}</label>
-              {{ form.cantDias_total }} {% if form.cantDias_total.errors %}
+              {{ form.cantDias_total }} 
+              {% if form.cantDias_total.errors %}
               <div class="invalid-feedback d-block">
-                {{ form.cantDias_total.errors.0 }}
+                {% for error in form.cantDias_total.errors %}
+                  <div>{{ error }}</div>
+                {% endfor %}
               </div>
               {% endif %}
             </div>
@@ -135,9 +181,12 @@
           <div class="col-md-4">
             <div class="form-group mb-3">
               <label>{{ form.cantDias_parcial.label }}</label>
-              {{ form.cantDias_parcial }} {% if form.cantDias_parcial.errors %}
+              {{ form.cantDias_parcial }} 
+              {% if form.cantDias_parcial.errors %}
               <div class="invalid-feedback d-block">
-                {{ form.cantDias_parcial.errors.0 }}
+                {% for error in form.cantDias_parcial.errors %}
+                  <div>{{ error }}</div>
+                {% endfor %}
               </div>
               {% endif %}
             </div>
@@ -146,9 +195,12 @@
           <div class="col-md-4">
             <div class="form-group mb-3">
               <label>{{ form.cantDias_nulo.label }}</label>
-              {{ form.cantDias_nulo }} {% if form.cantDias_nulo.errors %}
+              {{ form.cantDias_nulo }} 
+              {% if form.cantDias_nulo.errors %}
               <div class="invalid-feedback d-block">
-                {{ form.cantDias_nulo.errors.0 }}
+                {% for error in form.cantDias_nulo.errors %}
+                  <div>{{ error }}</div>
+                {% endfor %}
               </div>
               {% endif %}
             </div>
@@ -156,15 +208,13 @@
         </div>
 
         <div class="mt-4">
-          <a href="{% url 'maquinaria_list' %}" class="btn btn-secondary"
-            >Volver</a
-          >
-          <button type="submit" class="btn btn-primary float-end">
-            Guardar
-          </button>
+          <a href="{% url 'maquinaria_list' %}" class="btn btn-secondary">Volver</a>
+          <button type="submit" class="btn btn-primary float-end">Guardar</button>
         </div>
       </form>
     </div>
   </div>
 </div>
+
+
 {% endblock %}

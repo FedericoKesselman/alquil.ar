@@ -59,7 +59,7 @@ class MaquinariaForm(forms.Form):
     )
     imagen = forms.ImageField(
         label="Imagen",
-        required=False,
+        required=True,
         widget=forms.ClearableFileInput(attrs={'class': 'form-control'})
     )
     precio_por_dia = forms.FloatField(
@@ -77,27 +77,27 @@ class MaquinariaForm(forms.Form):
         validators=[MinValueValidator(0, 'El stock debe ser mayor o igual a 0')]
     )
     minimo = forms.IntegerField(
-        label="Mínimo",
+        label="Cantidad Mínima de Días",
         widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Cantidad mínima'}),
         validators=[MinValueValidator(0, 'El valor mínimo debe ser mayor o igual a 0')]
     )
     maximo = forms.IntegerField(
-        label="Máximo",
+        label="Cantidad Máxima de Días",
         widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Cantidad máxima'}),
         validators=[MinValueValidator(1, 'El valor máximo debe ser mayor a 0')]
     )
     cantDias_total = forms.IntegerField(
-        label="Cantidad días total",
+        label="Cantidad de Días para Devolución Total",
         widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Días totales'}),
         validators=[MinValueValidator(0, 'Los días totales deben ser mayor o igual a 0')]
     )
     cantDias_parcial = forms.IntegerField(
-        label="Cantidad días parcial",
+        label="Cantidad de Días para Devolución Parcial",
         widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Días parciales'}),
         validators=[MinValueValidator(0, 'Los días parciales deben ser mayor o igual a 0')]
     )
     cantDias_nulo = forms.IntegerField(
-        label="Cantidad días nulo",
+        label="Cantidad de Días para Devolución Nula",
         widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Días nulos'}),
         validators=[MinValueValidator(0, 'Los días nulos deben ser mayor o igual a 0')]
     )
@@ -122,20 +122,24 @@ class MaquinariaForm(forms.Form):
         maximo = cleaned_data.get('maximo')
         stock_total = cleaned_data.get('stock_total')
         
-        # Validar que el máximo sea mayor que el mínimo
         if minimo is not None and maximo is not None:
             if maximo <= minimo:
                 raise forms.ValidationError('El valor máximo debe ser mayor que el mínimo.')
         
-        # Validar que la suma de días no exceda ciertos límites lógicos
         cantDias_total = cleaned_data.get('cantDias_total', 0)
         cantDias_parcial = cleaned_data.get('cantDias_parcial', 0)
         cantDias_nulo = cleaned_data.get('cantDias_nulo', 0)
+
+        if cantDias_parcial > cantDias_total:
+            raise forms.ValidationError('La cantidad de días parciales no puede ser mayor a la cantidad total.')
+
+        if cantDias_nulo > cantDias_parcial:
+            raise forms.ValidationError('La cantidad de días nulos no puede ser mayor a la cantidad total.')
         
         suma_dias = cantDias_total + cantDias_parcial + cantDias_nulo
         if suma_dias > 365:
             raise forms.ValidationError('La suma total de días no puede exceder 365 días.')
-        
+
         return cleaned_data
 
     def save(self): # Se guarda la maquinaria

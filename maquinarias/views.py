@@ -55,10 +55,8 @@ def tipo_maquinaria_delete(request, pk):
 
 # Vistas para Maquinarias
 @login_required
+@solo_admin
 def maquinaria_list(request):
-    if request.user.tipo not in ['ADMIN', 'EMPLEADO']:
-        messages.error(request, 'No tienes permiso para acceder a esta página.')
-        return redirect('home')
     
     maquinarias = Maquinaria.objects.all().order_by('nombre')
     paginator = Paginator(maquinarias, 10)
@@ -66,12 +64,8 @@ def maquinaria_list(request):
     maquinarias = paginator.get_page(page)
     return render(request, 'maquinarias/maquinaria_list.html', {'maquinarias': maquinarias})
 
-@login_required
+
 def maquinaria_list_cliente(request):
-    if request.user.tipo != 'CLIENTE':
-        messages.error(request, 'No tienes permiso para acceder a esta página.')
-        return redirect('home')
-    
     maquinarias = Maquinaria.objects.filter(stock_disponible__gt=0).order_by('nombre')
     paginator = Paginator(maquinarias, 12)  # 12 items por página para la vista en cuadrícula
     page = request.GET.get('page')
@@ -79,11 +73,9 @@ def maquinaria_list_cliente(request):
     return render(request, 'maquinarias/maquinaria_list_cliente.html', {'maquinarias': maquinarias})
 
 @login_required
+@solo_admin
 def maquinaria_create(request):
-    if request.user.tipo not in ['ADMIN', 'EMPLEADO']:
-        messages.error(request, 'No tienes permiso para acceder a esta página.')
-        return redirect('home')
-    
+
     if request.method == 'POST':
         form = MaquinariaForm(request.POST, request.FILES)
         if form.is_valid():
@@ -95,10 +87,8 @@ def maquinaria_create(request):
     return render(request, 'maquinarias/maquinaria_form.html', {'form': form, 'action': 'Crear'})
 
 @login_required
+@solo_admin
 def maquinaria_update(request, pk):
-    if request.user.tipo not in ['ADMIN', 'EMPLEADO']:
-        messages.error(request, 'No tienes permiso para acceder a esta página.')
-        return redirect('home')
     
     maquinaria = get_object_or_404(Maquinaria, pk=pk)
     if request.method == 'POST':
@@ -112,10 +102,8 @@ def maquinaria_update(request, pk):
     return render(request, 'maquinarias/maquinaria_form.html', {'form': form, 'action': 'Editar'})
 
 @login_required
+@solo_admin
 def maquinaria_delete(request, pk):
-    if request.user.tipo not in ['ADMIN', 'EMPLEADO']:
-        messages.error(request, 'No tienes permiso para acceder a esta página.')
-        return redirect('home')
     
     maquinaria = get_object_or_404(Maquinaria, pk=pk)
     try:
