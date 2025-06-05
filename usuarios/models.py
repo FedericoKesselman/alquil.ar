@@ -35,7 +35,7 @@ class Usuario(AbstractUser):
     telefono = models.CharField(max_length=20)
     sucursal = models.ForeignKey(Sucursal, on_delete=models.SET_NULL, null=True, blank=True)
     
-    # Agregar campos para 2FA
+    # Campos para 2FA
     token_2fa = models.CharField(
         max_length=6,
         null=True,
@@ -48,6 +48,22 @@ class Usuario(AbstractUser):
         verbose_name="Timestamp del token"
     )
     
+    # Campos para recuperación de contraseña
+    reset_token = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        verbose_name="Token de recuperación"
+    )
+    reset_token_timestamp = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Timestamp del token de recuperación"
+    )
+    reset_token_used = models.BooleanField(
+        default=False,
+        verbose_name="Token usado"
+    )
+    
     def __str__(self):
-        tipo_display = dict(self.TIPO_CHOICES).get(self.tipo, self.tipo)
-        return f"{self.get_full_name()} ({tipo_display})"
+        return f"{self.nombre} ({self.email})"

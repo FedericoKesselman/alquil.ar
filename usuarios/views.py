@@ -9,7 +9,10 @@ from .forms import (
     LoginForm, 
     EmpleadoForm, 
     ClienteForm, 
-    TokenVerificationForm  # Agregamos esta importación
+    TokenVerificationForm,
+    RecuperarPasswordForm,
+    RestablecerPasswordForm,
+    CambiarPasswordPerfilForm
 )
 from usuarios.decorators import solo_admin, solo_cliente, solo_empleado
 from django.core.paginator import Paginator
@@ -19,6 +22,8 @@ from .models import Sucursal
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.db.models import Q
+from django.utils import timezone
+from datetime import timedelta
 
 User = get_user_model()  # Agregamos esta línea
 
@@ -102,28 +107,32 @@ def cliente_panel_view(request):
 @login_required
 @solo_admin
 def crear_empleado_view(request):
-    if request.method == 'POST': # Cuando se aprieta el boton de submit
-        form = EmpleadoForm(request.POST) # Extrae los datos llenados por el usuario
+    if request.method == 'POST':
+        form = EmpleadoForm(request.POST)
         if form.is_valid():
             try:
-                empleado = form.save() # Ejecuta la funcion save del form definido en forms.py (Guarda empleado)
-                messages.success(request, f'Empleado {empleado.nombre} registrado exitosamente!')
-                return redirect('lista_empleados')  
+                user = form.save()
+                messages.success(request, f"Empleado {user.nombre} registrado exitosamente.")
+                return redirect('crear_empleado')
             except Exception as e:
-                messages.error(request, f'Ocurrió un error al registrar el empleado: {str(e)}')
+                messages.error(request, f"Error al crear el empleado: {str(e)}")
         else:
-            # Mostrar todos los errores del formulario
+            # Mostrar errores del formulario correctamente
             for field, errors in form.errors.items():
                 for error in errors:
-                    messages.error(request, f"{form.fields[field].label}: {error}")
-    else: 
-        form = EmpleadoForm() # Se muestra el formulario
-
+                    if field == '__all__':
+                        messages.error(request, error)
+                    else:
+                        field_label = form.fields.get(field, {}).label or field.title()
+                        messages.error(request, f"{field_label}: {error}")
+    else:
+        form = EmpleadoForm()
+    
+    # Usar el template genérico que ya existe
     context = {
         'form': form,
         'titulo': 'Registrar Nuevo Empleado'
     }
-
     return render(request, 'usuarios/form_generico.html', context)
 
 @login_required
@@ -366,6 +375,62 @@ def eliminar_sucursal(request, id):
         return JsonResponse({'error': 'Sucursal no encontrada'}, status=404)
     except Exception as e:
         return JsonResponse({'error': f'Error interno: {str(e)}'}, status=500)
-    
 
+def recuperar_password_view(request):
+    if request.method == 'POST':
+        form = RecuperarPasswordForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Te enviamos un correo para restablecer tu contraseña. Revisá tu bandeja de entrada.')
+            return redirect('login')
+    else:
+        form = RecuperarPasswordForm()
     
+    return render(request, 'usuarios/recuperar_password.html', {'form': form})
+
+def restablecer_password_view(request, token):
+    try:
+        user = User.objects.get(reset_token=token, reset_token_used=False)
+        
+        # Verificar si el token expiró (15 minutos)
+        tiempo_actual = timezone.now()
+        if tiempo_actual > (user.reset_token_timestamp + timedelta(minutes=15)):
+            messages.error(request, 'El enlace ha expirado. Por favor, solicitá uno nuevo.')
+            return redirect('recuperar_password')
+        
+    except User.DoesNotExist:
+        messages.error(request, 'Este enlace ya fue utilizado.')
+        return redirect('recuperar_password')
+    
+    if request.method == 'POST':
+        form = RestablecerPasswordForm(user, request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Tu contraseña fue restablecida con éxito.')
+            return redirect('login')
+    else:
+        form = RestablecerPasswordForm(user)
+    
+    return render(request, 'usuarios/restablecer_password.html', {'form': form})
+
+@login_required
+def cambiar_password_perfil_view(request):
+    if request.method == 'POST':
+        form = CambiarPasswordPerfilForm(request.user, request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Tu contraseña fue actualizada con éxito.')
+            return redirect('cambiar_password_perfil')
+    else:
+        form = CambiarPasswordPerfilForm(request.user)
+    
+    return render(request, 'usuarios/cambiar_password_perfil.html', {'form': form})
+
+def home_view(request):
+    """Vista principal/home del sistema"""
+    if request.user.is_authenticated:
+        return redirect('redireccionar_por_rol')
+    else:
+        return redirect('login')
+
+
