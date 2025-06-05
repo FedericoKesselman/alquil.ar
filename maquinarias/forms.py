@@ -1,6 +1,8 @@
 from django import forms
 from django.core.validators import RegexValidator, MinValueValidator
-from .models import Maquinaria, TipoMaquinaria
+from django.forms import formset_factory
+from .models import Maquinaria, TipoMaquinaria, MaquinariaStock
+from usuarios.models import Sucursal
 
 class TipoMaquinariaForm(forms.ModelForm):
     class Meta:
@@ -22,8 +24,28 @@ class TipoMaquinariaForm(forms.ModelForm):
                 raise forms.ValidationError('Ya existe un tipo de maquinaria con este nombre.')
         return nombre
 
+class MaquinariaStockForm(forms.Form):
+    """Formulario para el stock por sucursal"""
+    sucursal = forms.ModelChoiceField(
+        queryset=Sucursal.objects.filter(activa=True),
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        label="Sucursal"
+    )
+    stock = forms.IntegerField(
+        min_value=0,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Stock'}),
+        label="Stock"
+    )
+
+# Crear un formset para múltiples stocks por sucursal
+MaquinariaStockFormSet = formset_factory(
+    MaquinariaStockForm, 
+    extra=1,  # Mostrar un formulario extra vacío
+    can_delete=True  # Permitir eliminar formularios
+)
+
 class MaquinariaForm(forms.Form):
-    # Declaro los campos del formulario
+    # Campos básicos de la maquinaria
     nombre = forms.CharField(
         label="Nombre de la maquinaria",
         max_length=100,
@@ -71,11 +93,6 @@ class MaquinariaForm(forms.Form):
         }),
         validators=[MinValueValidator(0.01, 'El precio debe ser mayor a 0')]
     )
-    stock_total = forms.IntegerField(
-        label="Stock Total",
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Cantidad total disponible'}),
-        validators=[MinValueValidator(0, 'El stock debe ser mayor o igual a 0')]
-    )
     minimo = forms.IntegerField(
         label="Cantidad Mínima de Días",
         widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Cantidad mínima'}),
@@ -94,7 +111,7 @@ class MaquinariaForm(forms.Form):
     cantDias_parcial = forms.IntegerField(
         label="Cantidad de Días para Devolución Parcial",
         widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Días parciales'}),
-        validators=[MinValueValidator(0, 'Los días parciales deben ser mayor o igual a 0')]
+        validators=[MinValueValidator(0, 'Los días parciales deben ser mayor or igual a 0')]
     )
     cantDias_nulo = forms.IntegerField(
         label="Cantidad de Días para Devolución Nula",
@@ -102,12 +119,10 @@ class MaquinariaForm(forms.Form):
         validators=[MinValueValidator(0, 'Los días nulos deben ser mayor o igual a 0')]
     )
 
-    # Extraigo la info de los campos y la chequeo
     def clean_nombre(self):
         nombre = self.cleaned_data.get('nombre')
         instance_id = getattr(self, 'instance_id', None)
         
-        # Verificar si existe una maquinaria con el mismo nombre
         query = Maquinaria.objects.filter(nombre=nombre)
         if instance_id:
             query = query.exclude(id=instance_id)
@@ -120,7 +135,6 @@ class MaquinariaForm(forms.Form):
         cleaned_data = super().clean()
         minimo = cleaned_data.get('minimo')
         maximo = cleaned_data.get('maximo')
-        stock_total = cleaned_data.get('stock_total')
         
         if minimo is not None and maximo is not None:
             if maximo <= minimo:
@@ -134,7 +148,7 @@ class MaquinariaForm(forms.Form):
             raise forms.ValidationError('La cantidad de días parciales no puede ser mayor a la cantidad total.')
 
         if cantDias_nulo > cantDias_parcial:
-            raise forms.ValidationError('La cantidad de días nulos no puede ser mayor a la cantidad total.')
+            raise forms.ValidationError('La cantidad de días nulos no puede ser mayor a la cantidad parcial.')
         
         suma_dias = cantDias_total + cantDias_parcial + cantDias_nulo
         if suma_dias > 365:
@@ -142,7 +156,8 @@ class MaquinariaForm(forms.Form):
 
         return cleaned_data
 
-    def save(self): # Se guarda la maquinaria
+    def save(self, stocks_data=None):
+        """Guarda la maquinaria y sus stocks por sucursal"""
         maquinaria = Maquinaria.objects.create(
             nombre=self.cleaned_data['nombre'],
             tipo=self.cleaned_data['tipo'],
@@ -152,14 +167,23 @@ class MaquinariaForm(forms.Form):
             descripcion=self.cleaned_data['descripcion'],
             imagen=self.cleaned_data.get('imagen'),
             precio_por_dia=self.cleaned_data['precio_por_dia'],
-            stock_total=self.cleaned_data['stock_total'],
-            stock_disponible=self.cleaned_data['stock_total'],  # Inicialmente igual al stock total
             minimo=self.cleaned_data['minimo'],
             maximo=self.cleaned_data['maximo'],
             cantDias_total=self.cleaned_data['cantDias_total'],
             cantDias_parcial=self.cleaned_data['cantDias_parcial'],
             cantDias_nulo=self.cleaned_data['cantDias_nulo']
         )
+        
+        # Crear los stocks por sucursal
+        if stocks_data:
+            for stock_data in stocks_data:
+                if stock_data.get('sucursal') and stock_data.get('stock') is not None:
+                    MaquinariaStock.objects.create(
+                        maquinaria=maquinaria,
+                        sucursal=stock_data['sucursal'],
+                        stock=stock_data['stock']
+                    )
+        
         return maquinaria
 
 class MaquinariaUpdateForm(MaquinariaForm):
@@ -176,26 +200,18 @@ class MaquinariaUpdateForm(MaquinariaForm):
             self.fields['anio'].initial = instance.anio
             self.fields['descripcion'].initial = instance.descripcion
             self.fields['precio_por_dia'].initial = instance.precio_por_dia
-            self.fields['stock_total'].initial = instance.stock_total
             self.fields['minimo'].initial = instance.minimo
             self.fields['maximo'].initial = instance.maximo
             self.fields['cantDias_total'].initial = instance.cantDias_total
             self.fields['cantDias_parcial'].initial = instance.cantDias_parcial
             self.fields['cantDias_nulo'].initial = instance.cantDias_nulo
 
-    def save(self):
+    def save(self, stocks_data=None):
         instance_id = getattr(self, 'instance_id', None)
         if not instance_id:
-            return super().save()
+            return super().save(stocks_data)
         
         maquinaria = Maquinaria.objects.get(id=instance_id)
-        old_stock_total = maquinaria.stock_total
-        new_stock_total = self.cleaned_data['stock_total']
-        
-        # Actualizar el stock disponible proporcionalmente
-        if old_stock_total != new_stock_total:
-            stock_diff = new_stock_total - old_stock_total
-            maquinaria.stock_disponible = max(0, maquinaria.stock_disponible + stock_diff)
         
         # Actualizar todos los campos
         maquinaria.nombre = self.cleaned_data['nombre']
@@ -207,7 +223,6 @@ class MaquinariaUpdateForm(MaquinariaForm):
         if self.cleaned_data.get('imagen'):
             maquinaria.imagen = self.cleaned_data['imagen']
         maquinaria.precio_por_dia = self.cleaned_data['precio_por_dia']
-        maquinaria.stock_total = new_stock_total
         maquinaria.minimo = self.cleaned_data['minimo']
         maquinaria.maximo = self.cleaned_data['maximo']
         maquinaria.cantDias_total = self.cleaned_data['cantDias_total']
@@ -215,4 +230,61 @@ class MaquinariaUpdateForm(MaquinariaForm):
         maquinaria.cantDias_nulo = self.cleaned_data['cantDias_nulo']
         
         maquinaria.save()
+        
+        # Actualizar stocks por sucursal
+        if stocks_data is not None:
+            # Eliminar stocks existentes que no están en los nuevos datos
+            existing_stocks = {stock.sucursal.id: stock for stock in maquinaria.stocks.all()}
+            new_sucursal_ids = {stock_data.get('sucursal').id for stock_data in stocks_data 
+                              if stock_data.get('sucursal') and not stock_data.get('DELETE', False)}
+            
+            # Eliminar stocks que ya no están
+            for sucursal_id, stock in existing_stocks.items():
+                if sucursal_id not in new_sucursal_ids:
+                    stock.delete()
+            
+            # Crear o actualizar stocks
+            for stock_data in stocks_data:
+                if stock_data.get('DELETE', False):
+                    continue
+                    
+                sucursal = stock_data.get('sucursal')
+                stock_cantidad = stock_data.get('stock')
+                
+                if sucursal and stock_cantidad is not None:
+                    stock_obj, created = MaquinariaStock.objects.get_or_create(
+                        maquinaria=maquinaria,
+                        sucursal=sucursal,
+                        defaults={'stock': stock_cantidad}
+                    )
+                    if not created:
+                        # Calcular la diferencia para actualizar stock_disponible
+                        diferencia = stock_cantidad - stock_obj.stock
+                        stock_obj.stock = stock_cantidad
+                        stock_obj.stock_disponible = max(0, stock_obj.stock_disponible + diferencia)
+                        stock_obj.save()
+        
         return maquinaria
+
+class StockPorSucursalForm(forms.ModelForm):
+    """Formulario para editar el stock de una maquinaria en una sucursal específica"""
+    class Meta:
+        model = MaquinariaStock
+        fields = ['stock']
+        widgets = {
+            'stock': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'})
+        }
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        # Ajustar stock_disponible proporcionalmente
+        if self.instance.pk:
+            old_stock = MaquinariaStock.objects.get(pk=self.instance.pk).stock
+            diferencia = instance.stock - old_stock
+            instance.stock_disponible = max(0, instance.stock_disponible + diferencia)
+        else:
+            instance.stock_disponible = instance.stock
+        
+        if commit:
+            instance.save()
+        return instance
