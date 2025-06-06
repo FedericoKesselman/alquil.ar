@@ -65,3 +65,56 @@
 .navbar-custom .bi {
     margin-right: 0.25rem;
 }
+
+/* Estilos para el botón de mostrar/ocultar contraseña */
+.password-field-container {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+.password-toggle-btn {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #6c757d;
+    font-size: 16px;
+    z-index: 10;
+    padding: 4px;
+    height: auto;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.password-toggle-btn:hover {
+    color: #495057;
+}
+
+.password-toggle-btn:focus {
+    outline: none;
+    color: #495057;
+}
+
+/* Ajustar padding del input para hacer espacio al botón */
+.password-field-container input[type="password"],
+.password-field-container input[type="text"] {
+    padding-right: 45px !important;
+    width: 100%;
+}
+
+/* Si Font Awesome no carga, usar texto alternativo */
+.password-toggle-btn .fa-eye::before {
+    content: "👁";
+    font-family: Arial, sans-serif;
+}
+
+.password-toggle-btn .fa-eye-slash::before {
+    content: "🙈";
+    font-family: Arial, sans-serif;
+}

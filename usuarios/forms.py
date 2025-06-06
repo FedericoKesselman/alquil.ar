@@ -5,6 +5,8 @@ from django.contrib.auth import get_user_model
 from django.core.validators import RegexValidator
 from django.core.mail import send_mail
 from django.utils import timezone
+from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 from datetime import date
 import random
 import string
@@ -14,6 +16,31 @@ from .models import Sucursal, Usuario
 
 User = get_user_model()
 
+# Widget personalizado para campos de contraseña con botón de mostrar/ocultar
+class PasswordInputWithToggle(forms.PasswordInput):
+    def __init__(self, attrs=None):
+        default_attrs = {'class': 'form-control'}
+        if attrs:
+            default_attrs.update(attrs)
+        super().__init__(attrs=default_attrs)
+    
+    def render(self, name, value, attrs=None, renderer=None):
+        # Generar el input de contraseña normal
+        password_input = super().render(name, value, attrs, renderer)
+        
+        # Crear el contenedor con el botón usando format_html para seguridad
+        html = format_html(
+            '<div class="password-field-container">'
+            '{}'
+            '<button type="button" class="password-toggle-btn" onclick="togglePassword(this)" title="Mostrar contraseña">'
+            '<span style="font-size: 16px;">👁</span>'
+            '</button>'
+            '</div>',
+            mark_safe(password_input)
+        )
+        
+        return html
+
 class LoginForm(forms.Form):
     #Declarar los campos del formulario
     email = forms.EmailField(
@@ -22,7 +49,7 @@ class LoginForm(forms.Form):
     )
     password = forms.CharField(
         label="Contraseña",
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Contraseña'})
+        widget=PasswordInputWithToggle(attrs={'placeholder': 'Contraseña'})
     )
 
     # Los campos actuales están bien
@@ -127,11 +154,11 @@ class EmpleadoForm(forms.Form):
     )
     password = forms.CharField(
         label="Contraseña",
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Contraseña'})
+        widget=PasswordInputWithToggle(attrs={'placeholder': 'Contraseña'})
     )
     confirm_password = forms.CharField(
         label="Confirmar contraseña",
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Repetir contraseña'})
+        widget=PasswordInputWithToggle(attrs={'placeholder': 'Repetir contraseña'})
     )
 
     # Validaciones específicas para cada campo
