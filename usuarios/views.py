@@ -380,13 +380,18 @@ def recuperar_password_view(request):
     if request.method == 'POST':
         form = RecuperarPasswordForm(request.POST)
         if form.is_valid():
-            form.save()
-            messages.success(request, 'Te enviamos un correo para restablecer tu contraseña. Revisá tu bandeja de entrada.')
+            form.save()  # Este método ahora siempre retorna True
+            # Mensaje genérico que no revela si el email existe
+            messages.success(request, 'Si el correo electrónico pertenece a una cuenta registrada, recibirás un enlace de recuperación en tu bandeja de entrada.')
             return redirect('login')
     else:
         form = RecuperarPasswordForm()
     
     return render(request, 'usuarios/recuperar_password.html', {'form': form})
+
+def enlace_expirado_view(request):
+    """Vista para mostrar que el enlace de recuperación ha expirado"""
+    return render(request, 'usuarios/enlace_expirado.html')
 
 def restablecer_password_view(request, token):
     try:
@@ -395,12 +400,10 @@ def restablecer_password_view(request, token):
         # Verificar si el token expiró (15 minutos)
         tiempo_actual = timezone.now()
         if tiempo_actual > (user.reset_token_timestamp + timedelta(minutes=15)):
-            messages.error(request, 'El enlace ha expirado. Por favor, solicitá uno nuevo.')
-            return redirect('recuperar_password')
+            return redirect('enlace_expirado')
         
     except User.DoesNotExist:
-        messages.error(request, 'Este enlace ya fue utilizado.')
-        return redirect('recuperar_password')
+        return redirect('enlace_expirado')
     
     if request.method == 'POST':
         form = RestablecerPasswordForm(user, request.POST)

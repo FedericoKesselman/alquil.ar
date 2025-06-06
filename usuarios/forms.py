@@ -5,8 +5,6 @@ from django.contrib.auth import get_user_model
 from django.core.validators import RegexValidator
 from django.core.mail import send_mail
 from django.utils import timezone
-from django.utils.html import format_html
-from django.utils.safestring import mark_safe
 from datetime import date
 import random
 import string
@@ -16,31 +14,6 @@ from .models import Sucursal, Usuario
 
 User = get_user_model()
 
-# Widget personalizado para campos de contraseña con botón de mostrar/ocultar
-class PasswordInputWithToggle(forms.PasswordInput):
-    def __init__(self, attrs=None):
-        default_attrs = {'class': 'form-control'}
-        if attrs:
-            default_attrs.update(attrs)
-        super().__init__(attrs=default_attrs)
-    
-    def render(self, name, value, attrs=None, renderer=None):
-        # Generar el input de contraseña normal
-        password_input = super().render(name, value, attrs, renderer)
-        
-        # Crear el contenedor con el botón usando format_html para seguridad
-        html = format_html(
-            '<div class="password-field-container">'
-            '{}'
-            '<button type="button" class="password-toggle-btn" onclick="togglePassword(this)" title="Mostrar contraseña">'
-            '<span style="font-size: 16px;">👁</span>'
-            '</button>'
-            '</div>',
-            mark_safe(password_input)
-        )
-        
-        return html
-
 class LoginForm(forms.Form):
     #Declarar los campos del formulario
     email = forms.EmailField(
@@ -49,7 +22,7 @@ class LoginForm(forms.Form):
     )
     password = forms.CharField(
         label="Contraseña",
-        widget=PasswordInputWithToggle(attrs={'placeholder': 'Contraseña'})
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Contraseña'})
     )
 
     # Los campos actuales están bien
@@ -127,8 +100,8 @@ class EmpleadoForm(forms.Form):
     )
     dni = forms.CharField(
         label="DNI",
-        max_length=8,  # Cambiado para DNI argentino
-        min_length=7,  # Mínimo 7 dígitos
+        max_length=8,
+        min_length=7,
         widget=forms.TextInput(attrs={
             'class': 'form-control', 
             'placeholder': 'DNI (7-8 dígitos)'
@@ -154,11 +127,11 @@ class EmpleadoForm(forms.Form):
     )
     password = forms.CharField(
         label="Contraseña",
-        widget=PasswordInputWithToggle(attrs={'placeholder': 'Contraseña'})
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Contraseña'})
     )
     confirm_password = forms.CharField(
         label="Confirmar contraseña",
-        widget=PasswordInputWithToggle(attrs={'placeholder': 'Repetir contraseña'})
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Repetir contraseña'})
     )
 
     # Validaciones específicas para cada campo
@@ -180,19 +153,15 @@ class EmpleadoForm(forms.Form):
         if not password:
             raise forms.ValidationError('La contraseña es obligatoria.')
             
-        # Validar longitud mínima
         if len(password) < 8:
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, una letra mayúscula y un número.')
         
-        # Validar que tenga al menos una letra mayúscula
         if not any(c.isupper() for c in password):
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, una letra mayúscula y un número.')
         
-        # AGREGAR: Validar que tenga al menos una letra minúscula
         if not any(c.islower() for c in password):
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, una letra mayúscula y un número.')
         
-        # Validar que tenga al menos un número
         if not any(c.isdigit() for c in password):
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, una letra mayúscula y un número.')
         
@@ -203,18 +172,15 @@ class EmpleadoForm(forms.Form):
         password = cleaned_data.get('password')
         confirm_password = cleaned_data.get('confirm_password')
 
-        # Validar que las contraseñas coincidan
         if password and confirm_password:
             if password != confirm_password:
-                # Agregar error específico al campo confirm_password
                 self.add_error('confirm_password', 'Las contraseñas ingresadas no coinciden.')
 
         return cleaned_data
 
     def save(self):
-        # Crear el usuario empleado
         user = User.objects.create_user(
-            username=self.cleaned_data['email'],  # Usamos el email como username
+            username=self.cleaned_data['email'],
             email=self.cleaned_data['email'],
             password=self.cleaned_data['password'],
             nombre=self.cleaned_data['nombre'],
@@ -226,7 +192,6 @@ class EmpleadoForm(forms.Form):
         return user
     
 class ClienteForm(forms.Form):
-    # Declaramos los campos
     email = forms.EmailField(
         label="Email",
         widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'Email del cliente'})
@@ -237,8 +202,8 @@ class ClienteForm(forms.Form):
     )
     dni = forms.CharField(
         label="DNI",
-        max_length=8,  # Cambiamos a 8 para DNI argentino
-        min_length=7,  # Mínimo 7 dígitos
+        max_length=8,
+        min_length=7,
         widget=forms.TextInput(attrs={
             'class': 'form-control', 
             'placeholder': 'DNI (7-8 dígitos)'
@@ -261,12 +226,11 @@ class ClienteForm(forms.Form):
         widget=forms.DateInput(
             attrs={
                 'class': 'form-control', 
-                'type': 'date'  # Esto hace que aparezca un selector de fecha
+                'type': 'date'
             }
         )
     )
 
-    # Extraemos los campos y chequeamos info
     def clean_email(self):
         email = self.cleaned_data.get('email')
         if User.objects.filter(email=email).exists():
@@ -294,11 +258,9 @@ class ClienteForm(forms.Form):
         return fecha_nacimiento
 
     def save(self):
-        # Generar contraseña aleatoria de 12 caracteres
         caracteres = string.ascii_letters + string.digits
         password = ''.join(random.choice(caracteres) for i in range(12))
         
-        # Crear el usuario
         user = User.objects.create_user(
             username=self.cleaned_data['email'],
             email=self.cleaned_data['email'],
@@ -310,7 +272,6 @@ class ClienteForm(forms.Form):
             tipo='CLIENTE'
         )
         
-        # Enviar email con la contraseña
         send_mail(
             'Bienvenido a Alquil.ar',
             f'''Hola {self.cleaned_data['nombre']},
@@ -361,10 +322,8 @@ class TokenVerificationForm(forms.Form):
         if token != self.user.token_2fa:
             raise forms.ValidationError('Código de verificación incorrecto')
     
-        # Verificar si pasaron más de 5 minutos
         tiempo_actual = timezone.now()
         if tiempo_actual > (self.user.token_2fa_timestamp + timezone.timedelta(minutes=5)):
-            # Limpiar token expirado
             User.objects.filter(id=self.user.id).update(
                 token_2fa=None,
                 token_2fa_timestamp=None
@@ -382,32 +341,33 @@ class RecuperarPasswordForm(forms.Form):
         })
     )
     
+    # ELIMINAMOS la validación que revelaba si el email existe
     def clean_email(self):
         email = self.cleaned_data.get('email')
-        if not User.objects.filter(email=email).exists():
-            raise forms.ValidationError('El correo ingresado no está asociado a ninguna cuenta.')
+        # Solo validamos formato, no si existe en la BD
         return email
     
     def save(self):
         email = self.cleaned_data['email']
-        user = User.objects.get(email=email)
         
-        # Generar token único
-        token = hashlib.sha256(f"{user.id}{timezone.now()}{uuid.uuid4()}".encode()).hexdigest()
-        
-        # Actualizar usuario con token
-        user.reset_token = token
-        user.reset_token_timestamp = timezone.now()
-        user.reset_token_used = False
-        user.save()
-        
-        # Enviar email
-        reset_url = f"http://localhost:8000/usuarios/restablecer-password/{token}/"
-        
-        send_mail(
-            'Restablecer contraseña - Alquil.ar',
-            f'''Hola {user.nombre},
+        # Intentar encontrar el usuario
+        try:
+            user = User.objects.get(email=email)
             
+            # Solo si el usuario existe, generar y enviar token
+            token = hashlib.sha256(f"{user.id}{timezone.now()}{uuid.uuid4()}".encode()).hexdigest()
+            
+            user.reset_token = token
+            user.reset_token_timestamp = timezone.now()
+            user.reset_token_used = False
+            user.save()
+            
+            reset_url = f"http://localhost:8000/usuarios/restablecer-password/{token}/"
+            
+            send_mail(
+                'Restablecer contraseña - Alquil.ar',
+                f'''Hola {user.nombre},
+                
 Hemos recibido una solicitud para restablecer tu contraseña.
 
 Para crear una nueva contraseña, haz clic en el siguiente enlace:
@@ -418,27 +378,26 @@ Si no solicitaste este cambio, puedes ignorar este mensaje.
 
 Saludos,
 Equipo de Alquil.ar''',
-            'alquil.ar2025@gmail.com',
-            [user.email],
-            fail_silently=False,
-        )
+                'alquil.ar2025@gmail.com',
+                [user.email],
+                fail_silently=False,
+            )
+            
+        except User.DoesNotExist:
+            # Si el usuario no existe, no hacemos nada pero no mostramos error
+            pass
         
-        return user
+        # Siempre retornamos True para no revelar si el email existe
+        return True
 
 class RestablecerPasswordForm(forms.Form):
     password = forms.CharField(
         label="Nueva contraseña",
-        widget=forms.PasswordInput(attrs={
-            'class': 'form-control',
-            'placeholder': 'Nueva contraseña'
-        })
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Nueva contraseña'})
     )
     confirm_password = forms.CharField(
         label="Confirmar nueva contraseña",
-        widget=forms.PasswordInput(attrs={
-            'class': 'form-control',
-            'placeholder': 'Repetir nueva contraseña'
-        })
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Repetir nueva contraseña'})
     )
     
     def __init__(self, user=None, *args, **kwargs):
@@ -451,19 +410,15 @@ class RestablecerPasswordForm(forms.Form):
         if not password:
             raise forms.ValidationError('La contraseña es obligatoria.')
             
-        # Validar longitud mínima
         if len(password) < 8:
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula, una minúscula y un número.')
         
-        # Validar que tenga al menos una letra mayúscula
         if not any(c.isupper() for c in password):
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula, una minúscula y un número.')
         
-        # Validar que tenga al menos una letra minúscula
         if not any(c.islower() for c in password):
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula, una minúscula y un número.')
         
-        # Validar que tenga al menos un número
         if not any(c.isdigit() for c in password):
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula, una minúscula y un número.')
         
@@ -484,7 +439,6 @@ class RestablecerPasswordForm(forms.Form):
         password = self.cleaned_data['password']
         self.user.set_password(password)
         
-        # Marcar token como usado
         self.user.reset_token_used = True
         self.user.reset_token = None
         self.user.reset_token_timestamp = None
@@ -495,24 +449,15 @@ class RestablecerPasswordForm(forms.Form):
 class CambiarPasswordPerfilForm(forms.Form):
     current_password = forms.CharField(
         label="Contraseña actual",
-        widget=forms.PasswordInput(attrs={
-            'class': 'form-control',
-            'placeholder': 'Contraseña actual'
-        })
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Contraseña actual'})
     )
     new_password = forms.CharField(
         label="Nueva contraseña",
-        widget=forms.PasswordInput(attrs={
-            'class': 'form-control',
-            'placeholder': 'Nueva contraseña'
-        })
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Nueva contraseña'})
     )
     confirm_new_password = forms.CharField(
         label="Confirmar nueva contraseña",
-        widget=forms.PasswordInput(attrs={
-            'class': 'form-control',
-            'placeholder': 'Repetir nueva contraseña'
-        })
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Repetir nueva contraseña'})
     )
     
     def __init__(self, user=None, *args, **kwargs):
@@ -529,28 +474,23 @@ class CambiarPasswordPerfilForm(forms.Form):
     
     def clean_new_password(self):
         new_password = self.cleaned_data.get('new_password')
-        current_password = self.cleaned_data.get('current_password')
         
         if not new_password:
             raise forms.ValidationError('La nueva contraseña es obligatoria.')
             
-        # Validar longitud mínima
         if len(new_password) < 8:
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula, una minúscula y un número.')
         
-        # Validar que tenga al menos una letra mayúscula
         if not any(c.isupper() for c in new_password):
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula, una minúscula y un número.')
         
-        # Validar que tenga al menos una letra minúscula
         if not any(c.islower() for c in new_password):
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula, una minúscula y un número.')
         
-        # Validar que tenga al menos un número
         if not any(c.isdigit() for c in new_password):
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula, una minúscula y un número.')
         
-        # Validar que no sea igual a la anterior
+        current_password = self.cleaned_data.get('current_password')
         if current_password and self.user.check_password(new_password):
             raise forms.ValidationError('La nueva contraseña no puede ser igual a la anterior.')
         

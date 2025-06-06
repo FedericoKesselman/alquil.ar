@@ -29,4 +29,5 @@ urlpatterns = [
     path('recuperar-password/', views.recuperar_password_view, name='recuperar_password'),
     path('restablecer-password/<str:token>/', views.restablecer_password_view, name='restablecer_password'),
     path('cambiar-password/', views.cambiar_password_perfil_view, name='cambiar_password_perfil'),
+    path('enlace-expirado/', views.enlace_expirado_view, name='enlace_expirado'),
 ]

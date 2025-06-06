@@ -69,13 +69,13 @@
 /* Estilos para el botón de mostrar/ocultar contraseña */
 .password-field-container {
     position: relative;
-    display: inline-block;
+    display: block;
     width: 100%;
 }
 
 .password-toggle-btn {
     position: absolute;
-    right: 12px;
+    right: 10px;
     top: 50%;
     transform: translateY(-50%);
     background: none;
@@ -83,17 +83,20 @@
     cursor: pointer;
     color: #6c757d;
     font-size: 16px;
-    z-index: 10;
-    padding: 4px;
+    z-index: 100;
+    padding: 5px;
     height: auto;
+    width: 30px;
     line-height: 1;
     display: flex;
     align-items: center;
     justify-content: center;
+    border-radius: 3px;
 }
 
 .password-toggle-btn:hover {
     color: #495057;
+    background-color: rgba(0, 0, 0, 0.05);
 }
 
 .password-toggle-btn:focus {
@@ -101,20 +104,23 @@
     color: #495057;
 }
 
+.password-toggle-btn i {
+    font-size: 14px;
+    pointer-events: none;
+}
+
 /* Ajustar padding del input para hacer espacio al botón */
-.password-field-container input[type="password"],
-.password-field-container input[type="text"] {
+.password-field-container input {
     padding-right: 45px !important;
-    width: 100%;
+    width: 100% !important;
 }
 
-/* Si Font Awesome no carga, usar texto alternativo */
-.password-toggle-btn .fa-eye::before {
-    content: "👁";
-    font-family: Arial, sans-serif;
+/* Asegurar que funcione con Bootstrap */
+.password-field-container .form-control {
+    padding-right: 45px !important;
 }
 
-.password-toggle-btn .fa-eye-slash::before {
-    content: "🙈";
-    font-family: Arial, sans-serif;
+/* Para campos con errores */
+.password-field-container .form-control.is-invalid {
+    padding-right: 40px !important;
 }
