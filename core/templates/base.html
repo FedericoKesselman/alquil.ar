@@ -69,6 +69,13 @@
               >
             </li>
             {% endif %}
+            {% if user.is_authenticated and user.tipo == 'EMPLEADO' %}
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'maquinaria_list_cliente' %}"
+                >Catálogo de Maquinarias</a
+              >
+            </li>
+            {% endif %}
           </ul>
           <ul class="navbar-nav">
             {% if user.is_authenticated %} {% if user.tipo == 'ADMIN' %}
@@ -133,36 +140,6 @@
               </a>
             </li>
             {% elif user.tipo == 'EMPLEADO' %}
-            <li class="nav-item dropdown">
-              <a
-                class="nav-link dropdown-toggle empleado-link"
-                href="#"
-                role="button"
-                data-bs-toggle="dropdown"
-              >
-                <i class="bi bi-tools"></i> Maquinarias
-              </a>
-              <ul class="dropdown-menu">
-                <li>
-                  <a class="dropdown-item" href="{% url 'maquinaria_list' %}">
-                    <i class="bi bi-list-ul"></i> Listar Maquinarias
-                  </a>
-                </li>
-                <li>
-                  <a class="dropdown-item" href="{% url 'maquinaria_create' %}">
-                    <i class="bi bi-plus-circle"></i> Nueva Maquinaria
-                  </a>
-                </li>
-                <li>
-                  <a
-                    class="dropdown-item"
-                    href="{% url 'tipo_maquinaria_list' %}"
-                  >
-                    <i class="bi bi-tags"></i> Tipos de Maquinaria
-                  </a>
-                </li>
-              </ul>
-            </li>
             <li class="nav-item dropdown">
               <a
                 class="nav-link dropdown-toggle empleado-link"

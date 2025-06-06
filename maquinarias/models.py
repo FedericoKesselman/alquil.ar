@@ -1,3 +1,4 @@
+#maquinarias/models.py
 from django.db import models
 from usuarios.models import Sucursal
 
@@ -19,7 +20,7 @@ class Maquinaria(models.Model):
     modelo = models.CharField(max_length=50)
     anio = models.SmallIntegerField()
     descripcion = models.TextField()
-    imagen = models.ImageField(upload_to='maquinarias/', null=True, blank=True)
+    imagen = models.ImageField(upload_to='maquinarias/images', null=True, blank=True)
     precio_por_dia = models.FloatField()
     # Mantenemos estos campos para compatibilidad, pero serán calculados
     stock_total = models.PositiveIntegerField(default=0)

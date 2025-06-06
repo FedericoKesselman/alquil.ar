@@ -265,26 +265,3 @@ class MaquinariaUpdateForm(MaquinariaForm):
                         stock_obj.save()
         
         return maquinaria
-
-class StockPorSucursalForm(forms.ModelForm):
-    """Formulario para editar el stock de una maquinaria en una sucursal específica"""
-    class Meta:
-        model = MaquinariaStock
-        fields = ['stock']
-        widgets = {
-            'stock': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'})
-        }
-
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-        # Ajustar stock_disponible proporcionalmente
-        if self.instance.pk:
-            old_stock = MaquinariaStock.objects.get(pk=self.instance.pk).stock
-            diferencia = instance.stock - old_stock
-            instance.stock_disponible = max(0, instance.stock_disponible + diferencia)
-        else:
-            instance.stock_disponible = instance.stock
-        
-        if commit:
-            instance.save()
-        return instance

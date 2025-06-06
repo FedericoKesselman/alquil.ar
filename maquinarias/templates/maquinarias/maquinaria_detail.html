@@ -118,7 +118,7 @@
             <a href="{% url 'maquinaria_list' %}" class="btn btn-secondary">
               <i class="fas fa-arrow-left"></i> Volver al Listado
             </a>
-            {% endif %} {% if user.tipo == 'EMPLEADO' or user.tipo == 'ADMIN' %}
+            {% endif %} {% if user.tipo == 'ADMIN' %}
             <div>
               <a
                 href="{% url 'maquinaria_update' maquinaria.pk %}"

@@ -7,7 +7,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.forms import formset_factory
 from .models import Maquinaria, TipoMaquinaria, MaquinariaStock
 from .forms import (MaquinariaForm, MaquinariaUpdateForm, TipoMaquinariaForm, 
-                   MaquinariaStockFormSet, MaquinariaStockForm, StockPorSucursalForm)
+                   MaquinariaStockFormSet, MaquinariaStockForm)
 from usuarios.decorators import solo_admin, solo_empleado
 from usuarios.models import Sucursal
 
