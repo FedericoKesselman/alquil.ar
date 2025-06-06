@@ -4,7 +4,7 @@ from . import views
 
 # Cuando se accede al path, se ejecuta la view indicada.
 urlpatterns = [
-    path('', views.home_view, name='home'),  # ESTA FALTA - referenciada en decorators.py
+    # path('', views.home_view, name='home'),  # ESTA FALTA - referenciada en decorators.py
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('redirigir/', views.redireccionar_por_rol, name='redireccionar_por_rol'),

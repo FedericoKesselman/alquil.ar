@@ -426,11 +426,12 @@ def cambiar_password_perfil_view(request):
     
     return render(request, 'usuarios/cambiar_password_perfil.html', {'form': form})
 
+'''
 def home_view(request):
     """Vista principal/home del sistema"""
     if request.user.is_authenticated:
         return redirect('redireccionar_por_rol')
     else:
         return redirect('login')
-
+'''
 
