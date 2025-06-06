@@ -14,4 +14,8 @@
     {{ form.as_p }}
     <button type="submit">Login</button>
 </form>
+
+<div class="mt-3">
+    <a href="{% url 'recuperar_password' %}">¿Olvidaste tu contraseña?</a>
+</div>
 {% endblock %}

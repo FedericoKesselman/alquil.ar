@@ -4,6 +4,7 @@ from . import views
 
 # Cuando se accede al path, se ejecuta la view indicada.
 urlpatterns = [
+    path('', views.home_view, name='home'),  # ESTA FALTA - referenciada en decorators.py
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('redirigir/', views.redireccionar_por_rol, name='redireccionar_por_rol'),
@@ -23,4 +24,9 @@ urlpatterns = [
     path('api/sucursales/estado/<int:id>/', views.cambiar_estado_sucursal, name='cambiar_estado_sucursal'),
     path('api/sucursales/actualizar_ubicacion/<int:id>/', views.actualizar_ubicacion_sucursal, name='actualizar_ubicacion'),
     path('api/sucursales/eliminar/<int:id>/', views.eliminar_sucursal, name='eliminar_sucursal'),
+    
+    # URLs para recuperar contraseña
+    path('recuperar-password/', views.recuperar_password_view, name='recuperar_password'),
+    path('restablecer-password/<str:token>/', views.restablecer_password_view, name='restablecer_password'),
+    path('cambiar-password/', views.cambiar_password_perfil_view, name='cambiar_password_perfil'),
 ]
