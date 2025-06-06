@@ -1,0 +1,65 @@
+{% extends 'base.html' %} {% block content %}
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Tipos de Maquinaria</h2>
+    {% if user.is_staff %}
+    <a href="{% url 'tipo_maquinaria_create' %}" class="btn btn-primary">
+      <i class="fas fa-plus"></i> Nuevo Tipo
+    </a>
+    {% endif %}
+  </div>
+
+  {% if messages %}
+  <div class="messages">
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="table-responsive">
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Descripción</th>
+          {% if user.is_staff %}
+          <th>Acciones</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for tipo in tipos %}
+        <tr>
+          <td>{{ tipo.nombre }}</td>
+          <td>{{ tipo.descripcion|default:"-" }}</td>
+          {% if user.is_staff %}
+          <td>
+            <a
+              href="{% url 'tipo_maquinaria_update' tipo.pk %}"
+              class="btn btn-sm btn-info"
+            >
+              <i class="fas fa-edit"></i>
+            </a>
+            <a
+              href="{% url 'tipo_maquinaria_delete' tipo.pk %}"
+              class="btn btn-sm btn-danger"
+              onclick="return confirm('¿Está seguro que desea eliminar este tipo de maquinaria?')"
+            >
+              <i class="fas fa-trash"></i>
+            </a>
+          </td>
+          {% endif %}
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="3" class="text-center">
+            No hay tipos de maquinaria registrados.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,305 @@
+{% extends 'base.html' %} 
+{% block content %}
+<div class="container mt-4">
+  <div class="card">
+    <div class="card-header">
+      <h3 class="mb-0">{{ action }} Maquinaria</h3>
+    </div>
+    <div class="card-body">
+      {% if messages %}
+      <div class="messages mb-3">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if form.non_field_errors %}
+      <div class="alert alert-danger mb-3">
+        {% for error in form.non_field_errors %}
+          <div>{{ error }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        
+        <!-- Información básica de la maquinaria -->
+        <div class="row">
+          <div class="col-md-6">
+            <div class="form-group mb-3">
+              <label>{{ form.nombre.label }}</label>
+              {{ form.nombre }} 
+              {% if form.nombre.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.nombre.errors %}{{ error }}{% endfor %}
+              </div>
+              {% endif %}
+            </div>
+
+            <div class="form-group mb-3">
+              <label>{{ form.tipo.label }}</label>
+              {{ form.tipo }} 
+              {% if form.tipo.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.tipo.errors %}{{ error }}{% endfor %}
+              </div>
+              {% endif %}
+            </div>
+
+            <div class="form-group mb-3">
+              <label>{{ form.marca.label }}</label>
+              {{ form.marca }} 
+              {% if form.marca.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.marca.errors %}{{ error }}{% endfor %}
+              </div>
+              {% endif %}
+            </div>
+
+            <div class="form-group mb-3">
+              <label>{{ form.modelo.label }}</label>
+              {{ form.modelo }} 
+              {% if form.modelo.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.modelo.errors %}{{ error }}{% endfor %}
+              </div>
+              {% endif %}
+            </div>
+
+            <div class="form-group mb-3">
+              <label>{{ form.anio.label }}</label>
+              {{ form.anio }} 
+              {% if form.anio.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.anio.errors %}{{ error }}{% endfor %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="form-group mb-3">
+              <label>{{ form.precio_por_dia.label }}</label>
+              {{ form.precio_por_dia }} 
+              {% if form.precio_por_dia.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.precio_por_dia.errors %}{{ error }}{% endfor %}
+              </div>
+              {% endif %}
+            </div>
+
+            <div class="form-group mb-3">
+              <label>{{ form.minimo.label }}</label>
+              {{ form.minimo }} 
+              {% if form.minimo.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.minimo.errors %}{{ error }}{% endfor %}
+              </div>
+              {% endif %}
+            </div>
+
+            <div class="form-group mb-3">
+              <label>{{ form.maximo.label }}</label>
+              {{ form.maximo }} 
+              {% if form.maximo.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.maximo.errors %}{{ error }}{% endfor %}
+              </div>
+              {% endif %}
+            </div>
+
+            <div class="form-group mb-3">
+              <label>{{ form.imagen.label }}</label>
+              {{ form.imagen }} 
+              {% if form.imagen.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.imagen.errors %}{{ error }}{% endfor %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="col-12">
+            <div class="form-group mb-3">
+              <label>{{ form.descripcion.label }}</label>
+              {{ form.descripcion }} 
+              {% if form.descripcion.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.descripcion.errors %}{{ error }}{% endfor %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Política de cancelación -->
+          <div class="col-md-4">
+            <div class="form-group mb-3">
+              <label>{{ form.cantDias_total.label }}</label>
+              {{ form.cantDias_total }} 
+              {% if form.cantDias_total.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.cantDias_total.errors %}{{ error }}{% endfor %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <div class="form-group mb-3">
+              <label>{{ form.cantDias_parcial.label }}</label>
+              {{ form.cantDias_parcial }} 
+              {% if form.cantDias_parcial.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.cantDias_parcial.errors %}{{ error }}{% endfor %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <div class="form-group mb-3">
+              <label>{{ form.cantDias_nulo.label }}</label>
+              {{ form.cantDias_nulo }} 
+              {% if form.cantDias_nulo.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.cantDias_nulo.errors %}{{ error }}{% endfor %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Sección de Stock por Sucursal -->
+        <div class="card mt-4">
+          <div class="card-header">
+            <h5 class="mb-0">Stock por Sucursal</h5>
+            <small class="text-muted">Asigne la maquinaria a las sucursales correspondientes</small>
+          </div>
+          <div class="card-body">
+            {{ stock_formset.management_form }}
+            
+            <div id="stock-forms">
+              {% for form in stock_formset %}
+                <div class="stock-form row mb-3" data-form-index="{{ forloop.counter0 }}">
+                  <div class="col-md-5">
+                    <label class="form-label">Sucursal</label>
+                    {{ form.sucursal }}
+                    {% if form.sucursal.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in form.sucursal.errors %}{{ error }}{% endfor %}
+                    </div>
+                    {% endif %}
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">Stock</label>
+                    {{ form.stock }}
+                    {% if form.stock.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in form.stock.errors %}{{ error }}{% endfor %}
+                    </div>
+                    {% endif %}
+                  </div>
+                  {% for hidden in form.hidden_fields %}
+                    {{ hidden }}
+                  {% endfor %}
+                </div>
+              {% endfor %}
+            </div>
+            
+            <button type="button" class="btn btn-outline-primary btn-sm" id="add-stock-form">
+              <i class="fas fa-plus"></i> Agregar Sucursal
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <a href="{% url 'maquinaria_list' %}" class="btn btn-secondary">Volver</a>
+          <button type="submit" class="btn btn-primary float-end">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const addButton = document.getElementById('add-stock-form');
+    const formsContainer = document.getElementById('stock-forms');
+    const totalForms = document.querySelector('#id_stocks-TOTAL_FORMS');
+    
+    // Función para eliminar formulario
+    function removeForm(button) {
+        const formRow = button.closest('.stock-form');
+        const deleteCheckbox = formRow.querySelector('input[type="checkbox"][name$="-DELETE"]');
+        
+        if (deleteCheckbox) {
+            // Si existe checkbox DELETE, marcarlo
+            deleteCheckbox.checked = true;
+            formRow.style.display = 'none';
+        } else {
+            // Si no existe, eliminar del DOM
+            formRow.remove();
+            updateFormNumbers();
+        }
+    }
+    
+    // Función para actualizar números de formularios
+    function updateFormNumbers() {
+        const forms = formsContainer.querySelectorAll('.stock-form:not([style*="display: none"])');
+        totalForms.value = forms.length;
+        
+        forms.forEach((form, index) => {
+            form.setAttribute('data-form-index', index);
+            const inputs = form.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                if (input.name) {
+                    input.name = input.name.replace(/stocks-\d+/, `stocks-${index}`);
+                    input.id = input.id.replace(/id_stocks-\d+/, `id_stocks-${index}`);
+                }
+            });
+        });
+    }
+    
+    // Agregar event listeners a botones existentes
+    document.querySelectorAll('.remove-stock-form').forEach(button => {
+        button.addEventListener('click', function() {
+            removeForm(this);
+        });
+    });
+    
+    // Agregar nuevo formulario
+    addButton.addEventListener('click', function() {
+        const formCount = parseInt(totalForms.value);
+        const newForm = document.querySelector('.stock-form').cloneNode(true);
+        
+        // Limpiar valores
+        newForm.querySelectorAll('input, select').forEach(input => {
+            if (input.type !== 'hidden') {
+                input.value = '';
+            }
+            if (input.name) {
+                input.name = input.name.replace(/stocks-\d+/, `stocks-${formCount}`);
+                input.id = input.id.replace(/id_stocks-\d+/, `id_stocks-${formCount}`);
+            }
+        });
+        
+        // Actualizar índice del formulario
+        newForm.setAttribute('data-form-index', formCount);
+        
+        // Agregar event listener al botón eliminar
+        const removeButton = newForm.querySelector('.remove-stock-form');
+        if (removeButton) {
+            removeButton.addEventListener('click', function() {
+                removeForm(this);
+            });
+        }
+        
+        formsContainer.appendChild(newForm);
+        totalForms.value = formCount + 1;
+    });
+});
+</script>
+
+{% endblock %}
