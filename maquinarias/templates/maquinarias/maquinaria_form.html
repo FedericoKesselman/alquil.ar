@@ -216,7 +216,7 @@
 
         <div class="mt-4">
           <a href="{% url 'maquinaria_list' %}" class="btn btn-secondary">Volver</a>
-          <button type="submit" class="btn btn-primary float-end">Guardar</button>
+          <button type="submit" class="btn btn-primary float-end" id="guardarBtn">Guardar</button>
         </div>
       </form>
     </div>
@@ -300,6 +300,49 @@ document.addEventListener('DOMContentLoaded', function() {
         totalForms.value = formCount + 1;
     });
 });
+document.getElementById('guardarBtn').addEventListener('click', function(e) {
+  const inputImagen = document.getElementById('id_imagen');
+  const defaultImageElement = document.getElementById({{maquinaria.imagen}});
+  const defaultImageURL = defaultImageElement?.src;
+
+  // Verificamos si el input de imagen está vacío
+  if (!inputImagen.files  inputImagen.files.length === 0) {
+    e.preventDefault(); // Evita el envío
+
+    // Si no hay imagen por defecto definida
+    if (!defaultImageURL  defaultImageURL.trim() === '') {
+      alert("Debe subir una imagen o establecer una imagen por defecto.");
+      return;
+    }
+
+    // Probar si la imagen por defecto realmente existe
+    fetch(defaultImageURL, { method: 'HEAD' })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error("Imagen por defecto no encontrada.");
+        }
+
+        // Cargar imagen por defecto
+        return fetch(defaultImageURL);
+      })
+      .then(res => res.blob())
+      .then(blob => {
+        const file = new File([blob], "default.jpg", { type: blob.type });
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        inputImagen.files = dataTransfer.files;
+
+        // Reenviar el formulario
+        document.getElementById('miFormulario').submit();
+      })
+      .catch(error => {
+        alert("Error: No se pudo cargar una imagen por defecto. Debe subir una imagen.");
+        console.error(error);
+      });
+  }
+});
 </script>
+
+
 
 {% endblock %}

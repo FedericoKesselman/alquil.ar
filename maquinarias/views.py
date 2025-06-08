@@ -168,7 +168,22 @@ def maquinaria_delete(request, pk):
 @login_required
 def maquinaria_detail(request, pk):
     maquinaria = get_object_or_404(Maquinaria, pk=pk)
-    return render(request, 'maquinarias/maquinaria_detail.html', {'maquinaria': maquinaria})
+    context = {
+        'maquinaria': maquinaria,
+    }
+    
+    # Si es empleado, mostrar el stock de su sucursal
+    if request.user.tipo == 'EMPLEADO' and hasattr(request.user, 'sucursal') and request.user.sucursal:
+        try:
+            stock_sucursal = MaquinariaStock.objects.get(
+                maquinaria=maquinaria,
+                sucursal=request.user.sucursal
+            )
+            context['stock_sucursal'] = stock_sucursal
+        except MaquinariaStock.DoesNotExist:
+            context['stock_sucursal'] = None
+    
+    return render(request, 'maquinarias/maquinaria_detail.html', context)
 
 
 class MaquinariaListCliente(LoginRequiredMixin, ListView):

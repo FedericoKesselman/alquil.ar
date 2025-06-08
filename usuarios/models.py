@@ -16,6 +16,35 @@ class Sucursal(models.Model):
     def __str__(self):
         return self.nombre
 
+    def get_stock_disponible(self, maquinaria, fecha_inicio, fecha_fin, cantidad_solicitada):
+        """
+        Calcula el stock disponible de una maquinaria en esta sucursal para un rango de fechas
+        """
+        from reservas.models import Reserva
+        
+        # Obtener el stock total de la maquinaria en esta sucursal
+        try:
+            stock_total = self.stocks.get(maquinaria=maquinaria).stock
+        except:
+            return 0
+
+        # Obtener todas las reservas que se solapan con el rango de fechas
+        reservas_solapadas = Reserva.objects.filter(
+            sucursal_retiro=self,
+            maquinaria=maquinaria,
+            estado__in=['pendiente', 'confirmada', 'en_curso'],
+            fecha_inicio__lte=fecha_fin,
+            fecha_fin__gte=fecha_inicio
+        )
+
+        # Calcular el máximo de unidades reservadas en cualquier día del rango
+        max_reservadas = 0
+        for reserva in reservas_solapadas:
+            max_reservadas = max(max_reservadas, reserva.cantidad_solicitada)
+
+        # El stock disponible es el stock total menos el máximo de unidades reservadas
+        return stock_total - max_reservadas
+
 class Usuario(AbstractUser):
     TIPO_CHOICES = [
         ('CLIENTE', 'Cliente'),

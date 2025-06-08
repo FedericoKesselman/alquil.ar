@@ -1,238 +1,129 @@
 <!-- templates/reservas/seleccionar_sucursal.html -->
-{% extends 'base.html' %}
-{% load static %}
-
-{% block title %}{{ titulo }}{% endblock %}
-
-{% block extra_css %}
+{% extends 'base.html' %} {% load static %} {% block title %}{{ titulo }}{%
+endblock %} {% block extra_css %}
 <style>
-    .reservation-summary {
-        background: #f8f9fa;
-        border-radius: 10px;
-        padding: 2rem;
-        margin-bottom: 2rem;
-        border-left: 4px solid #28a745;
-    }
-    
-    .sucursal-selection {
-        background: white;
-        border-radius: 10px;
-        padding: 2rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
-    
-    .sucursal-option {
-        border: 2px solid #e9ecef;
-        border-radius: 8px;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
-        transition: all 0.3s ease;
-        cursor: pointer;
-    }
-    
-    .sucursal-option:hover {
-        border-color: #007bff;
-        box-shadow: 0 2px 8px rgba(0,123,255,0.15);
-    }
-    
-    .sucursal-option input[type="radio"]:checked + .sucursal-content {
-        border-color: #007bff;
-        background-color: #f8f9ff;
-    }
-    
-    .sucursal-option input[type="radio"] {
-        position: absolute;
-        opacity: 0;
-    }
-    
-    .sucursal-content {
-        border: 2px solid transparent;
-        border-radius: 6px;
-        padding: 1rem;
-        transition: all 0.3s ease;
-    }
-    
-    .stock-badge {
-        background: #28a745;
-        color: white;
-        padding: 0.25rem 0.75rem;
-        border-radius: 15px;
-        font-size: 0.875rem;
-    }
-    
-    .summary-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.5rem 0;
-        border-bottom: 1px solid #e9ecef;
-    }
-    
-    .summary-item:last-child {
-        border-bottom: none;
-        font-weight: bold;
-        font-size: 1.1rem;
-        color: #007bff;
-    }
+  .sucursal-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    border: 1px solid #dee2e6;
+    transition: all 0.3s ease;
+  }
+
+  .sucursal-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+  }
+
+  .sucursal-card.selected {
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+  }
+
+  .stock-badge {
+    background: #e3f2fd;
+    color: #0d6efd;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.875rem;
+  }
+
+  .resumen-reserva {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
 </style>
-{% endblock %}
+{% endblock %} {% block content %}
+<div class="container mt-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="d-flex align-items-center mb-4">
+        <a href="javascript:history.back()" class="btn btn-outline-secondary me-3">
+          <i class="bi bi-arrow-left"></i> Volver
+        </a>
+        <h2 class="mb-0">{{ titulo }}</h2>
+      </div>
 
-{% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-10">
-        <div class="d-flex align-items-center mb-4">
-            <a href="{% url 'crear_reserva_cliente' maquinaria.id %}" class="btn btn-outline-secondary me-3">
-                <i class="bi bi-arrow-left"></i> Volver
-            </a>
-            <h2 class="mb-0">{{ titulo }}</h2>
-        </div>
-
+      <!-- Resumen de la Reserva -->
+      <div class="resumen-reserva">
+        <h5 class="mb-3">Resumen de la Reserva</h5>
         <div class="row">
-            <!-- Resumen de la Reserva -->
-            <div class="col-lg-4">
-                <div class="reservation-summary">
-                    <h5 class="text-success mb-3">
-                        <i class="bi bi-check-circle"></i> Resumen de Reserva
-                    </h5>
-                    
-                    <div class="mb-3">
-                        {% if maquinaria.imagen %}
-                            <img src="{{ maquinaria.imagen.url }}" alt="{{ maquinaria.nombre }}" 
-                                 class="img-fluid rounded" style="max-height: 150px;">
-                        {% endif %}
-                    </div>
-                    
-                    <div class="summary-item">
-                        <span>Maquinaria:</span>
-                        <strong>{{ maquinaria.nombre }}</strong>
-                    </div>
-                    
-                    <div class="summary-item">
-                        <span>Fecha Inicio:</span>
-                        <strong>{{ reserva_data.fecha_inicio }}</strong>
-                    </div>
-                    
-                    <div class="summary-item">
-                        <span>Fecha Fin:</span>
-                        <strong>{{ reserva_data.fecha_fin }}</strong>
-                    </div>
-                    
-                    <div class="summary-item">
-                        <span>Cantidad:</span>
-                        <strong>{{ reserva_data.cantidad_solicitada }} unidad{{ reserva_data.cantidad_solicitada|pluralize:"es" }}</strong>
-                    </div>
-                    
-                    <div class="summary-item">
-                        <span>Total a Pagar:</span>
-                        <strong>${{ reserva_data.precio_total|floatformat:2 }}</strong>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Selección de Sucursal -->
-            <div class="col-lg-8">
-                <div class="sucursal-selection">
-                    <h5 class="mb-4">
-                        <i class="bi bi-geo-alt"></i> Seleccione la Sucursal de Retiro
-                    </h5>
-                    
-                    <form method="post">
-                        {% csrf_token %}
-                        
-                        {% if form.sucursal_retiro.errors %}
-                            <div class="alert alert-danger">
-                                {% for error in form.sucursal_retiro.errors %}
-                                    {{ error }}
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-
-                        <div class="sucursal-options">
-                            {% for radio in form.sucursal_retiro %}
-                                <label class="sucursal-option" for="{{ radio.id_for_label }}">
-                                    {{ radio.tag }}
-                                    <div class="sucursal-content">
-                                        <div class="row align-items-center">
-                                            <div class="col-md-8">
-                                                <h6 class="mb-1">{{ radio.choice_label|cut:" - " }}</h6>
-                                                <p class="text-muted mb-0">
-                                                    <i class="bi bi-geo-alt"></i> 
-                                                    {% comment %}
-                                                    Aquí necesitarías obtener la dirección de la sucursal
-                                                    desde el contexto o modificar el formulario para incluirla
-                                                    {% endcomment %}
-                                                    {{ radio.choice_label|cut:" (Disponible: "|cut:")" }}
-                                                </p>
-                                            </div>
-                                            <div class="col-md-4 text-end">
-                                                <span class="stock-badge">
-                                                    {% with stock=radio.choice_label|cut:"Disponible: "|cut:")" %}
-                                                        {% if "Disponible:" in radio.choice_label %}
-                                                            {{ radio.choice_label|slice:"Disponible: -1"|cut:")" }} disponible{{ radio.choice_label|slice:"Disponible: -1"|cut:")" |pluralize:"s" }}
-                                                        {% endif %}
-                                                    {% endwith %}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </label>
-                            {% empty %}
-                                <div class="alert alert-warning">
-                                    <i class="bi bi-exclamation-triangle"></i>
-                                    No hay sucursales disponibles para esta reserva.
-                                </div>
-                            {% endfor %}
-                        </div>
-
-                        {% if form.non_field_errors %}
-                            <div class="alert alert-danger mt-3">
-                                {% for error in form.non_field_errors %}
-                                    {{ error }}
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                            <a href="{% url 'crear_reserva_cliente' maquinaria.id %}" 
-                               class="btn btn-secondary me-md-2">
-                                <i class="bi bi-arrow-left"></i> Volver
-                            </a>
-                            <button type="submit" class="btn btn-success">
-                                <i class="bi bi-credit-card"></i> Continuar al Pago
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+          <div class="col-md-6">
+            <p><strong>Maquinaria:</strong> {{ maquinaria.nombre }}</p>
+            <p><strong>Cantidad:</strong> {{ reserva_data.cantidad_solicitada }} unidad(es)</p>
+          </div>
+          <div class="col-md-6">
+            <p><strong>Fecha Inicio:</strong> {{ reserva_data.fecha_inicio }}</p>
+            <p><strong>Fecha Fin:</strong> {{ reserva_data.fecha_fin }}</p>
+          </div>
+          <div class="col-12">
+            <p class="mb-0"><strong>Precio Total:</strong> ${{ reserva_data.precio_total|floatformat:2 }}</p>
+          </div>
         </div>
-    </div>
-</div>
-{% endblock %}
+      </div>
 
-{% block extra_js %}
+      <h4 class="mb-3">Seleccione la Sucursal de Retiro</h4>
+      
+      <form method="post">
+        {% csrf_token %}
+        
+        {% for sucursal in form.sucursal_retiro %}
+        <div class="sucursal-card">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="sucursal_retiro" 
+                   id="sucursal_{{ forloop.counter }}" value="{{ sucursal.data.value }}"
+                   {% if forloop.first %}checked{% endif %}>
+            <label class="form-check-label" for="sucursal_{{ forloop.counter }}">
+              <h5 class="mb-2">{{ sucursal.choice_label }}</h5>
+              <div class="text-muted small mb-2">
+                <i class="bi bi-geo-alt"></i> {{ sucursal.choice_label|cut:sucursal.choice_label|cut:"("|cut:")"|cut:"Disponible: " }}
+              </div>
+              <span class="stock-badge">
+                <i class="bi bi-box-seam"></i> Unidades disponibles: {{ sucursal.choice_label|cut:sucursal.choice_label|cut:"("|cut:")"|cut:"Disponible: " }}
+              </span>
+            </label>
+          </div>
+        </div>
+        {% endfor %}
+
+        {% if form.errors %}
+        <div class="alert alert-danger">
+          {% for error in form.non_field_errors %}
+          <p class="mb-0">{{ error }}</p>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="mt-4">
+          <button type="submit" class="btn btn-primary">
+            Continuar con la Reserva
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Hacer que toda la tarjeta sea clickeable
-    const sucursalOptions = document.querySelectorAll('.sucursal-option');
+  document.addEventListener('DOMContentLoaded', function() {
+    const sucursalCards = document.querySelectorAll('.sucursal-card');
     
-    sucursalOptions.forEach(option => {
-        option.addEventListener('click', function() {
-            const radio = this.querySelector('input[type="radio"]');
-            radio.checked = true;
-            
-            // Remover clase activa de todas las opciones
-            sucursalOptions.forEach(opt => {
-                opt.classList.remove('active');
-                opt.querySelector('.sucursal-content').style.borderColor = 'transparent';
-                opt.querySelector('.sucursal-content').style.backgroundColor = 'transparent';
-            });
-            
-            // Agregar clase activa a la opción seleccionada
-            this.classList.add('active');
-            this.querySelector('.sucursal-content').style.borderColor = '#007bff';
-            this.querySelector('.sucursal-content').style.backgroundColor = '#f8f9ff';
-        });
+    sucursalCards.forEach(card => {
+      const radio = card.querySelector('input[type="radio"]');
+      
+      card.addEventListener('click', function() {
+        radio.checked = true;
+        sucursalCards.forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+      });
+      
+      if (radio.checked) {
+        card.classList.add('selected');
+      }
     });
-});
+  });
 </script>
 {% endblock %}

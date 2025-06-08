@@ -1,7 +1,7 @@
 # reservas/views.py
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse, HttpResponseForbidden
 from django.core.paginator import Paginator
 from django.db.models import Q
@@ -13,49 +13,49 @@ from maquinarias.models import Maquinaria
 from .models import Reserva
 from .forms import (
     ReservaForm, SeleccionSucursalForm, ConfirmacionPagoForm,
-    BusquedaReservasForm, EditarReservaForm
+    BusquedaReservasForm, EditarReservaForm, ReservaEmpleadoForm
 )
 
 
 @login_required
 @solo_cliente
 def crear_reserva_cliente(request, maquinaria_id):
-    """Vista para que los clientes creen reservas"""
+    """Vista para que un cliente cree una reserva"""
     maquinaria = get_object_or_404(Maquinaria, id=maquinaria_id)
     
     if request.method == 'POST':
-        form = ReservaForm(request.POST, maquinaria=maquinaria, usuario=request.user)
+        # Incluir la maquinaria y el cliente en los datos POST
+        post_data = request.POST.copy()
+        post_data['maquinaria'] = maquinaria.id
+        post_data['cliente'] = request.user.id
         
+        form = ReservaForm(post_data, maquinaria=maquinaria, usuario=request.user)
         if form.is_valid():
-            # Guardar los datos de la reserva en la sesión
-            request.session['reserva_data'] = {
-                'maquinaria_id': maquinaria.id,
-                'fecha_inicio': form.cleaned_data['fecha_inicio'].strftime('%Y-%m-%d'),
-                'fecha_fin': form.cleaned_data['fecha_fin'].strftime('%Y-%m-%d'),
-                'cantidad_solicitada': form.cleaned_data['cantidad_solicitada'],
-                'precio_total': float(form.calcular_precio_total()),
-                'sucursales_disponibles': [
-                    {
-                        'sucursal_id': info['sucursal'].id,
-                        'sucursal_nombre': info['sucursal'].nombre,
-                        'sucursal_direccion': info['sucursal'].direccion,
-                        'stock_disponible': info['stock_disponible']
-                    }
-                    for info in form.sucursales_disponibles
-                ]
-            }
+            reserva = form.save(commit=False)
+            reserva.maquinaria = maquinaria  # Asignar explícitamente la maquinaria
+            reserva.cliente = request.user    # Asignar explícitamente el cliente
+            reserva.estado = 'PENDIENTE_PAGO'
+            reserva.tipo_pago = 'ONLINE'
             
-            return redirect('seleccionar_sucursal')
+            # Calcular precio total
+            dias = (reserva.fecha_fin - reserva.fecha_inicio).days
+            reserva.precio_total = maquinaria.precio_por_dia * dias * reserva.cantidad_solicitada
+            
+            reserva.save()
+            
+            # Redirigir a la página de confirmación
+            return redirect('reservas:confirmar_reserva', reserva_id=reserva.id)
     else:
-        form = ReservaForm(maquinaria=maquinaria, usuario=request.user)
+        initial_data = {
+            'maquinaria': maquinaria.id,
+            'cliente': request.user.id
+        }
+        form = ReservaForm(maquinaria=maquinaria, usuario=request.user, initial=initial_data)
     
-    context = {
+    return render(request, 'reservas/crear_reserva.html', {
         'form': form,
-        'maquinaria': maquinaria,
-        'titulo': f'Reservar {maquinaria.nombre}',
-    }
-    
-    return render(request, 'reservas/crear_reserva.html', context)
+        'maquinaria': maquinaria
+    })
 
 
 @login_required
@@ -102,53 +102,27 @@ def seleccionar_sucursal(request):
 
 
 @login_required
-@solo_cliente
-def confirmar_reserva(request):
-    """Vista para confirmar la reserva antes del pago"""
-    reserva_data = request.session.get('reserva_data')
-    
-    if not reserva_data or 'sucursal_retiro_id' not in reserva_data:
-        messages.error(request, 'Datos de reserva incompletos. Por favor, inicie el proceso nuevamente.')
-        return redirect('maquinarias_cliente')
-    
-    maquinaria = get_object_or_404(Maquinaria, id=reserva_data['maquinaria_id'])
-    sucursal = get_object_or_404(Sucursal, id=reserva_data['sucursal_retiro_id'])
+def confirmar_reserva(request, reserva_id):
+    """Vista para confirmar los detalles de la reserva antes del pago"""
+    reserva = get_object_or_404(Reserva, id=reserva_id, cliente=request.user)
     
     if request.method == 'POST':
-        # Crear la reserva
-        try:
-            reserva = Reserva.objects.create(
-                cliente=request.user,
-                maquinaria=maquinaria,
-                sucursal_retiro=sucursal,
-                fecha_inicio=datetime.strptime(reserva_data['fecha_inicio'], '%Y-%m-%d').date(),
-                fecha_fin=datetime.strptime(reserva_data['fecha_fin'], '%Y-%m-%d').date(),
-                cantidad_solicitada=reserva_data['cantidad_solicitada'],
-                precio_total=reserva_data['precio_total'],
-                tipo_pago='ONLINE',
-                estado='PENDIENTE_PAGO'
-            )
-            
-            # Limpiar la sesión
-            if 'reserva_data' in request.session:
-                del request.session['reserva_data']
-            
-            messages.success(request, f'Reserva creada exitosamente. ID: {reserva.id}')
-            
-            # Redirigir al pago (por ahora, simularemos)
-            return redirect('procesar_pago', reserva_id=reserva.id)
-            
-        except Exception as e:
-            messages.error(request, f'Error al crear la reserva: {str(e)}')
+        # Aquí iría la lógica para procesar el pago
+        # Por ahora solo cambiamos el estado
+        reserva.estado = 'CONFIRMADA'
+        reserva.fecha_confirmacion = timezone.now()
+        reserva.save()
+        messages.success(request, 'Reserva confirmada exitosamente')
+        return redirect('reservas:detalle_reserva', reserva_id=reserva.id)
     
-    context = {
-        'reserva_data': reserva_data,
-        'maquinaria': maquinaria,
-        'sucursal': sucursal,
-        'titulo': 'Confirmar Reserva',
-    }
-    
-    return render(request, 'reservas/confirmar_reserva.html', context)
+    return render(request, 'reservas/confirmar_reserva.html', {
+        'reserva': reserva,
+        'maquinaria': reserva.maquinaria,
+        'sucursal': reserva.sucursal_retiro,
+        'dias': (reserva.fecha_fin - reserva.fecha_inicio).days,
+        'precio_por_dia': reserva.maquinaria.precio_por_dia,
+        'precio_total': reserva.precio_total
+    })
 
 
 @login_required
@@ -175,197 +149,55 @@ def procesar_pago(request, reserva_id):
 
 
 @login_required
-@solo_empleado
-def crear_reserva_empleado(request, maquinaria_id):
-    """Vista para que empleados creen reservas para clientes"""
-    maquinaria = get_object_or_404(Maquinaria, id=maquinaria_id)
-    
-    # Buscar cliente por DNI si se proporciona
-    cliente = None
-    if request.GET.get('cliente_dni'):
-        try:
-            cliente = Usuario.objects.get(dni=request.GET['cliente_dni'], tipo='CLIENTE')
-        except Usuario.DoesNotExist:
-            messages.error(request, 'Cliente no encontrado con ese DNI.')
-    
+@user_passes_test(lambda u: u.is_staff)
+def crear_reserva_empleado(request):
+    """Vista para que un empleado cree una reserva"""
     if request.method == 'POST':
-        # Verificar que se ha seleccionado un cliente
-        cliente_id = request.POST.get('cliente_id')
-        if not cliente_id:
-            messages.error(request, 'Debe seleccionar un cliente.')
-            return redirect(request.path)
-        
-        cliente = get_object_or_404(Usuario, id=cliente_id, tipo='CLIENTE')
-        form = ReservaForm(request.POST, maquinaria=maquinaria, usuario=cliente)
-        
+        form = ReservaEmpleadoForm(request.POST)
         if form.is_valid():
-            # Crear la reserva directamente (pago presencial)
-            try:
-                reserva = Reserva(
-                    cliente=cliente,
-                    maquinaria=maquinaria,
-                    fecha_inicio=form.cleaned_data['fecha_inicio'],
-                    fecha_fin=form.cleaned_data['fecha_fin'],
-                    cantidad_solicitada=form.cleaned_data['cantidad_solicitada'],
-                    tipo_pago='PRESENCIAL',
-                    estado='PENDIENTE_PAGO',
-                    empleado_procesador=request.user
-                )
-                
-                # Calcular precio
-                dias = (reserva.fecha_fin - reserva.fecha_inicio).days
-                reserva.precio_total = maquinaria.precio_por_dia * dias * reserva.cantidad_solicitada
-                
-                # Seleccionar sucursal (por defecto la del empleado, o la primera disponible)
-                sucursales_disponibles = form.sucursales_disponibles
-                if request.user.sucursal and any(s['sucursal'] == request.user.sucursal for s in sucursales_disponibles):
-                    reserva.sucursal_retiro = request.user.sucursal
-                else:
-                    reserva.sucursal_retiro = sucursales_disponibles[0]['sucursal']
-                
-                reserva.save()
-                
-                messages.success(request, f'Reserva creada exitosamente. ID: {reserva.id}')
-                return redirect('confirmar_pago_empleado', reserva_id=reserva.id)
-                
-            except Exception as e:
-                messages.error(request, f'Error al crear la reserva: {str(e)}')
+            reserva = form.save(commit=False)
+            reserva.estado = 'confirmada'  # Las reservas de empleados se confirman directamente
+            reserva.save()
+            messages.success(request, 'Reserva creada exitosamente')
+            return redirect('reservas:detalle_reserva', reserva_id=reserva.id)
     else:
-        form = ReservaForm(maquinaria=maquinaria, usuario=cliente)
+        form = ReservaEmpleadoForm()
     
-    # Buscar clientes para el autocomplete
-    clientes = Usuario.objects.filter(tipo='CLIENTE')[:10] if not cliente else [cliente]
-    
-    context = {
-        'form': form,
-        'maquinaria': maquinaria,
-        'cliente': cliente,
-        'clientes': clientes,
-        'titulo': f'Crear Reserva - {maquinaria.nombre}',
-    }
-    
-    return render(request, 'reservas/crear_reserva_empleado.html', context)
+    return render(request, 'reservas/crear_reserva_empleado.html', {
+        'form': form
+    })
 
 
 @login_required
-@solo_empleado
-def confirmar_pago_empleado(request, reserva_id):
-    """Vista para que empleados confirmen pagos presenciales"""
-    reserva = get_object_or_404(Reserva, id=reserva_id)
-    
-    # Verificar que el empleado puede confirmar este pago
-    if reserva.tipo_pago != 'PRESENCIAL' or reserva.estado != 'PENDIENTE_PAGO':
-        messages.error(request, 'Esta reserva no requiere confirmación de pago presencial.')
-        return redirect('listar_reservas_empleado')
-    
-    if request.method == 'POST':
-        form = ConfirmacionPagoForm(request.POST)
-        
-        if form.is_valid():
-            # Confirmar el pago
-            reserva.observaciones = form.cleaned_data.get('observaciones', '')
-            if reserva.confirmar_pago(empleado=request.user):
-                messages.success(request, 'Pago confirmado exitosamente.')
-                return redirect('detalle_reserva', reserva_id=reserva.id)
-    else:
-        form = ConfirmacionPagoForm()
-    
-    context = {
-        'form': form,
-        'reserva': reserva,
-        'titulo': 'Confirmar Pago Presencial',
-    }
-    
-    return render(request, 'reservas/confirmar_pago_empleado.html', context)
+@user_passes_test(lambda u: u.is_staff)
+def lista_reservas_empleado(request):
+    """Vista para que los empleados vean todas las reservas"""
+    reservas = Reserva.objects.all().order_by('-fecha_creacion')
+    return render(request, 'reservas/lista_reservas_empleado.html', {
+        'reservas': reservas
+    })
+
+
+@login_required
+def lista_reservas(request):
+    """Vista para que los clientes vean sus reservas"""
+    reservas = Reserva.objects.filter(cliente=request.user).order_by('-fecha_creacion')
+    return render(request, 'reservas/lista_reservas.html', {
+        'reservas': reservas
+    })
 
 
 @login_required
 def detalle_reserva(request, reserva_id):
-    """Vista para ver el detalle de una reserva"""
-    reserva = get_object_or_404(Reserva, id=reserva_id)
+    """Vista para ver los detalles de una reserva"""
+    if request.user.is_staff:
+        reserva = get_object_or_404(Reserva, id=reserva_id)
+    else:
+        reserva = get_object_or_404(Reserva, id=reserva_id, cliente=request.user)
     
-    # Verificar permisos
-    if (request.user.tipo == 'CLIENTE' and reserva.cliente != request.user) and \
-       request.user.tipo not in ['ADMIN', 'EMPLEADO']:
-        return HttpResponseForbidden("No tiene permisos para acceder a esta reserva.")
-    
-    context = {
-        'reserva': reserva,
-        'titulo': f'Reserva #{reserva.id}',
-    }
-    
-    return render(request, 'reservas/detalle_reserva.html', context)
-
-
-@login_required
-@solo_cliente
-def mis_reservas(request):
-    """Vista para que los clientes vean sus reservas"""
-    reservas = Reserva.objects.filter(cliente=request.user).order_by('-fecha_creacion')
-    
-    # Paginación
-    paginator = Paginator(reservas, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    
-    context = {
-        'page_obj': page_obj,
-        'titulo': 'Mis Reservas',
-    }
-    
-    return render(request, 'reservas/mis_reservas.html', context)
-
-
-@login_required
-def listar_reservas_empleado(request):
-    """Vista para que empleados y admins vean todas las reservas"""
-    if request.user.tipo not in ['EMPLEADO', 'ADMIN']:
-        return HttpResponseForbidden("No tiene permisos para acceder a esta sección.")
-    
-    # Filtros
-    form = BusquedaReservasForm(request.GET)
-    reservas = Reserva.objects.all().select_related('cliente', 'maquinaria', 'sucursal_retiro')
-    
-    if form.is_valid():
-        # Filtrar por cliente
-        if form.cleaned_data.get('cliente'):
-            cliente_query = form.cleaned_data['cliente']
-            reservas = reservas.filter(
-                Q(cliente__first_name__icontains=cliente_query) |
-                Q(cliente__last_name__icontains=cliente_query) |
-                Q(cliente__dni__icontains=cliente_query)
-            )
-        
-        # Filtrar por estado
-        if form.cleaned_data.get('estado'):
-            reservas = reservas.filter(estado=form.cleaned_data['estado'])
-        
-        # Filtrar por fechas
-        if form.cleaned_data.get('fecha_desde'):
-            reservas = reservas.filter(fecha_inicio__gte=form.cleaned_data['fecha_desde'])
-        
-        if form.cleaned_data.get('fecha_hasta'):
-            reservas = reservas.filter(fecha_fin__lte=form.cleaned_data['fecha_hasta'])
-        
-        # Filtrar por maquinaria
-        if form.cleaned_data.get('maquinaria'):
-            reservas = reservas.filter(maquinaria__nombre__icontains=form.cleaned_data['maquinaria'])
-    
-    # Ordenar por fecha de creación (más recientes primero)
-    reservas = reservas.order_by('-fecha_creacion')
-    
-    # Paginación
-    paginator = Paginator(reservas, 20)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    
-    context = {
-        'form': form,
-        'page_obj': page_obj,
-        'titulo': 'Gestión de Reservas',
-    }
-    
-    return render(request, 'reservas/listar_reservas_empleado.html', context)
+    return render(request, 'reservas/detalle_reserva.html', {
+        'reserva': reserva
+    })
 
 
 @login_required
@@ -484,3 +316,90 @@ def verificar_disponibilidad_ajax(request):
         
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
+
+
+@login_required
+def get_sucursales_disponibles(request):
+    """
+    Vista que devuelve las sucursales que tienen stock disponible para una maquinaria
+    en un rango de fechas específico
+    """
+    try:
+        # Obtener y validar parámetros
+        maquinaria_id = request.GET.get('maquinaria_id')
+        fecha_inicio = request.GET.get('fecha_inicio')
+        fecha_fin = request.GET.get('fecha_fin')
+        cantidad_solicitada = request.GET.get('cantidad_solicitada')
+
+        # Validar que todos los parámetros necesarios estén presentes
+        if not all([maquinaria_id, fecha_inicio, fecha_fin, cantidad_solicitada]):
+            return JsonResponse({
+                'error': 'Faltan parámetros requeridos'
+            }, status=400)
+
+        # Convertir parámetros a sus tipos correctos
+        try:
+            maquinaria_id = int(maquinaria_id)
+            cantidad_solicitada = int(cantidad_solicitada)
+            fecha_inicio = datetime.strptime(fecha_inicio, '%Y-%m-%d').date()
+            fecha_fin = datetime.strptime(fecha_fin, '%Y-%m-%d').date()
+        except (ValueError, TypeError) as e:
+            return JsonResponse({
+                'error': f'Formato de parámetros inválido: {str(e)}'
+            }, status=400)
+
+        # Obtener la maquinaria
+        try:
+            maquinaria = Maquinaria.objects.get(id=maquinaria_id)
+        except Maquinaria.DoesNotExist:
+            return JsonResponse({
+                'error': 'Maquinaria no encontrada'
+            }, status=404)
+
+        # Validar fechas
+        if fecha_inicio > fecha_fin:
+            return JsonResponse({
+                'error': 'La fecha de inicio debe ser anterior a la fecha de fin'
+            }, status=400)
+
+        if fecha_inicio < timezone.now().date():
+            return JsonResponse({
+                'error': 'La fecha de inicio debe ser posterior a hoy'
+            }, status=400)
+
+        # Obtener las sucursales con stock disponible
+        sucursales_disponibles = []
+        
+        # Agregar logging para debug
+        print(f"Buscando sucursales para maquinaria {maquinaria_id}")
+        print(f"Fechas: {fecha_inicio} - {fecha_fin}")
+        print(f"Cantidad solicitada: {cantidad_solicitada}")
+        
+        for sucursal in Sucursal.objects.all():
+            try:
+                stock_disponible = sucursal.get_stock_disponible(
+                    maquinaria, 
+                    fecha_inicio, 
+                    fecha_fin,
+                    cantidad_solicitada
+                )
+                print(f"Sucursal {sucursal.nombre}: stock disponible = {stock_disponible}")
+                
+                if stock_disponible >= cantidad_solicitada:
+                    sucursales_disponibles.append({
+                        'id': sucursal.id,
+                        'nombre': sucursal.nombre,
+                        'direccion': sucursal.direccion,
+                    })
+            except Exception as e:
+                print(f"Error al verificar stock en sucursal {sucursal.nombre}: {str(e)}")
+
+        return JsonResponse({
+            'sucursales': sucursales_disponibles
+        })
+
+    except Exception as e:
+        print(f"Error general: {str(e)}")
+        return JsonResponse({
+            'error': str(e)
+        }, status=400)

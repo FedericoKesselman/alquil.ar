@@ -1,253 +1,341 @@
-<!-- templates/reservas/crear_reserva.html -->
-{% extends 'base.html' %}
-{% load static %}
-
-{% block title %}{{ titulo }}{% endblock %}
-
-{% block extra_css %}
+{% extends 'base.html' %} {% load static %} {% block title %} {{ titulo }} {% endblock %} {% block extra_css %}
 <style>
-    .reservation-form {
-        background: #f8f9fa;
-        border-radius: 10px;
-        padding: 2rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
-    
-    .machine-info {
-        background: white;
-        border-radius: 8px;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-        border-left: 4px solid #007bff;
-    }
-    
-    .price-calculator {
-        background: #e3f2fd;
-        border-radius: 8px;
-        padding: 1rem;
-        margin-top: 1rem;
-        border: 1px solid #bbdefb;
-    }
-    
-    .form-group {
-        margin-bottom: 1.5rem;
-    }
-    
-    .help-text {
-        font-size: 0.875rem;
-        color: #6c757d;
-        margin-top: 0.25rem;
-    }
-    
-    .validation-info {
-        background: #fff3cd;
-        border: 1px solid #ffeaa7;
-        border-radius: 5px;
-        padding: 0.75rem;
-        margin-bottom: 1rem;
-    }
+  .reservation-form {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 2rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  }
+
+  .machine-info {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    border-left: 4px solid #007bff;
+  }
+
+  .price-calculator {
+    background: #e3f2fd;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 1rem;
+    border: 1px solid #bbdefb;
+  }
+
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .help-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+  }
+
+  .validation-info {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 5px;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .sucursal-option {
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    border-radius: 4px;
+  }
+
+  .sucursal-option:hover {
+    background-color: #f8f9fa;
+  }
+
+  .stock-info {
+    font-size: 0.875rem;
+    color: #28a745;
+  }
 </style>
-{% endblock %}
-
-{% block content %}
-<div class="row justify-content-center">
+{% endblock %} {% block content %}
+<div class="container mt-5">
+  <div class="row justify-content-center">
     <div class="col-lg-8">
-        <div class="d-flex align-items-center mb-4">
-            <a href="{% url 'maquinaria_detail_cliente' maquinaria.id %}" class="btn btn-outline-secondary me-3">
-                <i class="bi bi-arrow-left"></i> Volver al Detalle
-            </a>
-            <h2 class="mb-0">{{ titulo }}</h2>
-        </div>
+      <div class="d-flex align-items-center mb-4">
+        <a
+          href="{% url 'maquinaria_detail' maquinaria.id %}"
+          class="btn btn-outline-secondary me-3"
+        >
+          <i class="bi bi-arrow-left"></i> Volver al Detalle
+        </a>
+        <h2 class="mb-0">{{ titulo }}</h2>
+      </div>
 
-        <!-- Información de la Maquinaria -->
-        <div class="machine-info">
-            <div class="row align-items-center">
-                <div class="col-md-3">
-                    {% if maquinaria.imagen %}
-                        <img src="{{ maquinaria.imagen.url }}" alt="{{ maquinaria.nombre }}" 
-                             class="img-fluid rounded">
-                    {% else %}
-                        <div class="bg-light rounded d-flex align-items-center justify-content-center" 
-                             style="height: 120px;">
-                            <i class="bi bi-image text-muted" style="font-size: 3rem;"></i>
-                        </div>
-                    {% endif %}
-                </div>
-                <div class="col-md-9">
-                    <h4 class="text-primary">{{ maquinaria.nombre }}</h4>
-                    <p class="text-muted mb-2">{{ maquinaria.descripcion|truncatewords:20 }}</p>
-                    <div class="row">
-                        <div class="col-sm-6">
-                            <strong>Precio por día:</strong> ${{ maquinaria.precio_por_dia|floatformat:2 }}
-                        </div>
-                        <div class="col-sm-6">
-                            <strong>Stock disponible:</strong> {{ maquinaria.get_stock_disponible_total }} unidades
-                        </div>
-                    </div>
-                </div>
+      <!-- Información de la Maquinaria -->
+      <div class="machine-info">
+        <div class="row align-items-center">
+          <div class="col-md-3">
+            {% if maquinaria.imagen %}
+            <img
+              src="{{ maquinaria.imagen.url }}"
+              alt="{{ maquinaria.nombre }}"
+              class="img-fluid rounded"
+            />
+            {% else %}
+            <div
+              class="bg-light rounded d-flex align-items-center justify-content-center"
+              style="height: 120px"
+            >
+              <i class="bi bi-image text-muted" style="font-size: 3rem"></i>
             </div>
+            {% endif %}
+          </div>
+          <div class="col-md-9">
+            <h4 class="text-primary">{{ maquinaria.nombre }}</h4>
+            <p class="text-muted mb-2">
+              {{ maquinaria.descripcion|truncatewords:20 }}
+            </p>
+            <div class="row">
+              <div class="col-sm-12">
+                <strong>Precio por día:</strong> ${{
+                maquinaria.precio_por_dia|floatformat:2 }}
+              </div>
+            </div>
+          </div>
         </div>
+      </div>
 
-        <!-- Información de Validaciones -->
-        <div class="validation-info">
-            <h6><i class="bi bi-info-circle"></i> Información de Reserva</h6>
-            <ul class="mb-0">
-                <li>Días mínimos de reserva: <strong>{{ maquinaria.minimo }} días</strong></li>
-                <li>Días máximos de reserva: <strong>{{ maquinaria.maximo }} días</strong></li>
-                <li>Stock total disponible: <strong>{{ maquinaria.get_stock_disponible_total }} unidades</strong></li>
-            </ul>
-        </div>
+      <!-- Información de Validaciones -->
+      <div class="validation-info">
+        <h6><i class="bi bi-info-circle"></i> Información de Reserva</h6>
+        <ul class="mb-0">
+          <li>
+            Días mínimos de reserva:
+            <strong>{{ maquinaria.minimo }} días</strong>
+          </li>
+          <li>
+            Días máximos de reserva:
+            <strong>{{ maquinaria.maximo }} días</strong>
+          </li>
+        </ul>
+      </div>
 
-        <!-- Formulario de Reserva -->
-        <div class="reservation-form">
-            <form method="post" id="reservaForm">
-                {% csrf_token %}
-                
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="{{ form.fecha_inicio.id_for_label }}" class="form-label">
-                                {{ form.fecha_inicio.label }}
-                            </label>
-                            {{ form.fecha_inicio }}
-                            {% if form.fecha_inicio.help_text %}
-                                <div class="help-text">{{ form.fecha_inicio.help_text }}</div>
-                            {% endif %}
-                            {% if form.fecha_inicio.errors %}
-                                <div class="text-danger">
-                                    {% for error in form.fecha_inicio.errors %}
-                                        <small>{{ error }}</small>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="{{ form.fecha_fin.id_for_label }}" class="form-label">
-                                {{ form.fecha_fin.label }}
-                            </label>
-                            {{ form.fecha_fin }}
-                            {% if form.fecha_fin.help_text %}
-                                <div class="help-text">{{ form.fecha_fin.help_text }}</div>
-                            {% endif %}
-                            {% if form.fecha_fin.errors %}
-                                <div class="text-danger">
-                                    {% for error in form.fecha_fin.errors %}
-                                        <small>{{ error }}</small>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                        </div>
-                    </div>
+      <!-- Formulario de Reserva -->
+      <div class="reservation-form">
+        <form method="post" id="reservaForm">
+          {% csrf_token %}
+
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group">
+                <label
+                  for="{{ form.fecha_inicio.id_for_label }}"
+                  class="form-label"
+                >
+                  {{ form.fecha_inicio.label }}
+                </label>
+                {{ form.fecha_inicio }} {% if form.fecha_inicio.help_text %}
+                <div class="help-text">{{ form.fecha_inicio.help_text }}</div>
+                {% endif %} {% if form.fecha_inicio.errors %}
+                <div class="text-danger">
+                  {% for error in form.fecha_inicio.errors %}
+                  <small>{{ error }}</small>
+                  {% endfor %}
                 </div>
-
-                <div class="form-group">
-                    <label for="{{ form.cantidad_solicitada.id_for_label }}" class="form-label">
-                        {{ form.cantidad_solicitada.label }}
-                    </label>
-                    {{ form.cantidad_solicitada }}
-                    <div class="help-text">
-                        Máximo disponible: {{ maquinaria.get_stock_disponible_total }} unidades
-                    </div>
-                    {% if form.cantidad_solicitada.errors %}
-                        <div class="text-danger">
-                            {% for error in form.cantidad_solicitada.errors %}
-                                <small>{{ error }}</small>
-                            {% endfor %}
-                        </div>
-                    {% endif %}
-                </div>
-
-                <!-- Calculadora de Precio -->
-                <div class="price-calculator">
-                    <h6><i class="bi bi-calculator"></i> Calculadora de Precio</h6>
-                    <div class="row">
-                        <div class="col-md-4">
-                            <small class="text-muted">Días seleccionados:</small>
-                            <div id="diasSeleccionados" class="fw-bold">0</div>
-                        </div>
-                        <div class="col-md-4">
-                            <small class="text-muted">Precio por día:</small>
-                            <div class="fw-bold">${{ maquinaria.precio_por_dia|floatformat:2 }}</div>
-                        </div>
-                        <div class="col-md-4">
-                            <small class="text-muted">Total estimado:</small>
-                            <div id="precioTotal" class="fw-bold text-primary">$0.00</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Errores del formulario -->
-                {% if form.non_field_errors %}
-                    <div class="alert alert-danger mt-3">
-                        {% for error in form.non_field_errors %}
-                            <div>{{ error }}</div>
-                        {% endfor %}
-                    </div>
                 {% endif %}
+              </div>
+            </div>
 
-                <!-- Botones -->
-                <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                    <a href="{% url 'maquinaria_detail_cliente' maquinaria.id %}" 
-                       class="btn btn-secondary me-md-2">
-                        <i class="bi bi-x-circle"></i> Cancelar
-                    </a>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-check-circle"></i> Continuar con la Reserva
-                    </button>
+            <div class="col-md-6">
+              <div class="form-group">
+                <label
+                  for="{{ form.fecha_fin.id_for_label }}"
+                  class="form-label"
+                >
+                  {{ form.fecha_fin.label }}
+                </label>
+                {{ form.fecha_fin }} {% if form.fecha_fin.help_text %}
+                <div class="help-text">{{ form.fecha_fin.help_text }}</div>
+                {% endif %} {% if form.fecha_fin.errors %}
+                <div class="text-danger">
+                  {% for error in form.fecha_fin.errors %}
+                  <small>{{ error }}</small>
+                  {% endfor %}
                 </div>
-            </form>
-        </div>
-    </div>
-</div>
-{% endblock %}
+                {% endif %}
+              </div>
+            </div>
+          </div>
 
-{% block extra_js %}
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group">
+                <label
+                  for="{{ form.cantidad_solicitada.id_for_label }}"
+                  class="form-label"
+                >
+                  {{ form.cantidad_solicitada.label }}
+                </label>
+                {{ form.cantidad_solicitada }}
+                <div class="help-text">
+                  Ingrese la cantidad de unidades que desea reservar
+                </div>
+                {% if form.cantidad_solicitada.errors %}
+                <div class="text-danger">
+                  {% for error in form.cantidad_solicitada.errors %}
+                  <small>{{ error }}</small>
+                  {% endfor %}
+                </div>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="col-md-6">
+              <div class="form-group">
+                <label
+                  for="{{ form.sucursal_retiro.id_for_label }}"
+                  class="form-label"
+                >
+                  {{ form.sucursal_retiro.label }}
+                </label>
+                <select name="sucursal_retiro" id="{{ form.sucursal_retiro.id_for_label }}" 
+                        class="form-control" disabled>
+                  <option value="">Primero seleccione fechas y cantidad</option>
+                </select>
+                <div class="help-text" id="sucursalHelp">
+                  Seleccione fechas y cantidad para ver las sucursales disponibles
+                </div>
+                {% if form.sucursal_retiro.errors %}
+                <div class="text-danger">
+                  {% for error in form.sucursal_retiro.errors %}
+                  <small>{{ error }}</small>
+                  {% endfor %}
+                </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <!-- Calculadora de Precio -->
+          <div class="price-calculator">
+            <h6><i class="bi bi-calculator"></i> Calculadora de Precio</h6>
+            <div class="row">
+              <div class="col-md-4">
+                <small class="text-muted">Días seleccionados:</small>
+                <div id="dias_seleccionados" class="fw-bold">0</div>
+              </div>
+              <div class="col-md-4">
+                <small class="text-muted">Precio por día:</small>
+                <div class="fw-bold">
+                  ${{ maquinaria.precio_por_dia|floatformat:2 }}
+                </div>
+              </div>
+              <div class="col-md-4">
+                <small class="text-muted">Precio total:</small>
+                <div id="precio_total" class="fw-bold">$0.00</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4">
+            <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+              Continuar con la Reserva
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const fechaInicio = document.getElementById('{{ form.fecha_inicio.id_for_label }}');
-    const fechaFin = document.getElementById('{{ form.fecha_fin.id_for_label }}');
-    const cantidad = document.getElementById('{{ form.cantidad_solicitada.id_for_label }}');
-    const diasSpan = document.getElementById('diasSeleccionados');
-    const totalSpan = document.getElementById('precioTotal');
-    
-    const precioPorDia = parseFloat('{{ maquinaria.precio_por_dia|default:"0" }}') || 0;
-    
-    function calcularPrecio() {
-        const inicio = new Date(fechaInicio.value);
-        const fin = new Date(fechaFin.value);
-        const cantidadVal = parseInt(cantidad.value) || 0;
-        
-        if (fechaInicio.value && fechaFin.value && fin > inicio) {
-            const dias = Math.ceil((fin - inicio) / (1000 * 60 * 60 * 24));
-            const total = dias * precioPorDia * cantidadVal;
-            
-            diasSpan.textContent = dias;
-            totalSpan.textContent = '$' + total.toFixed(2);
+  document.addEventListener('DOMContentLoaded', function() {
+    const fechaInicioInput = document.getElementById('id_fecha_inicio');
+    const fechaFinInput = document.getElementById('id_fecha_fin');
+    const cantidadInput = document.getElementById('id_cantidad_solicitada');
+    const sucursalSelect = document.getElementById('id_sucursal_retiro');
+    const submitBtn = document.querySelector('button[type="submit"]');
+    const diasSeleccionadosDiv = document.getElementById('dias_seleccionados');
+    const precioTotalDiv = document.getElementById('precio_total');
+    const precioPorDia = {{ maquinaria.precio_por_dia }};
+
+    // Deshabilitar sucursal y submit inicialmente
+    sucursalSelect.disabled = true;
+    submitBtn.disabled = true;
+
+    function actualizarSucursales(sucursales) {
+        sucursalSelect.innerHTML = '<option value="">Seleccione una sucursal</option>';
+        sucursales.forEach(sucursal => {
+            const option = document.createElement('option');
+            option.value = sucursal.id;
+            option.textContent = `${sucursal.nombre} - ${sucursal.direccion}`;
+            sucursalSelect.appendChild(option);
+        });
+        submitBtn.disabled = false;
+    }
+
+    function deshabilitarSucursales() {
+        sucursalSelect.innerHTML = '<option value="">Primero seleccione fechas y cantidad</option>';
+        sucursalSelect.disabled = true;
+        submitBtn.disabled = true;
+    }
+
+    function calcularDiasYPrecio() {
+        if (fechaInicioInput.value && fechaFinInput.value && cantidadInput.value) {
+            const inicio = new Date(fechaInicioInput.value);
+            const fin = new Date(fechaFinInput.value);
+            const diffTime = Math.abs(fin - inicio);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const cantidad = parseInt(cantidadInput.value);
+
+            diasSeleccionadosDiv.textContent = diffDays;
+            const precioTotal = diffDays * precioPorDia * cantidad;
+            precioTotalDiv.textContent = `$${precioTotal.toFixed(2)}`;
+
+            verificarDisponibilidad();
         } else {
-            diasSpan.textContent = '0';
-            totalSpan.textContent = '$0.00';
+            diasSeleccionadosDiv.textContent = '0';
+            precioTotalDiv.textContent = '$0.00';
+            deshabilitarSucursales();
         }
     }
-    
-    // Configurar fecha mínima
-    const today = new Date().toISOString().split('T')[0];
-    fechaInicio.min = today;
-    fechaFin.min = today;
-    
-    // Actualizar fecha mínima del fin cuando cambia el inicio
-    fechaInicio.addEventListener('change', function() {
-        fechaFin.min = this.value;
-        calcularPrecio();
-    });
-    
-    fechaFin.addEventListener('change', calcularPrecio);
-    cantidad.addEventListener('input', calcularPrecio);
-    
-    // Calcular precio inicial
-    calcularPrecio();
-});
+
+    async function verificarDisponibilidad() {
+        const fechaInicio = fechaInicioInput.value;
+        const fechaFin = fechaFinInput.value;
+        const cantidad = cantidadInput.value;
+        const maquinariaId = {{ maquinaria.id }};
+
+        if (!fechaInicio || !fechaFin || !cantidad) {
+            deshabilitarSucursales();
+            return;
+        }
+
+        try {
+            const response = await fetch(`/reservas/get-sucursales-disponibles/?maquinaria_id=${maquinariaId}&fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}&cantidad_solicitada=${cantidad}`);
+            const data = await response.json();
+
+            if (response.ok) {
+                if (data.sucursales && data.sucursales.length > 0) {
+                    sucursalSelect.disabled = false;
+                    actualizarSucursales(data.sucursales);
+                } else {
+                    deshabilitarSucursales();
+                    alert('No hay sucursales disponibles para las fechas y cantidad seleccionadas.');
+                }
+            } else {
+                throw new Error(data.error || 'Error al verificar disponibilidad');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al verificar disponibilidad. Por favor, intente nuevamente.');
+            deshabilitarSucursales();
+        }
+    }
+
+    // Event listeners
+    fechaInicioInput.addEventListener('change', calcularDiasYPrecio);
+    fechaFinInput.addEventListener('change', calcularDiasYPrecio);
+    cantidadInput.addEventListener('change', calcularDiasYPrecio);
+  });
 </script>
 {% endblock %}

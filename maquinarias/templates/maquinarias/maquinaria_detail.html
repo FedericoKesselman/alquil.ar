@@ -41,7 +41,25 @@
                 </dd>
               </dl>
             </div>
-            {% if user.tipo == 'EMPLEADO' or user.tipo == 'ADMIN' %}
+            {% if user.tipo == 'EMPLEADO' %}
+            <div class="col-md-6">
+              <h5>Stock en tu Sucursal</h5>
+              <dl class="row">
+                {% if stock_sucursal %}
+                <dt class="col-sm-6">Stock Disponible</dt>
+                <dd class="col-sm-6">
+                  <span class="badge {% if stock_sucursal.stock_disponible > maquinaria.minimo %}bg-success{% elif stock_sucursal.stock_disponible > 0 %}bg-warning{% else %}bg-danger{% endif %}">
+                    {{ stock_sucursal.stock_disponible }}
+                  </span>
+                </dd>
+                <dt class="col-sm-6">Stock Total</dt>
+                <dd class="col-sm-6">{{ stock_sucursal.stock }}</dd>
+                {% else %}
+                <dt class="col-sm-12">No hay stock asignado a tu sucursal</dt>
+                {% endif %}
+              </dl>
+            </div>
+            {% elif user.tipo == 'ADMIN' %}
             <div class="col-md-6">
               <h5>Stock y Disponibilidad</h5>
               <dl class="row">
@@ -50,9 +68,7 @@
 
                 <dt class="col-sm-6">Stock Disponible</dt>
                 <dd class="col-sm-6">
-                  <span
-                    class="badge {% if maquinaria.stock_disponible > maquinaria.minimo %}bg-success{% elif maquinaria.stock_disponible > 0 %}bg-warning{% else %}bg-danger{% endif %}"
-                  >
+                  <span class="badge {% if maquinaria.stock_disponible > maquinaria.minimo %}bg-success{% elif maquinaria.stock_disponible > 0 %}bg-warning{% else %}bg-danger{% endif %}">
                     {{ maquinaria.stock_disponible }}
                   </span>
                 </dd>
@@ -104,6 +120,17 @@
               </div>
             </div>
           </div>
+
+          {% if user.tipo == 'CLIENTE' %}
+          <div class="mt-4 text-center">
+            <a
+              href="{% url 'reservas:crear_reserva_cliente' maquinaria.id %}"
+              class="btn btn-primary btn-lg"
+            >
+              <i class="fas fa-calendar-plus"></i> Reservar Ahora
+            </a>
+          </div>
+          {% endif %}
         </div>
         <div class="card-footer">
           <div class="d-flex justify-content-between">
