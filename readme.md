@@ -16,7 +16,7 @@ Proyecto desarrollado en el marco de la materia **Ingeniería de Software 2**.
 
 ## 🌐 Tecnologías Utilizadas
 
-- **Base de Datos:** PostgreSQL  
+- **Base de Datos:** SQLite  
 - **Backend:** Django (Python)  
 - **Frontend:** Bootstrap  
 
