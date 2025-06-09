@@ -87,7 +87,9 @@ class Reserva(models.Model):
         
         # Validar que el cliente sea realmente cliente
         if self.cliente and self.cliente.tipo != 'CLIENTE':
-            errors['cliente'] = "Solo los usuarios tipo CLIENTE pueden hacer reservas."
+            # Si hay un empleado procesador, significa que es una reserva creada por un empleado
+            if not self.empleado_procesador:
+                errors['cliente'] = "Solo los usuarios tipo CLIENTE pueden hacer reservas."
         
         # Validar que el empleado procesador sea empleado (si existe)
         if self.empleado_procesador and self.empleado_procesador.tipo != 'EMPLEADO':

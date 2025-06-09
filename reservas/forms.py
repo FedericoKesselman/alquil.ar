@@ -48,6 +48,7 @@ class ReservaForm(forms.ModelForm):
             'fecha_fin': 'Fecha de Finalización',
             'cantidad_solicitada': 'Cantidad Solicitada',
             'sucursal_retiro': 'Sucursal de Retiro',
+            'cliente': 'Seleccionar Cliente'
         }
 
     def __init__(self, *args, **kwargs):
@@ -59,7 +60,19 @@ class ReservaForm(forms.ModelForm):
             self.fields['maquinaria'].initial = self.maquinaria.id
             self.fields['maquinaria'].widget = forms.HiddenInput()
             
-        if self.usuario:
+        # Si el usuario es empleado
+        if self.usuario and self.usuario.tipo == 'EMPLEADO':
+            # Mostrar selector de cliente
+            self.fields['cliente'] = forms.ModelChoiceField(
+                queryset=Usuario.objects.filter(tipo='CLIENTE'),
+                label='Seleccionar Cliente',
+                widget=forms.Select(attrs={'class': 'form-control'})
+            )
+            # Restringir la sucursal a la del empleado
+            self.fields['sucursal_retiro'].initial = self.usuario.sucursal
+            self.fields['sucursal_retiro'].widget = forms.HiddenInput()
+        elif self.usuario:
+            # Si es cliente, ocultar el campo cliente y asignar el valor
             self.fields['cliente'].initial = self.usuario.id
             self.fields['cliente'].widget = forms.HiddenInput()
             
@@ -112,7 +125,14 @@ class ReservaForm(forms.ModelForm):
         
         # Asignar maquinaria y cliente a los datos limpiados
         cleaned_data['maquinaria'] = self.maquinaria
-        cleaned_data['cliente'] = self.usuario
+        
+        # Si el usuario es empleado, el cliente viene del formulario
+        # Si el usuario es cliente, el cliente es el mismo usuario
+        if self.usuario.tipo == 'EMPLEADO':
+            if not cleaned_data.get('cliente'):
+                raise forms.ValidationError('Debe seleccionar un cliente')
+        else:
+            cleaned_data['cliente'] = self.usuario
         
         return cleaned_data
 
@@ -282,7 +302,7 @@ class EditarReservaForm(forms.ModelForm):
 class ReservaEmpleadoForm(forms.ModelForm):
     """Formulario para que empleados creen reservas"""
     cliente = forms.ModelChoiceField(
-        queryset=Usuario.objects.filter(is_staff=False),
+        queryset=Usuario.objects.filter(tipo='CLIENTE'),
         label='Cliente',
         widget=forms.Select(attrs={'class': 'form-control'})
     )

@@ -121,12 +121,9 @@
             </div>
           </div>
 
-          {% if user.tipo == 'CLIENTE' %}
+          {% if user.tipo != 'ADMIN' %}
           <div class="mt-4 text-center">
-            <a
-              href="{% url 'reservas:crear_reserva_cliente' maquinaria.id %}"
-              class="btn btn-primary btn-lg"
-            >
+            <a href="{% url 'reservas:crear_reserva' maquinaria.id %}" class="btn btn-primary btn-lg">
               <i class="fas fa-calendar-plus"></i> Reservar Ahora
             </a>
           </div>
@@ -134,7 +131,7 @@
         </div>
         <div class="card-footer">
           <div class="d-flex justify-content-between">
-            {% if user.tipo == 'CLIENTE' %}
+            {% if user.tipo != 'ADMIN' %}
             <a
               href="{% url 'maquinaria_list_cliente' %}"
               class="btn btn-secondary"

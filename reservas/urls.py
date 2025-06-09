@@ -5,13 +5,12 @@ from . import views
 app_name = 'reservas'
 
 urlpatterns = [
-    # URLs para clientes
-    path('crear/<int:maquinaria_id>/', views.crear_reserva_cliente, name='crear_reserva_cliente'),
-    path('confirmar/<int:reserva_id>/', views.confirmar_reserva, name='confirmar_reserva'),
+    # URLs para reservas (unificada para clientes y empleados)
+    path('crear/<int:maquinaria_id>/', views.crear_reserva, name='crear_reserva'),
+    path('confirmar-reservas/', views.confirmar_reservas, name='confirmar_reservas'),
     path('get-sucursales-disponibles/', views.get_sucursales_disponibles, name='get_sucursales_disponibles'),
     
     # URLs para empleados
-    path('empleado/crear/', views.crear_reserva_empleado, name='crear_reserva_empleado'),
     path('empleado/lista/', views.lista_reservas_empleado, name='lista_reservas_empleado'),
     
     # URLs compartidas

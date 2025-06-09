@@ -124,6 +124,30 @@
         <form method="post" id="reservaForm">
           {% csrf_token %}
 
+          <!-- Campos ocultos -->
+          {{ form.maquinaria }}
+          {% if user.tipo == 'CLIENTE' %}
+            {{ form.cliente }}
+          {% endif %}
+
+          {% if user.tipo == 'EMPLEADO' %}
+          <!-- Campo de selección de cliente (solo para empleados) -->
+          <div class="form-group mb-4">
+            <label for="{{ form.cliente.id_for_label }}" class="form-label">{{ form.cliente.label }}</label>
+            {{ form.cliente }}
+            {% if form.cliente.help_text %}
+            <div class="help-text">{{ form.cliente.help_text }}</div>
+            {% endif %}
+            {% if form.cliente.errors %}
+            <div class="text-danger">
+              {% for error in form.cliente.errors %}
+              <small>{{ error }}</small>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+
           <div class="row">
             <div class="col-md-6">
               <div class="form-group">
@@ -197,10 +221,7 @@
                 >
                   {{ form.sucursal_retiro.label }}
                 </label>
-                <select name="sucursal_retiro" id="{{ form.sucursal_retiro.id_for_label }}" 
-                        class="form-control" disabled>
-                  <option value="">Primero seleccione fechas y cantidad</option>
-                </select>
+                {{ form.sucursal_retiro }}
                 <div class="help-text" id="sucursalHelp">
                   Seleccione fechas y cantidad para ver las sucursales disponibles
                 </div>
@@ -270,6 +291,7 @@
             option.textContent = `${sucursal.nombre} - ${sucursal.direccion}`;
             sucursalSelect.appendChild(option);
         });
+        sucursalSelect.disabled = false;
         submitBtn.disabled = false;
     }
 
@@ -316,7 +338,6 @@
 
             if (response.ok) {
                 if (data.sucursales && data.sucursales.length > 0) {
-                    sucursalSelect.disabled = false;
                     actualizarSucursales(data.sucursales);
                 } else {
                     deshabilitarSucursales();

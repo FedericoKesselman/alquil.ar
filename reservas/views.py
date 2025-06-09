@@ -15,47 +15,137 @@ from .forms import (
     ReservaForm, SeleccionSucursalForm, ConfirmacionPagoForm,
     BusquedaReservasForm, EditarReservaForm, ReservaEmpleadoForm
 )
+import decimal
 
 
 @login_required
-@solo_cliente
-def crear_reserva_cliente(request, maquinaria_id):
-    """Vista para que un cliente cree una reserva"""
+def crear_reserva(request, maquinaria_id):
+    """Vista unificada para crear reservas (clientes y empleados)"""
+    if request.user.tipo not in ['CLIENTE', 'EMPLEADO']:
+        messages.error(request, "No tiene permisos para crear reservas.")
+        return redirect('home')
+
     maquinaria = get_object_or_404(Maquinaria, id=maquinaria_id)
     
     if request.method == 'POST':
-        # Incluir la maquinaria y el cliente en los datos POST
-        post_data = request.POST.copy()
-        post_data['maquinaria'] = maquinaria.id
-        post_data['cliente'] = request.user.id
-        
-        form = ReservaForm(post_data, maquinaria=maquinaria, usuario=request.user)
+        form = ReservaForm(request.POST, maquinaria=maquinaria, usuario=request.user)
         if form.is_valid():
             reserva = form.save(commit=False)
-            reserva.maquinaria = maquinaria  # Asignar explícitamente la maquinaria
-            reserva.cliente = request.user    # Asignar explícitamente el cliente
-            reserva.estado = 'PENDIENTE_PAGO'
-            reserva.tipo_pago = 'ONLINE'
+            reserva.maquinaria = maquinaria
             
             # Calcular precio total
             dias = (reserva.fecha_fin - reserva.fecha_inicio).days
             reserva.precio_total = maquinaria.precio_por_dia * dias * reserva.cantidad_solicitada
             
-            reserva.save()
-            
-            # Redirigir a la página de confirmación
-            return redirect('reservas:confirmar_reserva', reserva_id=reserva.id)
+            if request.user.tipo == 'EMPLEADO':
+                # Para empleados, redirigir a la página de confirmación
+                # No guardamos la reserva aún, la guardamos en la vista de confirmación
+                request.session['reserva_data'] = {
+                    'cliente_id': form.cleaned_data['cliente'].id,
+                    'maquinaria_id': maquinaria.id,
+                    'fecha_inicio': form.cleaned_data['fecha_inicio'].isoformat(),
+                    'fecha_fin': form.cleaned_data['fecha_fin'].isoformat(),
+                    'cantidad_solicitada': form.cleaned_data['cantidad_solicitada'],
+                    'sucursal_retiro_id': form.cleaned_data['sucursal_retiro'].id,
+                    'precio_total': str(reserva.precio_total),
+                    'empleado_id': request.user.id
+                }
+                messages.info(request, "Por favor, confirme los detalles de la reserva.")
+                return redirect('reservas:confirmar_reservas')
+            else:
+                # Para clientes, guardar como pendiente y redirigir al pago
+                reserva.cliente = request.user
+                reserva.estado = 'PENDIENTE_PAGO'
+                reserva.tipo_pago = 'ONLINE'
+                reserva.save()
+                # TODO: Redirigir a la página de pago cuando esté implementada
+                messages.info(request, "Página de pago en construcción")
+                return redirect('home')
+        else:
+            messages.error(request, "Por favor, corrija los errores en el formulario.")
     else:
         initial_data = {
             'maquinaria': maquinaria.id,
-            'cliente': request.user.id
+            'sucursal_retiro': request.user.sucursal.id if request.user.tipo == 'EMPLEADO' else None
         }
+        if request.user.tipo == 'CLIENTE':
+            initial_data['cliente'] = request.user.id
         form = ReservaForm(maquinaria=maquinaria, usuario=request.user, initial=initial_data)
     
     return render(request, 'reservas/crear_reserva.html', {
         'form': form,
-        'maquinaria': maquinaria
+        'maquinaria': maquinaria,
+        'titulo': 'Crear Reserva'
     })
+
+
+@login_required
+@solo_empleado
+def confirmar_reservas(request):
+    """Vista para confirmar reservas por parte de empleados"""
+    if request.method == 'POST':
+        if 'confirmar' in request.POST:
+            # Obtener los datos de la sesión
+            reserva_data = request.session.get('reserva_data')
+            if not reserva_data:
+                messages.error(request, "No hay datos de reserva para confirmar.")
+                return redirect('home')
+            
+            # Crear la reserva
+            reserva = Reserva(
+                cliente_id=reserva_data['cliente_id'],
+                maquinaria_id=reserva_data['maquinaria_id'],
+                fecha_inicio=datetime.fromisoformat(reserva_data['fecha_inicio']),
+                fecha_fin=datetime.fromisoformat(reserva_data['fecha_fin']),
+                cantidad_solicitada=reserva_data['cantidad_solicitada'],
+                sucursal_retiro_id=reserva_data['sucursal_retiro_id'],
+                precio_total=decimal.Decimal(reserva_data['precio_total']),
+                empleado_procesador_id=reserva_data['empleado_id'],
+                estado='CONFIRMADA',
+                tipo_pago='PRESENCIAL'
+            )
+            reserva.save()
+            
+            # Limpiar los datos de la sesión
+            del request.session['reserva_data']
+            
+            messages.success(request, "Reserva confirmada exitosamente.")
+            return redirect('reservas:detalle_reserva', reserva_id=reserva.id)
+        else:
+            # Si se cancela, simplemente limpiar la sesión y redirigir
+            if 'reserva_data' in request.session:
+                del request.session['reserva_data']
+            messages.info(request, "Reserva cancelada.")
+            return redirect('home')
+    
+    # Obtener los datos de la reserva de la sesión
+    reserva_data = request.session.get('reserva_data')
+    if not reserva_data:
+        messages.error(request, "No hay datos de reserva para confirmar.")
+        return redirect('home')
+    
+    # Obtener los objetos relacionados
+    cliente = get_object_or_404(Usuario, id=reserva_data['cliente_id'])
+    maquinaria = get_object_or_404(Maquinaria, id=reserva_data['maquinaria_id'])
+    sucursal = get_object_or_404(Sucursal, id=reserva_data['sucursal_retiro_id'])
+    
+    context = {
+        'cliente': cliente,
+        'maquinaria': maquinaria,
+        'sucursal': sucursal,
+        'fecha_inicio': datetime.fromisoformat(reserva_data['fecha_inicio']),
+        'fecha_fin': datetime.fromisoformat(reserva_data['fecha_fin']),
+        'cantidad_solicitada': reserva_data['cantidad_solicitada'],
+        'precio_total': reserva_data['precio_total'],
+        'titulo': 'Confirmar Reserva',
+        'reserva_data': {
+            'fecha_inicio': datetime.fromisoformat(reserva_data['fecha_inicio']),
+            'fecha_fin': datetime.fromisoformat(reserva_data['fecha_fin']),
+            'cantidad_solicitada': reserva_data['cantidad_solicitada']
+        }
+    }
+    
+    return render(request, 'reservas/confirmar_reservas.html', context)
 
 
 @login_required
@@ -100,20 +190,31 @@ def seleccionar_sucursal(request):
     
     return render(request, 'reservas/seleccionar_sucursal.html', context)
 
-
 @login_required
 def confirmar_reserva(request, reserva_id):
-    """Vista para confirmar los detalles de la reserva antes del pago"""
-    reserva = get_object_or_404(Reserva, id=reserva_id, cliente=request.user)
+    """Vista para confirmar los detalles de la reserva"""
+    # Obtener la reserva y verificar permisos
+    reserva = get_object_or_404(Reserva, id=reserva_id)
+    
+    # Verificar que el usuario tenga permiso para ver esta reserva
+    if request.user.tipo == 'CLIENTE' and reserva.cliente != request.user:
+        messages.error(request, "No tiene permiso para ver esta reserva.")
+        return redirect('home')
+    elif request.user.tipo == 'EMPLEADO' and reserva.empleado_procesador != request.user:
+        messages.error(request, "No tiene permiso para ver esta reserva.")
+        return redirect('home')
     
     if request.method == 'POST':
-        # Aquí iría la lógica para procesar el pago
-        # Por ahora solo cambiamos el estado
-        reserva.estado = 'CONFIRMADA'
-        reserva.fecha_confirmacion = timezone.now()
-        reserva.save()
-        messages.success(request, 'Reserva confirmada exitosamente')
-        return redirect('reservas:detalle_reserva', reserva_id=reserva.id)
+        if request.user.tipo == 'EMPLEADO':
+            # Si es empleado, confirmar la reserva directamente
+            reserva.estado = 'CONFIRMADA'
+            reserva.fecha_confirmacion = timezone.now()
+            reserva.save()
+            messages.success(request, 'Reserva confirmada exitosamente')
+            return redirect('reservas:detalle_reserva', reserva_id=reserva.id)
+        else:
+            # Si es cliente, redirigir al proceso de pago online
+            return redirect('reservas:procesar_pago', reserva_id=reserva.id)
     
     return render(request, 'reservas/confirmar_reserva.html', {
         'reserva': reserva,
@@ -121,7 +222,8 @@ def confirmar_reserva(request, reserva_id):
         'sucursal': reserva.sucursal_retiro,
         'dias': (reserva.fecha_fin - reserva.fecha_inicio).days,
         'precio_por_dia': reserva.maquinaria.precio_por_dia,
-        'precio_total': reserva.precio_total
+        'precio_total': reserva.precio_total,
+        'es_empleado': request.user.tipo == 'EMPLEADO'
     })
 
 
@@ -149,27 +251,7 @@ def procesar_pago(request, reserva_id):
 
 
 @login_required
-@user_passes_test(lambda u: u.is_staff)
-def crear_reserva_empleado(request):
-    """Vista para que un empleado cree una reserva"""
-    if request.method == 'POST':
-        form = ReservaEmpleadoForm(request.POST)
-        if form.is_valid():
-            reserva = form.save(commit=False)
-            reserva.estado = 'confirmada'  # Las reservas de empleados se confirman directamente
-            reserva.save()
-            messages.success(request, 'Reserva creada exitosamente')
-            return redirect('reservas:detalle_reserva', reserva_id=reserva.id)
-    else:
-        form = ReservaEmpleadoForm()
-    
-    return render(request, 'reservas/crear_reserva_empleado.html', {
-        'form': form
-    })
-
-
-@login_required
-@user_passes_test(lambda u: u.is_staff)
+@solo_empleado
 def lista_reservas_empleado(request):
     """Vista para que los empleados vean todas las reservas"""
     reservas = Reserva.objects.all().order_by('-fecha_creacion')
