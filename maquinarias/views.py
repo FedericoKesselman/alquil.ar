@@ -80,6 +80,15 @@ def maquinaria_list_cliente(request):
 @login_required
 @solo_admin
 def maquinaria_create(request):
+    # Verificar si existen sucursales activas y tipos de maquinaria
+    if not Sucursal.objects.filter(activa=True).exists():
+        messages.error(request, 'Para registrar una maquinaria, primero deben haber sucursales y tipos de maquinaria registrados.')
+        return redirect('home')
+    
+    if not TipoMaquinaria.objects.exists():
+        messages.error(request, 'Para registrar una maquinaria, primero deben haber sucursales y tipos de maquinaria registrados.')
+        return redirect('home')
+
     if request.method == 'POST':
         form = MaquinariaForm(request.POST, request.FILES)
         stock_formset = MaquinariaStockFormSet(request.POST, prefix='stocks')
