@@ -1,4 +1,4 @@
-<!-- templates/reservas/confirmar_reserva.html -->
+<!-- templates/reservas/confirmar_reservas.html -->
 {% extends 'base.html' %}
 {% load static %}
 
@@ -149,12 +149,32 @@
                 <div class="confirmation-header">
                     <i class="bi bi-check-circle-fill" style="font-size: 3rem; margin-bottom: 1rem;"></i>
                     <h2 class="mb-0">{{ titulo }}</h2>
-                    <p class="mb-0 mt-2">Revise los detalles antes de proceder al pago</p>
+                    <p class="mb-0 mt-2">Por favor, confirme los detalles de la reserva</p>
                 </div>
                 
                 <div class="confirmation-body">
+                    <!-- Información del Cliente -->
+                    <div class="highlight-box mb-4">
+                        <h5 class="mb-3 icon-text">
+                            <i class="bi bi-person text-primary"></i>
+                            <span>Información del Cliente</span>
+                        </h5>
+                        <div class="detail-row">
+                            <span class="detail-label">Cliente:</span>
+                            <span class="detail-value">{{ cliente.get_full_name }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">DNI:</span>
+                            <span class="detail-value">{{ cliente.dni }}</span>
+                        </div>
+                    </div>
+
                     <!-- Información de la Maquinaria -->
                     <div class="machine-preview">
+                        <h5 class="mb-3 icon-text">
+                            <i class="bi bi-tools text-primary"></i>
+                            <span>Maquinaria Seleccionada</span>
+                        </h5>
                         <div class="row align-items-center">
                             <div class="col-md-4">
                                 {% if maquinaria.imagen %}
@@ -168,177 +188,68 @@
                                 {% endif %}
                             </div>
                             <div class="col-md-8">
-                                <h4 class="text-primary mb-2">
-                                    <i class="bi bi-gear-fill me-2"></i>{{ maquinaria.nombre }}
-                                </h4>
-                                <p class="text-muted mb-2">{{ maquinaria.descripcion|truncatewords:15 }}</p>
-                                <div class="small text-success">
-                                    <i class="bi bi-check-circle me-1"></i>
-                                    Disponible para reserva
-                                </div>
+                                <h4 class="text-primary mb-2">{{ maquinaria.nombre }}</h4>
+                                <p class="text-muted mb-2">{{ maquinaria.descripcion|truncatewords:30 }}</p>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Resumen de la Reserva -->
-                    <div class="reservation-summary">
+                    <!-- Detalles de la Reserva -->
+                    <div class="reservation-summary mt-4">
                         <h5 class="mb-3 icon-text">
-                            <i class="bi bi-calendar-check text-success"></i>
-                            <span>Resumen de la Reserva</span>
+                            <i class="bi bi-calendar-check text-primary"></i>
+                            <span>Detalles de la Reserva</span>
                         </h5>
                         
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="detail-row">
-                                    <span class="detail-label">
-                                        <i class="bi bi-calendar-event"></i>
-                                        Fecha de Inicio:
-                                    </span>
-                                    <span class="detail-value">
-                                        {{ reserva_data.fecha_inicio|date:"d/m/Y" }}
-                                    </span>
+                                    <span class="detail-label">Fecha de Inicio:</span>
+                                    <span class="detail-value">{{ fecha_inicio|date:"d/m/Y" }}</span>
                                 </div>
-                                
                                 <div class="detail-row">
-                                    <span class="detail-label">
-                                        <i class="bi bi-calendar-x"></i>
-                                        Fecha de Finalización:
-                                    </span>
-                                    <span class="detail-value">
-                                        {{ reserva_data.fecha_fin|date:"d/m/Y" }}
-                                    </span>
-                                </div>
-                            </div>
-                            
-                            <div class="col-md-6">
-                                <div class="detail-row">
-                                    <span class="detail-label">
-                                        <i class="bi bi-clock"></i>
-                                        Duración:
-                                    </span>
-                                    <span class="detail-value">
-                                        {% comment %}Calcular días de diferencia{% endcomment %}
-                                        {% with fecha_inicio=reserva_data.fecha_inicio|date:"Y-m-d" fecha_fin=reserva_data.fecha_fin|date:"Y-m-d" %}
-                                            {% load reservas_extras %}
-                                            {{ reserva_data.fecha_inicio|days_until:reserva_data.fecha_fin }} día{{ reserva_data.fecha_inicio|days_until:reserva_data.fecha_fin|pluralize }}
-                                        {% endwith %}
-                                    </span>
-                                </div>
-                                
-                                <div class="detail-row">
-                                    <span class="detail-label">
-                                        <i class="bi bi-hash"></i>
-                                        Cantidad:
-                                    </span>
-                                    <span class="detail-value">
-                                        {{ reserva_data.cantidad_solicitada }} unidad{{ reserva_data.cantidad_solicitada|pluralize:"es" }}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Detalles de Precio -->
-                    <div class="highlight-box">
-                        <h6 class="mb-3 icon-text">
-                            <i class="bi bi-calculator text-primary"></i>
-                            <span>Detalles del Precio</span>
-                        </h6>
-                        
-                        <div class="detail-row">
-                            <span class="detail-label">
-                                <i class="bi bi-cash"></i>
-                                Precio por día (por unidad):
-                            </span>
-                            <span class="detail-value">${{ maquinaria.precio_por_dia|floatformat:2 }}</span>
-                        </div>
-                        
-                        {% comment %}Mostrar cálculo detallado{% endcomment %}
-                        {% with dias=reserva_data.fecha_inicio|days_until:reserva_data.fecha_fin %}
-                        <div class="detail-row">
-                            <span class="detail-label">
-                                <i class="bi bi-x"></i>
-                                Cálculo:
-                            </span>
-                            <span class="detail-value text-muted small">
-                                ${{ maquinaria.precio_por_dia|floatformat:2 }} × {{ dias }} día{{ dias|pluralize }} × {{ reserva_data.cantidad_solicitada }} unidad{{ reserva_data.cantidad_solicitada|pluralize:"es" }}
-                            </span>
-                        </div>
-                        {% endwith %}
-                        
-                        <div class="detail-row">
-                            <span class="detail-label total-price">
-                                <i class="bi bi-currency-dollar"></i>
-                                TOTAL A PAGAR:
-                            </span>
-                            <span class="total-price">${{ reserva_data.precio_total|floatformat:2 }}</span>
-                        </div>
-                    </div>
-
-                    <!-- Información de la Sucursal -->
-                    <div class="sucursal-info">
-                        <h6 class="mb-3 icon-text">
-                            <i class="bi bi-geo-alt-fill text-primary"></i>
-                            <span>Sucursal de Retiro</span>
-                        </h6>
-                        <div class="row align-items-center">
-                            <div class="col-md-6">
-                                <div class="fw-bold">{{ sucursal.nombre }}</div>
-                                <div class="text-muted">
-                                    <i class="bi bi-geo-alt me-1"></i>
-                                    {{ sucursal.direccion }}
+                                    <span class="detail-label">Fecha de Fin:</span>
+                                    <span class="detail-value">{{ fecha_fin|date:"d/m/Y" }}</span>
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                {% if sucursal.telefono %}
-                                    <div class="text-muted">
-                                        <i class="bi bi-telephone me-1"></i>
-                                        {{ sucursal.telefono }}
-                                    </div>
-                                {% endif %}
-                                {% if sucursal.email %}
-                                    <div class="text-muted">
-                                        <i class="bi bi-envelope me-1"></i>
-                                        {{ sucursal.email }}
-                                    </div>
-                                {% endif %}
+                                <div class="detail-row">
+                                    <span class="detail-label">Cantidad:</span>
+                                    <span class="detail-value">{{ cantidad_solicitada }} unidad{{ cantidad_solicitada|pluralize:"es" }}</span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">Sucursal:</span>
+                                    <span class="detail-value">{{ sucursal.nombre }}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Términos y Condiciones -->
-                    <div class="terms-section">
-                        <h6 class="mb-2 icon-text">
-                            <i class="bi bi-info-circle text-warning"></i>
-                            <span>Términos y Condiciones</span>
-                        </h6>
-                        <ul class="mb-0 small">
-                            <li>El pago debe ser confirmado para que la reserva sea válida.</li>
-                            <li>La maquinaria debe ser retirada en la fecha y sucursal especificadas.</li>
-                            <li>La devolución debe realizarse en la misma sucursal de retiro.</li>
-                            <li>Los daños a la maquinaria serán cobrados por separado.</li>
-                            <li>Las cancelaciones deben realizarse con al menos 24 horas de anticipación.</li>
-                            <li>El retraso en la devolución generará cargos adicionales.</li>
-                        </ul>
-                    </div>
-
-                    <!-- Información Importante -->
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle-fill me-2"></i>
-                        <strong>Información importante:</strong> Una vez confirmado el pago, recibirá un email con los detalles de su reserva y las instrucciones para el retiro de la maquinaria.
+                    <!-- Resumen de Precio -->
+                    <div class="highlight-box mt-4">
+                        <h5 class="mb-3 icon-text">
+                            <i class="bi bi-cash text-success"></i>
+                            <span>Resumen de Precio</span>
+                        </h5>
+                        <div class="detail-row">
+                            <span class="detail-label">Precio Total:</span>
+                            <span class="detail-value total-price">${{ precio_total }}</span>
+                        </div>
                     </div>
 
                     <!-- Botones de Acción -->
-                    <div class="d-grid gap-3 d-md-flex justify-content-md-center mt-4">
-                        <a href="{% url 'seleccionar_sucursal' %}" class="btn btn-back btn-lg">
-                            <i class="bi bi-arrow-left me-2"></i>Volver
-                        </a>
-                        
-                        <form method="post" class="d-inline">
+                    <div class="d-flex justify-content-between mt-4">
+                        <form method="post" id="confirmForm" action="{% url 'reservas:confirmar_reservas' %}">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-confirm btn-lg">
-                                <i class="bi bi-credit-card me-2"></i>Proceder al Pago
-                            </button>
+                            <input type="hidden" name="action" id="formAction" value="">
+                            <div class="d-flex justify-content-between w-100">
+                                <button type="button" class="btn btn-back" onclick="submitForm('cancelar')">
+                                    <i class="bi bi-x-circle me-2"></i>Cancelar
+                                </button>
+                                <button type="button" class="btn btn-confirm" id="confirmButton" onclick="submitForm('confirmar')">
+                                    <i class="bi bi-check-circle me-2"></i>Confirmar Reserva
+                                </button>
+                            </div>
                         </form>
                     </div>
                 </div>
@@ -348,16 +259,22 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Añadir efecto de carga al botón de pago
-    const pagarBtn = document.querySelector('.btn-confirm');
-    if (pagarBtn) {
-        pagarBtn.addEventListener('click', function() {
-            this.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Procesando...';
-            this.disabled = true;
-        });
+function submitForm(action) {
+    const form = document.getElementById('confirmForm');
+    const actionInput = document.getElementById('formAction');
+    const confirmButton = document.getElementById('confirmButton');
+    
+    actionInput.value = action;
+    
+    if (action === 'confirmar') {
+        confirmButton.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Procesando...';
+        confirmButton.disabled = true;
     }
     
+    form.submit();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
     // Smooth scroll para errores si los hay
     if (document.querySelector('.alert-danger')) {
         document.querySelector('.alert-danger').scrollIntoView({ behavior: 'smooth' });

@@ -5,6 +5,12 @@ from django.utils import timezone
 from datetime import datetime, timedelta
 from usuarios.models import Usuario, Sucursal
 from maquinarias.models import Maquinaria
+import random
+from django.core.mail import send_mail
+from django.conf import settings
+import socket
+from django.core.mail import EmailMessage
+import logging
 
 
 class Reserva(models.Model):
@@ -50,6 +56,7 @@ class Reserva(models.Model):
     
     # Información adicional
     observaciones = models.TextField(blank=True, null=True)
+    codigo_reserva = models.CharField(max_length=6, blank=True, null=True, unique=True)
     
     class Meta:
         verbose_name = "Reserva"
@@ -58,6 +65,90 @@ class Reserva(models.Model):
 
     def __str__(self):
         return f"Reserva #{self.id} - {self.cliente.get_full_name()} - {self.maquinaria.nombre}"
+
+    def generar_codigo_reserva(self):
+        """Genera un código único de 6 dígitos para la reserva"""
+        import random
+        import string
+        
+        # Generar un código de 6 dígitos
+        codigo = ''.join(random.choices(string.digits, k=6))
+        
+        # Verificar que el código no exista
+        while Reserva.objects.filter(codigo_reserva=codigo).exists():
+            codigo = ''.join(random.choices(string.digits, k=6))
+        
+        # Asignar el código a la reserva
+        self.codigo_reserva = codigo
+        return codigo
+
+    def enviar_codigo_reserva(self):
+        """Envía el código de reserva por email al cliente"""
+        # Generar el código si no existe
+        if not self.codigo_reserva:
+            self.generar_codigo_reserva()
+            self.save()
+        
+        # Obtener la dirección de la sucursal
+        sucursal_direccion = self.sucursal_retiro.direccion if self.sucursal_retiro else "No especificada"
+        
+        # Crear el mensaje con formato HTML
+        mensaje = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <h2 style="color: #2c3e50;">Confirmación de Reserva</h2>
+            <p>Estimado/a {self.cliente.get_full_name()},</p>
+            <p>Su reserva ha sido confirmada. A continuación encontrará los detalles:</p>
+            
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                <p><strong>Detalles de la Reserva:</strong></p>
+                <ul>
+                    <li>Maquinaria: {self.maquinaria.nombre}</li>
+                    <li>Cantidad: {self.cantidad_solicitada} unidad/es</li>
+                    <li>Fecha de inicio: {self.fecha_inicio.strftime('%d/%m/%Y')}</li>
+                    <li>Fecha de fin: {self.fecha_fin.strftime('%d/%m/%Y')}</li>
+                    <li>Sucursal de retiro: {self.sucursal_retiro.nombre}</li>
+                    <li>Dirección de retiro: {sucursal_direccion}</li>
+                </ul>
+            </div>
+            
+            <p>Su código de reserva es:</p>
+            <div style="background-color: #e9ecef; padding: 15px; border-radius: 5px; text-align: center; margin: 20px 0;">
+                <h1 style="color: #2c3e50; margin: 0; font-size: 32px;"><strong>{self.codigo_reserva}</strong></h1>
+            </div>
+            
+            <p>Por favor, presente este código al momento de retirar la maquinaria.</p>
+            
+            <p style="color: #666; font-size: 0.9em; margin-top: 30px;">
+                Si tiene alguna consulta, no dude en contactarnos.<br>
+                Saludos cordiales,<br>
+                El equipo de Alquil.ar
+            </p>
+        </body>
+        </html>
+        """
+        
+        # Configurar el email
+        subject = f'Código de Reserva - {self.codigo_reserva}'
+        from_email = settings.EMAIL_HOST_USER
+        to_email = self.cliente.email
+        
+        # Crear el mensaje
+        email = EmailMessage(
+            subject=subject,
+            body=mensaje,
+            from_email=from_email,
+            to=[to_email]
+        )
+        email.content_subtype = "html"  # Indicar que el contenido es HTML
+        
+        # Enviar el email
+        try:
+            email.send()
+            return True
+        except Exception as e:
+            print(f"Error al enviar email: {str(e)}")
+            return False
 
     def clean(self):
         """Validaciones del modelo"""
@@ -87,7 +178,9 @@ class Reserva(models.Model):
         
         # Validar que el cliente sea realmente cliente
         if self.cliente and self.cliente.tipo != 'CLIENTE':
-            errors['cliente'] = "Solo los usuarios tipo CLIENTE pueden hacer reservas."
+            # Si hay un empleado procesador, significa que es una reserva creada por un empleado
+            if not self.empleado_procesador:
+                errors['cliente'] = "Solo los usuarios tipo CLIENTE pueden hacer reservas."
         
         # Validar que el empleado procesador sea empleado (si existe)
         if self.empleado_procesador and self.empleado_procesador.tipo != 'EMPLEADO':
@@ -137,6 +230,61 @@ class Reserva(models.Model):
             return True
         return False
 
+    def confirmar_reserva(self):
+        """
+        Confirma la reserva y actualiza su estado.
+        Retorna True si la confirmación fue exitosa, False en caso contrario.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Verificar stock disponible
+            if not self.actualizar_stock_maquinaria():
+                return False
+            
+            # Actualizar estado de la reserva
+            self.estado = 'CONFIRMADA'
+            self.fecha_confirmacion = timezone.now()
+            self.save()
+            
+            # Enviar email de confirmación
+            try:
+                self.enviar_codigo_reserva()
+            except Exception as e:
+                logger.error(f"Error al enviar código de reserva: {str(e)}")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error al confirmar reserva: {str(e)}")
+            return False
+
+    def cancelar_reserva(self):
+        """
+        Cancela una reserva y restaura el stock si estaba confirmada.
+        
+        Returns:
+            bool: True si se canceló exitosamente
+        """
+        if self.estado not in ['PENDIENTE_PAGO', 'CONFIRMADA']:
+            return False
+        
+        # Si la reserva estaba confirmada, restaurar el stock
+        if self.estado == 'CONFIRMADA':
+            try:
+                maquinaria_stock = self.maquinaria.stocks.get(sucursal=self.sucursal_retiro)
+                maquinaria_stock.stock_disponible += self.cantidad_solicitada
+                maquinaria_stock.save()
+            except Exception as e:
+                print(f"Error al restaurar stock: {str(e)}")
+        
+        # Cambiar estado a cancelada
+        self.estado = 'CANCELADA'
+        self.save()
+        
+        return True
+
     @classmethod
     def verificar_disponibilidad(cls, maquinaria, fecha_inicio, fecha_fin, cantidad_solicitada, sucursal=None, excluir_reserva=None):
         """
@@ -157,17 +305,6 @@ class Reserva(models.Model):
                 'mensaje': str
             }
         """
-        # Obtener reservas que se solapan con el rango de fechas
-        reservas_solapadas = cls.objects.filter(
-            maquinaria=maquinaria,
-            estado__in=['CONFIRMADA', 'PENDIENTE_PAGO'],
-            fecha_inicio__lt=fecha_fin,
-            fecha_fin__gt=fecha_inicio
-        )
-        
-        if excluir_reserva:
-            reservas_solapadas = reservas_solapadas.exclude(id=excluir_reserva)
-        
         # Verificar disponibilidad por sucursal
         sucursales_disponibles = []
         
@@ -183,22 +320,40 @@ class Reserva(models.Model):
         
         for suc in sucursales_a_verificar:
             # Obtener el stock disponible en esta sucursal
-            stock_sucursal = maquinaria.stocks.filter(sucursal=suc).first()
-            if not stock_sucursal or stock_sucursal.stock < cantidad_solicitada:
+            try:
+                stock_sucursal = maquinaria.stocks.get(sucursal=suc)
+                stock_disponible_actual = stock_sucursal.stock_disponible
+            except:
                 continue
             
-            # Calcular cuántas unidades están reservadas en esta sucursal para el rango de fechas
-            reservas_sucursal = reservas_solapadas.filter(sucursal_retiro=suc)
-            cantidad_reservada = sum([r.cantidad_solicitada for r in reservas_sucursal])
+            # Si no hay suficiente stock base, continuar con la siguiente sucursal
+            if stock_disponible_actual < cantidad_solicitada:
+                continue
             
-            # Verificar si hay suficiente stock disponible
-            stock_disponible = stock_sucursal.stock - cantidad_reservada
+            # Obtener reservas confirmadas que se solapan con el rango de fechas
+            reservas_solapadas = cls.objects.filter(
+                maquinaria=maquinaria,
+                sucursal_retiro=suc,
+                estado='CONFIRMADA',
+                fecha_inicio__lt=fecha_fin,
+                fecha_fin__gt=fecha_inicio
+            )
             
-            if stock_disponible >= cantidad_solicitada:
+            if excluir_reserva:
+                reservas_solapadas = reservas_solapadas.exclude(id=excluir_reserva)
+            
+            # Calcular cuántas unidades están reservadas en el período
+            cantidad_reservada = sum([r.cantidad_solicitada for r in reservas_solapadas])
+            
+            # Verificar si hay suficiente stock disponible considerando las reservas
+            stock_final_disponible = stock_disponible_actual - cantidad_reservada
+            
+            if stock_final_disponible >= cantidad_solicitada:
                 sucursales_disponibles.append({
                     'sucursal': suc,
-                    'stock_disponible': stock_disponible,
-                    'stock_total': stock_sucursal.stock
+                    'stock_disponible': stock_final_disponible,
+                    'stock_total': stock_sucursal.stock,
+                    'sucursal_id': suc.id
                 })
         
         disponible = len(sucursales_disponibles) > 0
@@ -214,19 +369,93 @@ class Reserva(models.Model):
             'mensaje': mensaje
         }
 
-    @classmethod
-    def get_reservas_por_periodo(cls, fecha_inicio, fecha_fin, maquinaria=None, sucursal=None):
-        """Obtiene todas las reservas en un período específico"""
-        reservas = cls.objects.filter(
-            estado__in=['CONFIRMADA', 'PENDIENTE_PAGO'],
-            fecha_inicio__lte=fecha_fin,
-            fecha_fin__gte=fecha_inicio
-        )
+    def finalizar_reserva(self):
+        """
+        Finaliza una reserva y restaura el stock disponible.
         
-        if maquinaria:
-            reservas = reservas.filter(maquinaria=maquinaria)
+        Returns:
+            bool: True si se finalizó exitosamente
+        """
+        if self.estado != 'CONFIRMADA':
+            return False
         
-        if sucursal:
-            reservas = reservas.filter(sucursal_retiro=sucursal)
+        # Restaurar el stock disponible
+        try:
+            maquinaria_stock = self.maquinaria.stocks.get(sucursal=self.sucursal_retiro)
+            maquinaria_stock.stock_disponible += self.cantidad_solicitada
+            maquinaria_stock.save()
+        except Exception as e:
+            print(f"Error al restaurar stock al finalizar reserva: {str(e)}")
+            return False
         
-        return reservas
+        # Cambiar estado a finalizada
+        self.estado = 'FINALIZADA'
+        self.save()
+        
+        return True
+
+    def actualizar_stock_maquinaria(self):
+        """
+        Verifica el stock disponible de la maquinaria.
+        Retorna True si hay stock suficiente, False en caso contrario.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Obtener la maquinaria y su stock en la sucursal
+            maquinaria = self.maquinaria
+            try:
+                maquinaria_stock = maquinaria.stocks.get(sucursal=self.sucursal_retiro)
+                stock_total = maquinaria_stock.stock_disponible
+            except Exception:
+                raise ValueError(f"No hay stock registrado para esta maquinaria en la sucursal {self.sucursal_retiro.nombre}")
+            
+            logger.info(f"Verificando stock para maquinaria {maquinaria.nombre} en sucursal {self.sucursal_retiro.nombre}")
+            logger.info(f"Stock total en sucursal: {stock_total}")
+            
+            # Obtener todas las reservas confirmadas que se superponen con las fechas de esta reserva
+            reservas_superpuestas = Reserva.objects.filter(
+                maquinaria=maquinaria,
+                sucursal_retiro=self.sucursal_retiro,
+                estado='CONFIRMADA',
+                fecha_inicio__lte=self.fecha_fin,
+                fecha_fin__gte=self.fecha_inicio
+            ).exclude(id=self.id)  # Excluir esta reserva si ya existe
+            
+            # Calcular el stock reservado en las fechas superpuestas
+            stock_reservado = sum(reserva.cantidad_solicitada for reserva in reservas_superpuestas)
+            logger.info(f"Stock reservado en fechas superpuestas: {stock_reservado}")
+            
+            # Verificar si hay suficiente stock
+            stock_disponible = stock_total - stock_reservado
+            logger.info(f"Stock disponible: {stock_disponible}")
+            
+            if self.cantidad_solicitada > stock_disponible:
+                # Obtener detalles de las reservas superpuestas
+                reservas_info = []
+                for reserva in reservas_superpuestas:
+                    reservas_info.append(
+                        f"Reserva del {reserva.fecha_inicio} al {reserva.fecha_fin} "
+                        f"({reserva.cantidad_solicitada} unidad/es)"
+                    )
+                
+                mensaje_error = (
+                    f"No hay stock suficiente para las fechas solicitadas.\n"
+                    f"Stock total en sucursal: {stock_total}\n"
+                    f"Ya reservado: {stock_reservado}\n"
+                    f"Solicitado: {self.cantidad_solicitada}\n"
+                    f"Stock disponible: {stock_disponible}\n\n"
+                    f"Reservas existentes en estas fechas:\n" + 
+                    "\n".join(reservas_info)
+                )
+                logger.warning(mensaje_error)
+                raise ValueError(mensaje_error)
+            
+            return True
+            
+        except ValueError as e:
+            raise e
+        except Exception as e:
+            logger.error(f"Error al verificar stock: {str(e)}")
+            return False

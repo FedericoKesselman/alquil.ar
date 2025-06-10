@@ -118,6 +118,12 @@
                 {% for error in form.imagen.errors %}{{ error }}{% endfor %}
               </div>
               {% endif %}
+              {% if maquinaria.imagen %}
+                <img id="imagenExistente" src="{{ maquinaria.imagen.url }}" alt="Imagen actual" class="img-fluid mb-3" style="max-width: 300px;">
+              {% else %}
+                <img id="imagenExistente" src="" alt="" style="display: none;">
+              {% endif %}
+
             </div>
           </div>
 
@@ -216,7 +222,7 @@
 
         <div class="mt-4">
           <a href="{% url 'maquinaria_list' %}" class="btn btn-secondary">Volver</a>
-          <button type="submit" class="btn btn-primary float-end">Guardar</button>
+          <button type="submit" class="btn btn-primary float-end" id="guardarBtn">Guardar</button>
         </div>
       </form>
     </div>
@@ -300,6 +306,59 @@ document.addEventListener('DOMContentLoaded', function() {
         totalForms.value = formCount + 1;
     });
 });
+document.getElementById('guardarBtn').addEventListener('click', function(e) {
+  const inputImagen = document.getElementById('id_imagen');
+  const defaultImageElement = document.getElementById('imagenExistente');
+  const defaultImageURL = defaultImageElement?.src;
+
+  if (!inputImagen.files || inputImagen.files.length === 0) {
+    e.preventDefault();
+
+    if (!defaultImageURL || defaultImageURL.trim() === '' || defaultImageElement.style.display === 'none') {
+      alert("Debe subir una imagen o establecer una imagen por defecto.");
+      return;
+    }
+
+    fetch(defaultImageURL, { method: 'HEAD' })
+      .then(response => {
+        if (!response.ok) throw new Error("Imagen por defecto no encontrada.");
+        return fetch(defaultImageURL);
+      })
+      .then(res => res.blob())
+      .then(blob => {
+        const file = new File([blob], "default.jpg", { type: blob.type });
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        inputImagen.files = dataTransfer.files;
+
+        document.querySelector('form').submit();
+      })
+      .catch(error => {
+        alert("Error: No se pudo cargar una imagen por defecto. Debe subir una imagen.");
+        console.error(error);
+      });
+  }
+});
+
+// Previsualizar la imagen seleccionada
+document.getElementById('id_imagen').addEventListener('change', function(event) {
+  const input = event.target;
+  const preview = document.getElementById('imagenExistente');
+
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+      preview.src = e.target.result;
+      preview.style.display = 'block'; // Mostrar la imagen si estaba oculta
+    };
+
+    reader.readAsDataURL(input.files[0]);
+  }
+});
+
 </script>
+
+
 
 {% endblock %}

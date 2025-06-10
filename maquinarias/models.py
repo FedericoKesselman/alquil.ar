@@ -37,6 +37,26 @@ class Maquinaria(models.Model):
     def __str__(self):
         return f"{self.nombre} - {self.marca} {self.modelo}"
 
+    def actualizar_stocks(self):
+        """Actualiza los campos de stock total y disponible"""
+        from django.db.models import Sum
+        
+        # Calcular stocks desde MaquinariaStock
+        stocks = self.stocks.aggregate(
+            total=Sum('stock'),
+            disponible=Sum('stock_disponible')
+        )
+        
+        # Actualizar los campos
+        self.stock_total = stocks['total'] or 0
+        self.stock_disponible = stocks['disponible'] or 0
+        
+        # Guardar sin llamar al save() normal para evitar recursión
+        Maquinaria.objects.filter(pk=self.pk).update(
+            stock_total=self.stock_total,
+            stock_disponible=self.stock_disponible
+        )
+
     def get_stock_total(self):
         """Calcula el stock total sumando el stock de todas las sucursales"""
         return self.stocks.aggregate(total=models.Sum('stock'))['total'] or 0
@@ -57,16 +77,10 @@ class Maquinaria(models.Model):
         }
 
     def save(self, *args, **kwargs):
-        # Actualizar los campos calculados
+        # Primero guardar el objeto
         super().save(*args, **kwargs)
-        self.stock_total = self.get_stock_total()
-        self.stock_disponible = self.get_stock_disponible_total()
-        if self.stock_total != self.get_stock_total() or self.stock_disponible != self.get_stock_disponible_total():
-            # Evitar recursión infinita
-            Maquinaria.objects.filter(pk=self.pk).update(
-                stock_total=self.get_stock_total(),
-                stock_disponible=self.get_stock_disponible_total()
-            )
+        # Luego actualizar los stocks
+        self.actualizar_stocks()
 
 class MaquinariaStock(models.Model):
     """Tabla intermedia para manejar el stock de maquinarias por sucursal"""
@@ -85,16 +99,16 @@ class MaquinariaStock(models.Model):
         return f"{self.maquinaria.nombre} - {self.sucursal.nombre} (Stock: {self.stock})"
 
     def save(self, *args, **kwargs):
-        # Si es nuevo registro, inicializar stock_disponible igual a stock
-        if not self.pk:
+        # Si es nuevo registro o se modificó el stock, actualizar stock_disponible
+        if not self.pk or self._state.adding:
             self.stock_disponible = self.stock
         super().save(*args, **kwargs)
         
         # Actualizar los totales de la maquinaria
-        self.maquinaria.save()
+        self.maquinaria.actualizar_stocks()
 
     def delete(self, *args, **kwargs):
         maquinaria = self.maquinaria
         super().delete(*args, **kwargs)
         # Actualizar los totales de la maquinaria después de eliminar
-        maquinaria.save()
+        maquinaria.actualizar_stocks()

@@ -1,4 +1,5 @@
 # usuarios/forms.py
+from datetime import date  
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import get_user_model
@@ -226,7 +227,8 @@ class ClienteForm(forms.Form):
         widget=forms.DateInput(
             attrs={
                 'class': 'form-control', 
-                'type': 'date'
+                'type': 'date',
+                'max': date.today().isoformat(),
             }
         )
     )
@@ -251,6 +253,10 @@ class ClienteForm(forms.Form):
             
         hoy = date.today()
         edad = hoy.year - fecha_nacimiento.year - ((hoy.month, hoy.day) < (fecha_nacimiento.month, fecha_nacimiento.day))
+
+        # Verificar que no sea una fecha futura
+        if fecha_nacimiento > hoy:
+            raise forms.ValidationError("La fecha de nacimiento no puede ser futura")
         
         if edad < 18:
             raise forms.ValidationError("El cliente debe ser mayor de 18 años para registrarse")
@@ -299,15 +305,20 @@ class TokenVerificationForm(forms.Form):
         max_length=6,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Ingrese el código de 6 dígitos'
+            'placeholder': 'Ingrese el código de 6 dígitos',
+            'inputmode': 'numeric',
+            'pattern': '[0-9]{6}',
+            'maxlength': '6',  # limita en el navegador
+            'oninput': 'this.value = this.value.replace(/[^0-9]/g, "")',
         }),
         validators=[
             RegexValidator(
-                r'^\d{6}$', 
+                r'^\d{6}$',
                 'El código debe contener exactamente 6 dígitos'
             )
         ]
     )
+
 
     def __init__(self, user=None, *args, **kwargs):
         self.user = user
