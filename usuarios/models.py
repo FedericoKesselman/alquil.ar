@@ -62,6 +62,7 @@ class Usuario(AbstractUser):
     dni = models.CharField(max_length=20, unique=True)
     email = models.CharField(max_length=200, unique=True)
     telefono = models.CharField(max_length=20)
+    fecha_nacimiento = models.DateField()  
     sucursal = models.ForeignKey(Sucursal, on_delete=models.SET_NULL, null=True, blank=True)
     
     # Campos para 2FA

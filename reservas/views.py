@@ -16,6 +16,7 @@ from .forms import (
     BusquedaReservasForm, EditarReservaForm, ReservaEmpleadoForm
 )
 import decimal
+import logging
 
 
 @login_required
@@ -82,67 +83,121 @@ def crear_reserva(request, maquinaria_id):
 @login_required
 @solo_empleado
 def confirmar_reservas(request):
-    """Vista para confirmar reservas por parte de empleados"""
+    """
+    Vista para confirmar reservas pendientes.
+    Solo accesible por empleados.
+    """
+    logger = logging.getLogger(__name__)
+
     if request.method == 'POST':
-        if 'confirmar' in request.POST:
-            # Obtener los datos de la sesión
-            reserva_data = request.session.get('reserva_data')
-            if not reserva_data:
-                messages.error(request, "No hay datos de reserva para confirmar.")
-                return redirect('home')
+        action = request.POST.get('action')
+        
+        if action == 'confirmar':
+            try:
+                # Obtener datos de la reserva de la sesión
+                reserva_data = request.session.get('reserva_data')
+                if not reserva_data:
+                    messages.error(request, "No hay datos de reserva para confirmar")
+                    return redirect('home')
+                
+                # Obtener la maquinaria para calcular el precio total
+                maquinaria = Maquinaria.objects.get(id=reserva_data['maquinaria_id'])
+                fecha_inicio = datetime.strptime(reserva_data['fecha_inicio'], '%Y-%m-%d').date()
+                fecha_fin = datetime.strptime(reserva_data['fecha_fin'], '%Y-%m-%d').date()
+                dias = (fecha_fin - fecha_inicio).days + 1
+                precio_total = maquinaria.precio_por_dia * dias * reserva_data['cantidad_solicitada']
+                
+                # Crear la reserva
+                reserva = Reserva.objects.create(
+                    cliente_id=reserva_data['cliente_id'],
+                    maquinaria_id=reserva_data['maquinaria_id'],
+                    fecha_inicio=reserva_data['fecha_inicio'],
+                    fecha_fin=reserva_data['fecha_fin'],
+                    cantidad_solicitada=reserva_data['cantidad_solicitada'],
+                    sucursal_retiro_id=reserva_data['sucursal_retiro_id'],
+                    tipo_pago='PRESENCIAL',
+                    estado='PENDIENTE_PAGO',
+                    precio_total=precio_total
+                )
+                
+                # Intentar confirmar la reserva
+                try:
+                    if reserva.confirmar_reserva():
+                        messages.success(request, "Reserva confirmada exitosamente")
+                    else:
+                        # Obtener información del stock disponible
+                        try:
+                            maquinaria_stock = maquinaria.stocks.get(sucursal_id=reserva_data['sucursal_retiro_id'])
+                            stock_total = maquinaria_stock.stock_disponible
+                            
+                            # Obtener reservas superpuestas
+                            reservas_superpuestas = Reserva.objects.filter(
+                                maquinaria=maquinaria,
+                                sucursal_retiro_id=reserva_data['sucursal_retiro_id'],
+                                estado='CONFIRMADA',
+                                fecha_inicio__lte=fecha_fin,
+                                fecha_fin__gte=fecha_inicio
+                            )
+                            
+                            stock_reservado = sum(reserva.cantidad_solicitada for reserva in reservas_superpuestas)
+                            stock_disponible = stock_total - stock_reservado
+                            
+                            mensaje_error = f"Para las fechas seleccionadas solo hay {stock_disponible} unidad/es disponible/s. Por favor, seleccione una cantidad o fecha distinta."
+                        except Exception as e:
+                            mensaje_error = "No se pudo confirmar la reserva. Por favor, intente nuevamente."
+                            
+                        messages.error(request, mensaje_error)
+                        reserva.delete()
+                except ValueError as e:
+                    messages.error(request, str(e))
+                    reserva.delete()
+                except Exception as e:
+                    logger.error(f"Error al confirmar reserva: {str(e)}")
+                    messages.error(request, "Error al confirmar la reserva")
+                    reserva.delete()
+                
+                # Limpiar datos de la sesión
+                del request.session['reserva_data']
+                
+            except Exception as e:
+                logger.error(f"Error al procesar la confirmación: {str(e)}")
+                messages.error(request, "Error al procesar la confirmación")
             
-            # Crear la reserva
-            reserva = Reserva(
-                cliente_id=reserva_data['cliente_id'],
-                maquinaria_id=reserva_data['maquinaria_id'],
-                fecha_inicio=datetime.fromisoformat(reserva_data['fecha_inicio']),
-                fecha_fin=datetime.fromisoformat(reserva_data['fecha_fin']),
-                cantidad_solicitada=reserva_data['cantidad_solicitada'],
-                sucursal_retiro_id=reserva_data['sucursal_retiro_id'],
-                precio_total=decimal.Decimal(reserva_data['precio_total']),
-                empleado_procesador_id=reserva_data['empleado_id'],
-                estado='CONFIRMADA',
-                tipo_pago='PRESENCIAL'
-            )
-            reserva.save()
+            return redirect('home')
             
-            # Limpiar los datos de la sesión
-            del request.session['reserva_data']
-            
-            messages.success(request, "Reserva confirmada exitosamente.")
-            return redirect('reservas:detalle_reserva', reserva_id=reserva.id)
-        else:
-            # Si se cancela, simplemente limpiar la sesión y redirigir
+        elif action == 'cancelar':
+            # Limpiar datos de la sesión
             if 'reserva_data' in request.session:
                 del request.session['reserva_data']
-            messages.info(request, "Reserva cancelada.")
+            messages.info(request, "Reserva cancelada")
             return redirect('home')
     
-    # Obtener los datos de la reserva de la sesión
+    # GET request - mostrar página de confirmación
     reserva_data = request.session.get('reserva_data')
     if not reserva_data:
-        messages.error(request, "No hay datos de reserva para confirmar.")
+        messages.error(request, "No hay datos de reserva para confirmar")
         return redirect('home')
     
-    # Obtener los objetos relacionados
-    cliente = get_object_or_404(Usuario, id=reserva_data['cliente_id'])
-    maquinaria = get_object_or_404(Maquinaria, id=reserva_data['maquinaria_id'])
-    sucursal = get_object_or_404(Sucursal, id=reserva_data['sucursal_retiro_id'])
+    # Obtener datos necesarios para mostrar en la confirmación
+    cliente = Usuario.objects.get(id=reserva_data['cliente_id'])
+    maquinaria = Maquinaria.objects.get(id=reserva_data['maquinaria_id'])
+    sucursal = Sucursal.objects.get(id=reserva_data['sucursal_retiro_id'])
+    
+    # Calcular precio total para mostrar en la confirmación
+    fecha_inicio = datetime.strptime(reserva_data['fecha_inicio'], '%Y-%m-%d').date()
+    fecha_fin = datetime.strptime(reserva_data['fecha_fin'], '%Y-%m-%d').date()
+    dias = (fecha_fin - fecha_inicio).days + 1
+    precio_total = maquinaria.precio_por_dia * dias * reserva_data['cantidad_solicitada']
     
     context = {
         'cliente': cliente,
         'maquinaria': maquinaria,
         'sucursal': sucursal,
-        'fecha_inicio': datetime.fromisoformat(reserva_data['fecha_inicio']),
-        'fecha_fin': datetime.fromisoformat(reserva_data['fecha_fin']),
+        'fecha_inicio': reserva_data['fecha_inicio'],
+        'fecha_fin': reserva_data['fecha_fin'],
         'cantidad_solicitada': reserva_data['cantidad_solicitada'],
-        'precio_total': reserva_data['precio_total'],
-        'titulo': 'Confirmar Reserva',
-        'reserva_data': {
-            'fecha_inicio': datetime.fromisoformat(reserva_data['fecha_inicio']),
-            'fecha_fin': datetime.fromisoformat(reserva_data['fecha_fin']),
-            'cantidad_solicitada': reserva_data['cantidad_solicitada']
-        }
+        'precio_total': precio_total,
+        'titulo': 'Confirmar Reserva'
     }
     
     return render(request, 'reservas/confirmar_reservas.html', context)
@@ -239,7 +294,12 @@ def procesar_pago(request, reserva_id):
     if request.method == 'POST':
         # Simular confirmación de pago
         if reserva.confirmar_pago():
-            messages.success(request, 'Pago confirmado. Su reserva ha sido procesada exitosamente.')
+            try:
+                # Generar y enviar código de reserva
+                reserva.enviar_codigo_reserva()
+                messages.success(request, 'Pago confirmado y código de reserva enviado. Su reserva ha sido procesada exitosamente.')
+            except Exception as e:
+                messages.warning(request, f'Pago confirmado pero hubo un error al enviar el código: {str(e)}')
             return redirect('detalle_reserva', reserva_id=reserva.id)
     
     context = {

@@ -239,17 +239,17 @@
 
                     <!-- Botones de Acción -->
                     <div class="d-flex justify-content-between mt-4">
-                        <form method="post" style="display: inline;">
+                        <form method="post" id="confirmForm" action="{% url 'reservas:confirmar_reservas' %}">
                             {% csrf_token %}
-                            <button type="submit" name="cancelar" class="btn btn-back">
-                                <i class="bi bi-x-circle me-2"></i>Cancelar
-                            </button>
-                        </form>
-                        <form method="post" style="display: inline;">
-                            {% csrf_token %}
-                            <button type="submit" name="confirmar" class="btn btn-confirm">
-                                <i class="bi bi-check-circle me-2"></i>Confirmar Reserva
-                            </button>
+                            <input type="hidden" name="action" id="formAction" value="">
+                            <div class="d-flex justify-content-between w-100">
+                                <button type="button" class="btn btn-back" onclick="submitForm('cancelar')">
+                                    <i class="bi bi-x-circle me-2"></i>Cancelar
+                                </button>
+                                <button type="button" class="btn btn-confirm" id="confirmButton" onclick="submitForm('confirmar')">
+                                    <i class="bi bi-check-circle me-2"></i>Confirmar Reserva
+                                </button>
+                            </div>
                         </form>
                     </div>
                 </div>
@@ -259,16 +259,22 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Añadir efecto de carga al botón de pago
-    const pagarBtn = document.querySelector('.btn-confirm');
-    if (pagarBtn) {
-        pagarBtn.addEventListener('click', function() {
-            this.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Procesando...';
-            this.disabled = true;
-        });
+function submitForm(action) {
+    const form = document.getElementById('confirmForm');
+    const actionInput = document.getElementById('formAction');
+    const confirmButton = document.getElementById('confirmButton');
+    
+    actionInput.value = action;
+    
+    if (action === 'confirmar') {
+        confirmButton.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Procesando...';
+        confirmButton.disabled = true;
     }
     
+    form.submit();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
     // Smooth scroll para errores si los hay
     if (document.querySelector('.alert-danger')) {
         document.querySelector('.alert-danger').scrollIntoView({ behavior: 'smooth' });
