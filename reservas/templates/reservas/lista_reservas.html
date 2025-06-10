@@ -1,0 +1,241 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Historial de Reservas{% endblock %}
+
+{% block extra_css %}
+<style>
+    .reservation-card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+    }
+    
+    .reservation-header {
+        padding: 1rem;
+        border-bottom: 1px solid #e9ecef;
+        background: #f8f9fa;
+    }
+    
+    .reservation-body {
+        padding: 1.5rem;
+    }
+    
+    .status-badge {
+        padding: 0.35rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+    
+    .status-pendiente {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+    
+    .status-confirmada {
+        background-color: #d4edda;
+        color: #155724;
+    }
+    
+    .status-cancelada {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+    
+    .status-finalizada {
+        background-color: #e2e3e5;
+        color: #383d41;
+    }
+    
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+    
+    .detail-label {
+        color: #6c757d;
+        font-weight: 500;
+    }
+    
+    .detail-value {
+        color: #212529;
+        font-weight: 600;
+    }
+    
+    .filters {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>
+                {% if user.tipo == 'ADMIN' %}
+                    Todas las Reservas
+                {% elif user.tipo == 'EMPLEADO' %}
+                    Reservas Procesadas
+                {% else %}
+                    Mis Reservas
+                {% endif %}
+            </h2>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="filters mb-4">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label for="estado" class="form-label">Estado</label>
+                <select name="estado" id="estado" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="PENDIENTE_PAGO" {% if request.GET.estado == 'PENDIENTE_PAGO' %}selected{% endif %}>Pendiente de Pago</option>
+                    <option value="CONFIRMADA" {% if request.GET.estado == 'CONFIRMADA' %}selected{% endif %}>Confirmada</option>
+                    <option value="CANCELADA" {% if request.GET.estado == 'CANCELADA' %}selected{% endif %}>Cancelada</option>
+                    <option value="FINALIZADA" {% if request.GET.estado == 'FINALIZADA' %}selected{% endif %}>Finalizada</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="fecha_desde" class="form-label">Desde</label>
+                <input type="date" name="fecha_desde" id="fecha_desde" class="form-control" 
+                       value="{{ request.GET.fecha_desde }}">
+            </div>
+            <div class="col-md-3">
+                <label for="fecha_hasta" class="form-label">Hasta</label>
+                <input type="date" name="fecha_hasta" id="fecha_hasta" class="form-control"
+                       value="{{ request.GET.fecha_hasta }}">
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {% if reservas %}
+        {% for reserva in reservas %}
+        <div class="reservation-card">
+            <div class="reservation-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0">Reserva #{{ reserva.id }}</h5>
+                    <small class="text-muted">{{ reserva.fecha_creacion|date:"d/m/Y H:i" }}</small>
+                </div>
+                <span class="status-badge status-{{ reserva.estado|lower }}">
+                    {{ reserva.get_estado_display }}
+                </span>
+            </div>
+            <div class="reservation-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="detail-row">
+                            <span class="detail-label">Maquinaria:</span>
+                            <span class="detail-value">{{ reserva.maquinaria.nombre }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Cantidad:</span>
+                            <span class="detail-value">{{ reserva.cantidad_solicitada }} unidad(es)</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Precio Total:</span>
+                            <span class="detail-value">${{ reserva.precio_total|floatformat:2 }}</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="detail-row">
+                            <span class="detail-label">Fecha Inicio:</span>
+                            <span class="detail-value">{{ reserva.fecha_inicio|date:"d/m/Y" }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Fecha Fin:</span>
+                            <span class="detail-value">{{ reserva.fecha_fin|date:"d/m/Y" }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Sucursal:</span>
+                            <span class="detail-value">{{ reserva.sucursal_retiro.nombre }}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if user.tipo == 'ADMIN' or user.tipo == 'EMPLEADO' %}
+                <div class="mt-3 pt-3 border-top">
+                    <div class="detail-row">
+                        <span class="detail-label">Cliente:</span>
+                        <span class="detail-value">{{ reserva.cliente.email }}</span>
+                    </div>
+                    {% if reserva.empleado_procesador %}
+                    <div class="detail-row">
+                        <span class="detail-label">Procesado por:</span>
+                        <span class="detail-value">{{ reserva.empleado_procesador.email }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                
+                <!-- <div class="mt-3">
+                    <a href="{% url 'reservas:detalle_reserva' reserva.id %}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-eye"></i> Ver Detalles
+                    </a>
+                    {% if reserva.estado == 'PENDIENTE_PAGO' or reserva.estado == 'CONFIRMADA' %}
+                    <a href="{% url 'reservas:cancelar_reserva' reserva.id %}" class="btn btn-outline-danger btn-sm">
+                        <i class="bi bi-x-circle"></i> Cancelar Reserva
+                    </a>
+                    {% endif %}
+                </div> -->
+            </div>
+        </div>
+        {% endfor %}
+        
+        <!-- Paginación -->
+        {% if is_paginated %}
+        <nav aria-label="Navegación de páginas">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.estado %}&estado={{ request.GET.estado }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}">
+                        Anterior
+                    </a>
+                </li>
+                {% endif %}
+                
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}{% if request.GET.estado %}&estado={{ request.GET.estado }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}">
+                            {{ num }}
+                        </a>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.estado %}&estado={{ request.GET.estado }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}">
+                        Siguiente
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    {% else %}
+        <div class="alert alert-info">
+            No hay reservas para mostrar.
+        </div>
+    {% endif %}
+</div>
+{% endblock %} 

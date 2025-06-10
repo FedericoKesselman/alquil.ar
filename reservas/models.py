@@ -309,11 +309,18 @@ class Reserva(models.Model):
         sucursales_disponibles = []
         
         if sucursal:
-            # Verificar solo una sucursal específica
+            # Verificar solo una sucursal específica si está activa
+            if not sucursal.activa:
+                return {
+                    'disponible': False,
+                    'sucursales_disponibles': [],
+                    'mensaje': "La sucursal seleccionada no está activa"
+                }
             sucursales_a_verificar = [sucursal]
         else:
-            # Verificar todas las sucursales que tienen stock de esta maquinaria
+            # Verificar todas las sucursales activas que tienen stock de esta maquinaria
             sucursales_a_verificar = Sucursal.objects.filter(
+                activa=True,
                 stocks__maquinaria=maquinaria,
                 stocks__stock__gte=cantidad_solicitada
             ).distinct()

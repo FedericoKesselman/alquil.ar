@@ -43,7 +43,6 @@
           </select>
         </div>
 
-        {% if is_cliente %}
         <div class="col-md-3">
           <label for="sucursal" class="form-label">Sucursal</label>
           <select name="sucursal" id="sucursal" class="form-select">
@@ -55,21 +54,20 @@
             {% endfor %}
           </select>
         </div>
-        {% endif %}
 
-        <div class="col-md-{% if is_cliente %}2{% else %}3{% endif %}">
+        <div class="col-md-2">
           <label for="precio_min" class="form-label">Precio Mínimo</label>
           <input type="number" class="form-control" id="precio_min" name="precio_min" 
                  value="{{ filtros.precio_min }}" min="0" step="0.01">
         </div>
 
-        <div class="col-md-{% if is_cliente %}2{% else %}3{% endif %}">
+        <div class="col-md-2">
           <label for="precio_max" class="form-label">Precio Máximo</label>
           <input type="number" class="form-control" id="precio_max" name="precio_max" 
                  value="{{ filtros.precio_max }}" min="0" step="0.01">
         </div>
 
-        <div class="col-md-{% if is_cliente %}2{% else %}3{% endif %} d-flex align-items-end">
+        <div class="col-md-2 d-flex align-items-end">
           <div class="d-grid gap-2 w-100">
             <button type="submit" class="btn btn-primary">
               <i class="fas fa-filter"></i> Filtrar

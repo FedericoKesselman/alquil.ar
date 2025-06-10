@@ -69,9 +69,10 @@ def maquinaria_list(request):
 def maquinaria_list_cliente(request):
     # Verificar si el usuario está autenticado y es cliente o empleado
     if not request.user.is_authenticated or (request.user.tipo not in ['CLIENTE', 'EMPLEADO']):
-        # Query base sin filtros para usuarios no autenticados
+        # Query base sin filtros para usuarios no autenticados - mostrar maquinarias con stock en al menos una sucursal activa
         maquinarias = Maquinaria.objects.filter(
-            stocks__stock_disponible__gt=0
+            stocks__stock__gt=0,
+            stocks__sucursal__activa=True
         ).distinct().order_by('nombre')
         
         # Paginación
@@ -86,16 +87,14 @@ def maquinaria_list_cliente(request):
     tipo_id = request.GET.get('tipo')
     precio_min = request.GET.get('precio_min')
     precio_max = request.GET.get('precio_max')
+    sucursal_id = request.GET.get('sucursal')
     
-    # Query base: maquinarias con stock disponible
+    # Query base inicial - maquinarias que tienen stock en al menos una sucursal activa
     base_queryset = Maquinaria.objects.filter(
-        stocks__stock_disponible__gt=0
+        stocks__stock__gt=0,
+        stocks__sucursal__activa=True
     ).distinct()
 
-    # Si es empleado, filtrar solo por su sucursal
-    if request.user.tipo == 'EMPLEADO' and hasattr(request.user, 'sucursal'):
-        base_queryset = base_queryset.filter(stocks__sucursal=request.user.sucursal)
-    
     # Aplicar filtros y obtener queryset filtrado
     filtered_queryset = base_queryset
 
@@ -107,12 +106,13 @@ def maquinaria_list_cliente(request):
     if tipo_id:
         filtered_queryset = filtered_queryset.filter(tipo_id=tipo_id)
     
-    # Para clientes, aplicar filtro de sucursal si existe
-    sucursal_id = None
-    if request.user.tipo == 'CLIENTE':
-        sucursal_id = request.GET.get('sucursal')
-        if sucursal_id:
-            filtered_queryset = filtered_queryset.filter(stocks__sucursal_id=sucursal_id, stocks__stock_disponible__gt=0)
+    # Aplicar filtro de sucursal si existe
+    if sucursal_id:
+        filtered_queryset = filtered_queryset.filter(
+            stocks__sucursal_id=sucursal_id,
+            stocks__sucursal__activa=True,
+            stocks__stock__gt=0
+        )
     
     # Aplicar filtros de precio
     if precio_min:
@@ -128,43 +128,45 @@ def maquinaria_list_cliente(request):
             pass
     
     # Obtener tipos de maquinaria disponibles según los filtros actuales
+    # Un tipo está disponible si al menos una de sus maquinarias tiene stock en una sucursal activa
     base_tipos_query = TipoMaquinaria.objects.filter(
-        maquinarias__stocks__stock_disponible__gt=0
+        maquinarias__stocks__stock__gt=0,
+        maquinarias__stocks__sucursal__activa=True
     ).distinct()
 
     if search_query:
         base_tipos_query = base_tipos_query.filter(maquinarias__nombre__icontains=search_query)
 
     if sucursal_id:
-        # Si hay filtro de sucursal, mostrar solo tipos disponibles en esa sucursal
+        # Si hay filtro de sucursal, mostrar tipos que tienen maquinarias en esa sucursal activa
         tipos_disponibles = base_tipos_query.filter(
-            maquinarias__stocks__sucursal_id=sucursal_id
+            maquinarias__stocks__sucursal_id=sucursal_id,
+            maquinarias__stocks__sucursal__activa=True,
+            maquinarias__stocks__stock__gt=0
         ).distinct()
     else:
-        # Si no hay filtro de sucursal, mostrar tipos que tienen stock en cualquier sucursal
         tipos_disponibles = base_tipos_query
 
-    # Obtener sucursales disponibles según los filtros actuales (solo para clientes)
-    sucursales_disponibles = None
-    if request.user.tipo == 'CLIENTE':
-        base_sucursales_query = Sucursal.objects.filter(
-            activa=True,
-            stocks__stock_disponible__gt=0
+    # Obtener sucursales activas disponibles según los filtros actuales
+    base_sucursales_query = Sucursal.objects.filter(
+        activa=True,
+        stocks__stock__gt=0
+    )
+
+    if search_query:
+        base_sucursales_query = base_sucursales_query.filter(
+            stocks__maquinaria__nombre__icontains=search_query
         )
 
-        if search_query:
-            base_sucursales_query = base_sucursales_query.filter(
-                stocks__maquinaria__nombre__icontains=search_query
-            )
-
-        if tipo_id:
-            # Si hay filtro de tipo, mostrar solo sucursales que tienen ese tipo
-            sucursales_disponibles = base_sucursales_query.filter(
-                stocks__maquinaria__tipo_id=tipo_id
-            ).distinct()
-        else:
-            # Si no hay filtro de tipo, mostrar sucursales que tienen cualquier maquinaria con stock
-            sucursales_disponibles = base_sucursales_query.distinct()
+    if tipo_id:
+        # Si hay filtro de tipo, mostrar solo sucursales activas que tienen ese tipo
+        sucursales_disponibles = base_sucursales_query.filter(
+            stocks__maquinaria__tipo_id=tipo_id,
+            stocks__stock__gt=0
+        ).distinct()
+    else:
+        # Si no hay filtro de tipo, mostrar sucursales activas que tienen cualquier maquinaria con stock
+        sucursales_disponibles = base_sucursales_query.distinct()
     
     # Ordenar resultados
     filtered_queryset = filtered_queryset.order_by('nombre')
@@ -177,7 +179,7 @@ def maquinaria_list_cliente(request):
     context = {
         'maquinarias': maquinarias,
         'tipos': tipos_disponibles.order_by('nombre'),
-        'sucursales': sucursales_disponibles.order_by('nombre') if sucursales_disponibles else None,
+        'sucursales': sucursales_disponibles.order_by('nombre'),
         'filtros': {
             'search': search_query,
             'tipo': tipo_id,
@@ -207,20 +209,35 @@ def maquinaria_create(request):
         form = MaquinariaForm(request.POST, request.FILES)
         stock_formset = MaquinariaStockFormSet(request.POST, prefix='stocks')
         
-        if form.is_valid() and stock_formset.is_valid():
+        formset_is_valid = True
+        if stock_formset.is_valid():
             # Procesar datos del formset
             stocks_data = []
             for stock_form in stock_formset:
                 if stock_form.cleaned_data and not stock_form.cleaned_data.get('DELETE', False):
-                    stocks_data.append(stock_form.cleaned_data)
+                    try:
+                        stock_form.clean()
+                        stocks_data.append(stock_form.cleaned_data)
+                    except forms.ValidationError as e:
+                        messages.error(request, f"Error en el stock de sucursal: {e.messages[0]}")
+                        formset_is_valid = False
+                        break
             
-            # Validar que se haya asignado al menos una sucursal
-            if not stocks_data:
-                messages.error(request, 'Debe asignar la maquinaria a al menos una sucursal.')
-            else:
-                maquinaria = form.save(stocks_data=stocks_data)
-                messages.success(request, 'Maquinaria creada exitosamente.')
-                return redirect('maquinaria_list')
+            # Validar que se haya asignado al menos una sucursal con stock válido
+            if not stocks_data and formset_is_valid:
+                messages.error(request, 'Debe asignar la maquinaria a al menos una sucursal con stock mayor a 0.')
+                formset_is_valid = False
+        else:
+            formset_is_valid = False
+            for form_errors in stock_formset.errors:
+                for field, errors in form_errors.items():
+                    for error in errors:
+                        messages.error(request, f"Error en el stock de sucursal: {error}")
+        
+        if form.is_valid() and formset_is_valid:
+            maquinaria = form.save(stocks_data=stocks_data)
+            messages.success(request, 'Maquinaria creada exitosamente.')
+            return redirect('maquinaria_list')
     else:
         form = MaquinariaForm()
         stock_formset = MaquinariaStockFormSet(prefix='stocks')
@@ -242,13 +259,32 @@ def maquinaria_update(request, pk):
         form = MaquinariaUpdateForm(request.POST, request.FILES, instance=maquinaria)
         stock_formset = MaquinariaStockFormSet(request.POST, prefix='stocks')
         
-        if form.is_valid() and stock_formset.is_valid():
+        formset_is_valid = True
+        if stock_formset.is_valid():
             # Procesar datos del formset
             stocks_data = []
             for stock_form in stock_formset:
                 if stock_form.cleaned_data:
-                    stocks_data.append(stock_form.cleaned_data)
+                    try:
+                        stock_form.clean()
+                        stocks_data.append(stock_form.cleaned_data)
+                    except forms.ValidationError as e:
+                        messages.error(request, f"Error en el stock de sucursal: {e.messages[0]}")
+                        formset_is_valid = False
+                        break
             
+            # Validar que se haya asignado al menos una sucursal con stock válido
+            if not stocks_data and formset_is_valid:
+                messages.error(request, 'Debe asignar la maquinaria a al menos una sucursal con stock mayor a 0.')
+                formset_is_valid = False
+        else:
+            formset_is_valid = False
+            for form_errors in stock_formset.errors:
+                for field, errors in form_errors.items():
+                    for error in errors:
+                        messages.error(request, f"Error en el stock de sucursal: {error}")
+        
+        if form.is_valid() and formset_is_valid:
             maquinaria = form.save(stocks_data=stocks_data)
             messages.success(request, 'Maquinaria actualizada exitosamente.')
             return redirect('maquinaria_list')
@@ -316,6 +352,8 @@ class MaquinariaListCliente(LoginRequiredMixin, ListView):
     paginate_by = 9
 
     def get_queryset(self):
+        # Mostrar maquinarias que tienen stock en al menos una sucursal activa
         return Maquinaria.objects.filter(
-            stocks__stock_disponible__gt=0
+            stocks__stock_disponible__gt=0,
+            stocks__sucursal__activa=True
         ).distinct().order_by('nombre')

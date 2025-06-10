@@ -120,6 +120,16 @@ class EmpleadoForm(forms.Form):
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Número de teléfono'}),
         validators=[RegexValidator(r'^\d+$', 'Solo se permiten números en el teléfono')]
     )
+    fecha_nacimiento = forms.DateField(
+        label="Fecha de nacimiento",
+        widget=forms.DateInput(
+            attrs={
+                'class': 'form-control', 
+                'type': 'date',
+                'max': date.today().isoformat(),
+            }
+        )
+    )
     sucursal = forms.ModelChoiceField(
         queryset=Sucursal.objects.filter(activa=True),
         label="Sucursal",
@@ -147,6 +157,24 @@ class EmpleadoForm(forms.Form):
         if User.objects.filter(dni=dni).exists():
             raise forms.ValidationError('El DNI ingresado ya se encuentra registrado en el sistema.')
         return dni
+
+    def clean_fecha_nacimiento(self):
+        fecha_nacimiento = self.cleaned_data.get('fecha_nacimiento')
+        
+        if not fecha_nacimiento:
+            raise forms.ValidationError("La fecha de nacimiento es obligatoria")
+            
+        hoy = date.today()
+        edad = hoy.year - fecha_nacimiento.year - ((hoy.month, hoy.day) < (fecha_nacimiento.month, fecha_nacimiento.day))
+
+        # Verificar que no sea una fecha futura
+        if fecha_nacimiento > hoy:
+            raise forms.ValidationError("La fecha de nacimiento no puede ser futura")
+        
+        if edad < 18:
+            raise forms.ValidationError("El empleado debe ser mayor de 18 años")
+    
+        return fecha_nacimiento
 
     def clean_password(self):
         password = self.cleaned_data.get('password')
@@ -187,6 +215,7 @@ class EmpleadoForm(forms.Form):
             nombre=self.cleaned_data['nombre'],
             dni=self.cleaned_data['dni'],
             telefono=self.cleaned_data['telefono'],
+            fecha_nacimiento=self.cleaned_data['fecha_nacimiento'],
             sucursal=self.cleaned_data['sucursal'],
             tipo='EMPLEADO'
         )

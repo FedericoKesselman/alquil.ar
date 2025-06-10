@@ -10,11 +10,10 @@ urlpatterns = [
     path('confirmar-reservas/', views.confirmar_reservas, name='confirmar_reservas'),
     path('get-sucursales-disponibles/', views.get_sucursales_disponibles, name='get_sucursales_disponibles'),
     
-    # URLs para empleados
-    path('empleado/lista/', views.lista_reservas_empleado, name='lista_reservas_empleado'),
+    # URL para historial de reservas (unificada para todos los usuarios)
+    path('historial/', views.lista_reservas, name='lista_reservas'),
     
     # URLs compartidas
-    path('lista/', views.lista_reservas, name='lista_reservas'),
     path('detalle/<int:reserva_id>/', views.detalle_reserva, name='detalle_reserva'),
     path('cancelar/<int:reserva_id>/', views.cancelar_reserva, name='cancelar_reserva'),
     
