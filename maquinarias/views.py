@@ -67,15 +67,129 @@ def maquinaria_list(request):
     return render(request, 'maquinarias/maquinaria_list.html', {'maquinarias': maquinarias})
 
 def maquinaria_list_cliente(request):
-    # Filtrar maquinarias que tengan stock disponible en al menos una sucursal
-    maquinarias = Maquinaria.objects.filter(
-        stocks__stock_disponible__gt=0
-    ).distinct().order_by('nombre')
+    # Verificar si el usuario está autenticado y es cliente o empleado
+    if not request.user.is_authenticated or (request.user.tipo not in ['CLIENTE', 'EMPLEADO']):
+        # Query base sin filtros para usuarios no autenticados
+        maquinarias = Maquinaria.objects.filter(
+            stocks__stock_disponible__gt=0
+        ).distinct().order_by('nombre')
+        
+        # Paginación
+        paginator = Paginator(maquinarias, 12)
+        page = request.GET.get('page')
+        maquinarias = paginator.get_page(page)
+        
+        return render(request, 'maquinarias/maquinaria_list_cliente.html', {'maquinarias': maquinarias})
+
+    # Obtener los parámetros de filtrado
+    search_query = request.GET.get('search', '').strip()
+    tipo_id = request.GET.get('tipo')
+    precio_min = request.GET.get('precio_min')
+    precio_max = request.GET.get('precio_max')
     
-    paginator = Paginator(maquinarias, 12)
+    # Query base: maquinarias con stock disponible
+    base_queryset = Maquinaria.objects.filter(
+        stocks__stock_disponible__gt=0
+    ).distinct()
+
+    # Si es empleado, filtrar solo por su sucursal
+    if request.user.tipo == 'EMPLEADO' and hasattr(request.user, 'sucursal'):
+        base_queryset = base_queryset.filter(stocks__sucursal=request.user.sucursal)
+    
+    # Aplicar filtros y obtener queryset filtrado
+    filtered_queryset = base_queryset
+
+    # Aplicar búsqueda por nombre si existe
+    if search_query:
+        filtered_queryset = filtered_queryset.filter(nombre__icontains=search_query)
+
+    # Aplicar filtro de tipo si existe
+    if tipo_id:
+        filtered_queryset = filtered_queryset.filter(tipo_id=tipo_id)
+    
+    # Para clientes, aplicar filtro de sucursal si existe
+    sucursal_id = None
+    if request.user.tipo == 'CLIENTE':
+        sucursal_id = request.GET.get('sucursal')
+        if sucursal_id:
+            filtered_queryset = filtered_queryset.filter(stocks__sucursal_id=sucursal_id, stocks__stock_disponible__gt=0)
+    
+    # Aplicar filtros de precio
+    if precio_min:
+        try:
+            filtered_queryset = filtered_queryset.filter(precio_por_dia__gte=float(precio_min))
+        except ValueError:
+            pass
+    
+    if precio_max:
+        try:
+            filtered_queryset = filtered_queryset.filter(precio_por_dia__lte=float(precio_max))
+        except ValueError:
+            pass
+    
+    # Obtener tipos de maquinaria disponibles según los filtros actuales
+    base_tipos_query = TipoMaquinaria.objects.filter(
+        maquinarias__stocks__stock_disponible__gt=0
+    ).distinct()
+
+    if search_query:
+        base_tipos_query = base_tipos_query.filter(maquinarias__nombre__icontains=search_query)
+
+    if sucursal_id:
+        # Si hay filtro de sucursal, mostrar solo tipos disponibles en esa sucursal
+        tipos_disponibles = base_tipos_query.filter(
+            maquinarias__stocks__sucursal_id=sucursal_id
+        ).distinct()
+    else:
+        # Si no hay filtro de sucursal, mostrar tipos que tienen stock en cualquier sucursal
+        tipos_disponibles = base_tipos_query
+
+    # Obtener sucursales disponibles según los filtros actuales (solo para clientes)
+    sucursales_disponibles = None
+    if request.user.tipo == 'CLIENTE':
+        base_sucursales_query = Sucursal.objects.filter(
+            activa=True,
+            stocks__stock_disponible__gt=0
+        )
+
+        if search_query:
+            base_sucursales_query = base_sucursales_query.filter(
+                stocks__maquinaria__nombre__icontains=search_query
+            )
+
+        if tipo_id:
+            # Si hay filtro de tipo, mostrar solo sucursales que tienen ese tipo
+            sucursales_disponibles = base_sucursales_query.filter(
+                stocks__maquinaria__tipo_id=tipo_id
+            ).distinct()
+        else:
+            # Si no hay filtro de tipo, mostrar sucursales que tienen cualquier maquinaria con stock
+            sucursales_disponibles = base_sucursales_query.distinct()
+    
+    # Ordenar resultados
+    filtered_queryset = filtered_queryset.order_by('nombre')
+    
+    # Paginación
+    paginator = Paginator(filtered_queryset, 12)
     page = request.GET.get('page')
     maquinarias = paginator.get_page(page)
-    return render(request, 'maquinarias/maquinaria_list_cliente.html', {'maquinarias': maquinarias})
+    
+    context = {
+        'maquinarias': maquinarias,
+        'tipos': tipos_disponibles.order_by('nombre'),
+        'sucursales': sucursales_disponibles.order_by('nombre') if sucursales_disponibles else None,
+        'filtros': {
+            'search': search_query,
+            'tipo': tipo_id,
+            'sucursal': sucursal_id,
+            'precio_min': precio_min,
+            'precio_max': precio_max
+        },
+        'is_cliente': request.user.tipo == 'CLIENTE',
+        'is_empleado': request.user.tipo == 'EMPLEADO'
+    }
+    
+    return render(request, 'maquinarias/maquinaria_list_cliente.html', context)
 
 @login_required
 @solo_admin

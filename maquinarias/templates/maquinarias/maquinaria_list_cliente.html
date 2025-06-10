@@ -14,6 +14,78 @@
   </div>
   {% endif %}
 
+  <!-- Filtros solo para clientes y empleados -->
+  {% if is_cliente or is_empleado %}
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="get" class="row g-3">
+        <!-- Campo de búsqueda -->
+        <div class="col-12 mb-3">
+          <div class="input-group">
+            <input type="text" class="form-control" id="search" name="search" 
+                   placeholder="Buscar por nombre de maquinaria..." 
+                   value="{{ filtros.search }}">
+            <button class="btn btn-outline-primary" type="submit">
+              <i class="fas fa-search"></i> Buscar
+            </button>
+          </div>
+        </div>
+
+        <div class="col-md-3">
+          <label for="tipo" class="form-label">Tipo de Maquinaria</label>
+          <select name="tipo" id="tipo" class="form-select">
+            <option value="">Todos los tipos</option>
+            {% for tipo in tipos %}
+            <option value="{{ tipo.id }}" {% if filtros.tipo|stringformat:"s" == tipo.id|stringformat:"s" %}selected{% endif %}>
+              {{ tipo.nombre }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        {% if is_cliente %}
+        <div class="col-md-3">
+          <label for="sucursal" class="form-label">Sucursal</label>
+          <select name="sucursal" id="sucursal" class="form-select">
+            <option value="">Todas las sucursales</option>
+            {% for sucursal in sucursales %}
+            <option value="{{ sucursal.id }}" {% if filtros.sucursal|stringformat:"s" == sucursal.id|stringformat:"s" %}selected{% endif %}>
+              {{ sucursal.nombre }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+
+        <div class="col-md-{% if is_cliente %}2{% else %}3{% endif %}">
+          <label for="precio_min" class="form-label">Precio Mínimo</label>
+          <input type="number" class="form-control" id="precio_min" name="precio_min" 
+                 value="{{ filtros.precio_min }}" min="0" step="0.01">
+        </div>
+
+        <div class="col-md-{% if is_cliente %}2{% else %}3{% endif %}">
+          <label for="precio_max" class="form-label">Precio Máximo</label>
+          <input type="number" class="form-control" id="precio_max" name="precio_max" 
+                 value="{{ filtros.precio_max }}" min="0" step="0.01">
+        </div>
+
+        <div class="col-md-{% if is_cliente %}2{% else %}3{% endif %} d-flex align-items-end">
+          <div class="d-grid gap-2 w-100">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-filter"></i> Filtrar
+            </button>
+            {% if filtros.search or filtros.tipo or filtros.sucursal or filtros.precio_min or filtros.precio_max %}
+            <a href="{% url 'maquinaria_list_cliente' %}" class="btn btn-outline-secondary">
+              <i class="fas fa-times"></i> Limpiar Filtros
+            </a>
+            {% endif %}
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
     {% for maquinaria in maquinarias %}
     <div class="col">
@@ -64,7 +136,7 @@
     {% empty %}
     <div class="col-12">
       <div class="alert alert-info">
-        No hay maquinarias disponibles en este momento.
+        No hay maquinarias disponibles con los filtros seleccionados.
       </div>
     </div>
     {% endfor %}
@@ -77,36 +149,25 @@
         <ul class="pagination justify-content-center">
           {% if maquinarias.has_previous %}
           <li class="page-item">
-            <a class="page-link" href="?page=1">&laquo; Primera</a>
+            <a class="page-link" href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&{% endif %}page=1">&laquo; Primera</a>
           </li>
           <li class="page-item">
-            <a
-              class="page-link"
-              href="?page={{ maquinarias.previous_page_number }}"
-              >Anterior</a
-            >
+            <a class="page-link" href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&{% endif %}page={{ maquinarias.previous_page_number }}">Anterior</a>
           </li>
           {% endif %}
 
           <li class="page-item active">
             <span class="page-link">
-              Página {{ maquinarias.number }} de {{
-              maquinarias.paginator.num_pages }}
+              Página {{ maquinarias.number }} de {{ maquinarias.paginator.num_pages }}
             </span>
           </li>
 
           {% if maquinarias.has_next %}
           <li class="page-item">
-            <a class="page-link" href="?page={{ maquinarias.next_page_number }}"
-              >Siguiente</a
-            >
+            <a class="page-link" href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&{% endif %}page={{ maquinarias.next_page_number }}">Siguiente</a>
           </li>
           <li class="page-item">
-            <a
-              class="page-link"
-              href="?page={{ maquinarias.paginator.num_pages }}"
-              >Última &raquo;</a
-            >
+            <a class="page-link" href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&{% endif %}page={{ maquinarias.paginator.num_pages }}">Última &raquo;</a>
           </li>
           {% endif %}
         </ul>
