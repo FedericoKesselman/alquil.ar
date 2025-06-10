@@ -157,10 +157,14 @@ class EmpleadoForm(forms.Form):
         if len(password) < 8:
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, una letra mayúscula y un número.')
         
+        if not any(c.isupper() for c in password):
+            raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, una letra mayúscula y un número.')
         
         if not any(c.islower() for c in password):
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, una letra mayúscula y un número.')
         
+        if not any(c.isdigit() for c in password):
+            raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, una letra mayúscula y un número.')
         
         return password
 
