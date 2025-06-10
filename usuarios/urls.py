@@ -1,6 +1,7 @@
 # usuarios/urls.py
 from django.urls import path
 from . import views
+from .views import cambiar_password_perfil_view
 
 # Cuando se accede al path, se ejecuta la view indicada.
 urlpatterns = [
@@ -28,6 +29,6 @@ urlpatterns = [
     # URLs para recuperar contraseña
     path('recuperar-password/', views.recuperar_password_view, name='recuperar_password'),
     path('restablecer-password/<str:token>/', views.restablecer_password_view, name='restablecer_password'),
-    path('cambiar-password/', views.cambiar_password_perfil_view, name='cambiar_password_perfil'),
+    path('cambiar-password/', cambiar_password_perfil_view, name='cambiar_password_perfil'),
     path('enlace-expirado/', views.enlace_expirado_view, name='enlace_expirado'),
 ]

@@ -44,6 +44,8 @@ def login_view(request):
             # Para otros usuarios, login directo
             login(request, user)
             return redirect('redireccionar_por_rol')
+        else:
+            messages.error(request, 'Credenciales incorrectas. Por favor, verifica tu email y contraseña.')
     else:
         form = LoginForm()
 
@@ -396,24 +398,26 @@ def enlace_expirado_view(request):
 def restablecer_password_view(request, token):
     try:
         user = User.objects.get(reset_token=token, reset_token_used=False)
-        
+
         # Verificar si el token expiró (15 minutos)
         tiempo_actual = timezone.now()
         if tiempo_actual > (user.reset_token_timestamp + timedelta(minutes=15)):
             return redirect('enlace_expirado')
-        
+
     except User.DoesNotExist:
         return redirect('enlace_expirado')
-    
+
     if request.method == 'POST':
         form = RestablecerPasswordForm(user, request.POST)
         if form.is_valid():
             form.save()
             messages.success(request, 'Tu contraseña fue restablecida con éxito.')
             return redirect('login')
+        else:
+            messages.error(request, 'Hubo errores en el formulario. Por favor, verifica los campos.')
     else:
         form = RestablecerPasswordForm(user)
-    
+
     return render(request, 'usuarios/restablecer_password.html', {'form': form})
 
 @login_required
@@ -421,12 +425,11 @@ def cambiar_password_perfil_view(request):
     if request.method == 'POST':
         form = CambiarPasswordPerfilForm(request.user, request.POST)
         if form.is_valid():
-            form.save()
+            form.save()  # Cambia la contraseña sin afectar la sesión
             messages.success(request, 'Tu contraseña fue actualizada con éxito.')
-            return redirect('cambiar_password_perfil')
+            return redirect('home')  # Redirige al home manteniendo la sesión activa
     else:
         form = CambiarPasswordPerfilForm(request.user)
-    
     return render(request, 'usuarios/cambiar_password_perfil.html', {'form': form})
 
 '''
