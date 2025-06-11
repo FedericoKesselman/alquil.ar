@@ -20,6 +20,9 @@ import logging
 import os
 import mercadopago
 from django.urls import reverse
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Mercado Pago Configuration
 MP_ACCESS_TOKEN = os.getenv('MP_ACCESS_TOKEN')
@@ -27,7 +30,6 @@ MP_PUBLIC_KEY = os.getenv('MP_PUBLIC_KEY')
 NGROK_URL = os.getenv('NGROK_URL')
 
 sdk = mercadopago.SDK(MP_ACCESS_TOKEN)
-
 
 @login_required
 def crear_reserva(request, maquinaria_id):
