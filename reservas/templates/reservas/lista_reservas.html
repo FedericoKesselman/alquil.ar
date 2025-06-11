@@ -73,6 +73,14 @@
         box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         margin-bottom: 2rem;
     }
+    
+    .invalid-feedback {
+        display: none;
+    }
+    
+    .is-invalid ~ .invalid-feedback {
+        display: block;
+    }
 </style>
 {% endblock %}
 
@@ -95,6 +103,48 @@
     <!-- Filtros -->
     <div class="filters mb-4">
         <form method="get" class="row g-3">
+            {% if user.tipo == 'ADMIN' or user.tipo == 'EMPLEADO' %}
+            <div class="col-md-3">
+                <label for="cliente" class="form-label">Cliente</label>
+                <select name="cliente" id="cliente" class="form-select">
+                    <option value="">Todos los clientes</option>
+                    {% for cliente in clientes %}
+                    <option value="{{ cliente.id }}" {% if request.GET.cliente|stringformat:"s" == cliente.id|stringformat:"s" %}selected{% endif %}>
+                        {{ cliente.email }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            
+            {% if user.tipo == 'ADMIN' %}
+            <div class="col-md-3">
+                <label for="sucursal" class="form-label">Sucursal</label>
+                <select name="sucursal" id="sucursal" class="form-select">
+                    <option value="">Todas las sucursales</option>
+                    {% for sucursal in sucursales %}
+                    <option value="{{ sucursal.id }}" {% if request.GET.sucursal|stringformat:"s" == sucursal.id|stringformat:"s" %}selected{% endif %}>
+                        {{ sucursal.nombre }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            {% if user.tipo == 'ADMIN' or user.tipo == 'EMPLEADO' %}
+            <div class="col-md-3">
+                <label for="empleado" class="form-label">Empleado Procesador</label>
+                <select name="empleado" id="empleado" class="form-select">
+                    <option value="">Todos los empleados</option>
+                    {% for emp in empleados %}
+                    <option value="{{ emp.id }}" {% if request.GET.empleado|stringformat:"s" == emp.id|stringformat:"s" %}selected{% endif %}>
+                        {{ emp.email }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            
             <div class="col-md-3">
                 <label for="estado" class="form-label">Estado</label>
                 <select name="estado" id="estado" class="form-select">
@@ -108,17 +158,26 @@
             <div class="col-md-3">
                 <label for="fecha_desde" class="form-label">Desde</label>
                 <input type="date" name="fecha_desde" id="fecha_desde" class="form-control" 
-                       value="{{ request.GET.fecha_desde }}">
+                       value="{{ request.GET.fecha_desde }}" oninput="validarFechas()">
+                <div class="invalid-feedback" id="fecha_desde_error"></div>
             </div>
             <div class="col-md-3">
                 <label for="fecha_hasta" class="form-label">Hasta</label>
                 <input type="date" name="fecha_hasta" id="fecha_hasta" class="form-control"
-                       value="{{ request.GET.fecha_hasta }}">
+                       value="{{ request.GET.fecha_hasta }}" oninput="validarFechas()">
+                <div class="invalid-feedback" id="fecha_hasta_error"></div>
             </div>
             <div class="col-md-3 d-flex align-items-end">
-                <button type="submit" class="btn btn-primary w-100">
-                    <i class="bi bi-search"></i> Filtrar
-                </button>
+                <div class="d-grid gap-2 w-100">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search"></i> Filtrar
+                    </button>
+                    {% if request.GET %}
+                    <a href="{% url 'reservas:lista_reservas' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x"></i> Limpiar Filtros
+                    </a>
+                    {% endif %}
+                </div>
             </div>
         </form>
     </div>
@@ -238,4 +297,38 @@
         </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function validarFechas() {
+    const fechaDesde = document.getElementById('fecha_desde');
+    const fechaHasta = document.getElementById('fecha_hasta');
+    const fechaDesdeError = document.getElementById('fecha_desde_error');
+    const fechaHastaError = document.getElementById('fecha_hasta_error');
+    
+    // Reset validation states
+    fechaDesde.classList.remove('is-invalid');
+    fechaHasta.classList.remove('is-invalid');
+    
+    if (fechaDesde.value && fechaHasta.value) {
+        const desde = new Date(fechaDesde.value);
+        const hasta = new Date(fechaHasta.value);
+        
+        if (hasta < desde) {
+            fechaHasta.classList.add('is-invalid');
+            fechaHastaError.textContent = 'La fecha hasta no puede ser anterior a la fecha desde';
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+document.querySelector('form').addEventListener('submit', function(e) {
+    if (!validarFechas()) {
+        e.preventDefault();
+    }
+});
+</script>
 {% endblock %} 

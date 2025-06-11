@@ -389,17 +389,40 @@ def lista_reservas(request):
     estado = request.GET.get('estado')
     fecha_desde = request.GET.get('fecha_desde')
     fecha_hasta = request.GET.get('fecha_hasta')
+    cliente_id = request.GET.get('cliente')
+    empleado_id = request.GET.get('empleado')
+    sucursal_id = request.GET.get('sucursal')
     
     # Iniciar el queryset base según el tipo de usuario
     if request.user.tipo == 'ADMIN':
         # Administradores ven todas las reservas
         reservas = Reserva.objects.all()
+        # Obtener lista de clientes para el filtro
+        clientes = Usuario.objects.filter(tipo='CLIENTE').order_by('email')
+        # Obtener lista de empleados para el filtro
+        empleados = Usuario.objects.filter(tipo='EMPLEADO').order_by('email')
+        # Obtener lista de sucursales para el filtro
+        sucursales = Sucursal.objects.filter(activa=True).order_by('nombre')
     elif request.user.tipo == 'EMPLEADO':
-        # Empleados ven las reservas que han procesado
-        reservas = Reserva.objects.filter(empleado_procesador=request.user)
+        # Empleados ven las reservas de su sucursal
+        reservas = Reserva.objects.filter(sucursal_retiro=request.user.sucursal)
+        # Obtener lista de clientes para el filtro, solo los que tienen reservas en esta sucursal
+        clientes = Usuario.objects.filter(
+            tipo='CLIENTE',
+            reservas__sucursal_retiro=request.user.sucursal
+        ).distinct().order_by('email')
+        # Obtener lista de empleados para el filtro, solo los de la misma sucursal
+        empleados = Usuario.objects.filter(
+            tipo='EMPLEADO',
+            sucursal=request.user.sucursal
+        ).order_by('email')
+        sucursales = None
     else:
         # Clientes ven sus propias reservas
         reservas = Reserva.objects.filter(cliente=request.user)
+        clientes = None
+        empleados = None
+        sucursales = None
     
     # Aplicar filtros si existen
     if estado:
@@ -410,6 +433,15 @@ def lista_reservas(request):
     
     if fecha_hasta:
         reservas = reservas.filter(fecha_fin__lte=fecha_hasta)
+        
+    if cliente_id and (request.user.tipo in ['ADMIN', 'EMPLEADO']):
+        reservas = reservas.filter(cliente_id=cliente_id)
+        
+    if empleado_id and (request.user.tipo in ['ADMIN', 'EMPLEADO']):
+        reservas = reservas.filter(empleado_procesador_id=empleado_id)
+        
+    if sucursal_id and request.user.tipo == 'ADMIN':
+        reservas = reservas.filter(sucursal_retiro_id=sucursal_id)
     
     # Ordenar por fecha de creación (más recientes primero)
     reservas = reservas.order_by('-fecha_creacion')
@@ -423,7 +455,10 @@ def lista_reservas(request):
         'reservas': reservas_paginadas,
         'is_paginated': True if reservas.count() > 10 else False,
         'page_obj': reservas_paginadas,
-        'titulo': 'Historial de Reservas'
+        'titulo': 'Historial de Reservas',
+        'clientes': clientes,  # Lista de clientes para el filtro
+        'empleados': empleados,  # Lista de empleados para el filtro
+        'sucursales': sucursales,  # Lista de sucursales para el filtro
     }
     
     return render(request, 'reservas/lista_reservas.html', context)
