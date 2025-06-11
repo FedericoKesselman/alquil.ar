@@ -9,7 +9,7 @@ from django.utils import timezone
 from datetime import datetime, timedelta
 from usuarios.decorators import solo_cliente, solo_empleado, solo_admin
 from usuarios.models import Usuario, Sucursal
-from maquinarias.models import Maquinaria
+from maquinarias.models import Maquinaria, MaquinariaStock
 from .models import Reserva
 from .forms import (
     ReservaForm, SeleccionSucursalForm, ConfirmacionPagoForm,
@@ -28,9 +28,71 @@ def crear_reserva(request, maquinaria_id):
 
     maquinaria = get_object_or_404(Maquinaria, id=maquinaria_id)
     
+    # Verificar si hay stock disponible en alguna sucursal
+    stock_total = maquinaria.get_stock_total()
+    if stock_total <= 0:
+        messages.error(request, "No hay stock disponible de esta maquinaria en ninguna sucursal.")
+        return redirect('maquinaria_list')
+    
     if request.method == 'POST':
         form = ReservaForm(request.POST, maquinaria=maquinaria, usuario=request.user)
         if form.is_valid():
+            # Si es cliente, verificar que no tenga una reserva activa
+            if request.user.tipo == 'CLIENTE':
+                reserva_activa = Reserva.objects.filter(
+                    cliente=request.user,
+                    estado='CONFIRMADA'
+                ).exists()
+                
+                if reserva_activa:
+                    messages.error(request, "Ya tienes una reserva activa. No puedes tener más de una reserva confirmada a la vez.")
+                    return redirect('home')
+            # Si es empleado, verificar que el cliente seleccionado no tenga una reserva activa
+            elif request.user.tipo == 'EMPLEADO':
+                cliente = form.cleaned_data['cliente']
+                reserva_activa = Reserva.objects.filter(
+                    cliente=cliente,
+                    estado='CONFIRMADA'
+                ).exists()
+                
+                if reserva_activa:
+                    messages.error(request, "El cliente seleccionado ya tiene una reserva activa. No puede tener más de una reserva confirmada a la vez.")
+                    return redirect('home')
+            
+            # Verificar disponibilidad para las fechas y cantidad solicitadas
+            fecha_inicio = form.cleaned_data['fecha_inicio']
+            fecha_fin = form.cleaned_data['fecha_fin']
+            cantidad = form.cleaned_data['cantidad_solicitada']
+            sucursal = form.cleaned_data['sucursal_retiro']
+            
+            # Obtener reservas existentes que se superponen con las fechas solicitadas
+            reservas_superpuestas = Reserva.objects.filter(
+                maquinaria=maquinaria,
+                sucursal_retiro=sucursal,
+                estado='CONFIRMADA',
+                fecha_inicio__lte=fecha_fin,
+                fecha_fin__gte=fecha_inicio
+            )
+            
+            # Calcular stock ocupado en esas fechas
+            stock_ocupado = sum(reserva.cantidad_solicitada for reserva in reservas_superpuestas)
+            
+            # Obtener stock total de la sucursal
+            try:
+                stock_sucursal = maquinaria.stocks.get(sucursal=sucursal)
+                stock_disponible = stock_sucursal.stock - stock_ocupado
+                
+                if stock_disponible < cantidad:
+                    messages.error(
+                        request, 
+                        f"No hay suficiente stock disponible en la sucursal seleccionada para las fechas elegidas. "
+                        f"Stock disponible: {stock_disponible}, Cantidad solicitada: {cantidad}"
+                    )
+                    return redirect('home')
+            except MaquinariaStock.DoesNotExist:
+                messages.error(request, "La sucursal seleccionada no tiene stock asignado para esta maquinaria.")
+                return redirect('home')
+            
             reserva = form.save(commit=False)
             reserva.maquinaria = maquinaria
             
@@ -40,7 +102,6 @@ def crear_reserva(request, maquinaria_id):
             
             if request.user.tipo == 'EMPLEADO':
                 # Para empleados, redirigir a la página de confirmación
-                # No guardamos la reserva aún, la guardamos en la vista de confirmación
                 request.session['reserva_data'] = {
                     'cliente_id': form.cleaned_data['cliente'].id,
                     'maquinaria_id': maquinaria.id,
@@ -66,12 +127,11 @@ def crear_reserva(request, maquinaria_id):
             messages.error(request, "Por favor, corrija los errores en el formulario.")
     else:
         initial_data = {
-            'maquinaria': maquinaria.id,
-            'sucursal_retiro': request.user.sucursal.id if request.user.tipo == 'EMPLEADO' else None
+            'maquinaria': maquinaria.id
         }
         if request.user.tipo == 'CLIENTE':
             initial_data['cliente'] = request.user.id
-        form = ReservaForm(maquinaria=maquinaria, usuario=request.user, initial=initial_data)
+        form = ReservaForm(initial=initial_data, maquinaria=maquinaria, usuario=request.user)
     
     return render(request, 'reservas/crear_reserva.html', {
         'form': form,
@@ -100,6 +160,17 @@ def confirmar_reservas(request):
                     messages.error(request, "No hay datos de reserva para confirmar")
                     return redirect('home')
                 
+                # Verificar si el cliente ya tiene una reserva confirmada
+                cliente = Usuario.objects.get(id=reserva_data['cliente_id'])
+                reserva_activa = Reserva.objects.filter(
+                    cliente=cliente,
+                    estado='CONFIRMADA'
+                ).exists()
+                
+                if reserva_activa:
+                    messages.error(request, "El cliente ya tiene una reserva activa. No puede tener más de una reserva confirmada a la vez.")
+                    return redirect('home')
+                
                 # Obtener la maquinaria para calcular el precio total
                 maquinaria = Maquinaria.objects.get(id=reserva_data['maquinaria_id'])
                 fecha_inicio = datetime.strptime(reserva_data['fecha_inicio'], '%Y-%m-%d').date()
@@ -117,7 +188,8 @@ def confirmar_reservas(request):
                     sucursal_retiro_id=reserva_data['sucursal_retiro_id'],
                     tipo_pago='PRESENCIAL',
                     estado='PENDIENTE_PAGO',
-                    precio_total=precio_total
+                    precio_total=precio_total,
+                    empleado_procesador=request.user  # Guardar el empleado que procesa la reserva
                 )
                 
                 # Intentar confirmar la reserva
@@ -311,22 +383,85 @@ def procesar_pago(request, reserva_id):
 
 
 @login_required
-@solo_empleado
-def lista_reservas_empleado(request):
-    """Vista para que los empleados vean todas las reservas"""
-    reservas = Reserva.objects.all().order_by('-fecha_creacion')
-    return render(request, 'reservas/lista_reservas_empleado.html', {
-        'reservas': reservas
-    })
-
-
-@login_required
 def lista_reservas(request):
-    """Vista para que los clientes vean sus reservas"""
-    reservas = Reserva.objects.filter(cliente=request.user).order_by('-fecha_creacion')
-    return render(request, 'reservas/lista_reservas.html', {
-        'reservas': reservas
-    })
+    """Vista para listar reservas según el tipo de usuario"""
+    # Obtener parámetros de filtrado
+    estado = request.GET.get('estado')
+    fecha_desde = request.GET.get('fecha_desde')
+    fecha_hasta = request.GET.get('fecha_hasta')
+    cliente_id = request.GET.get('cliente')
+    empleado_id = request.GET.get('empleado')
+    sucursal_id = request.GET.get('sucursal')
+    
+    # Iniciar el queryset base según el tipo de usuario
+    if request.user.tipo == 'ADMIN':
+        # Administradores ven todas las reservas
+        reservas = Reserva.objects.all()
+        # Obtener lista de clientes para el filtro
+        clientes = Usuario.objects.filter(tipo='CLIENTE').order_by('email')
+        # Obtener lista de empleados para el filtro
+        empleados = Usuario.objects.filter(tipo='EMPLEADO').order_by('email')
+        # Obtener lista de sucursales para el filtro
+        sucursales = Sucursal.objects.filter(activa=True).order_by('nombre')
+    elif request.user.tipo == 'EMPLEADO':
+        # Empleados ven las reservas de su sucursal
+        reservas = Reserva.objects.filter(sucursal_retiro=request.user.sucursal)
+        # Obtener lista de clientes para el filtro, solo los que tienen reservas en esta sucursal
+        clientes = Usuario.objects.filter(
+            tipo='CLIENTE',
+            reservas__sucursal_retiro=request.user.sucursal
+        ).distinct().order_by('email')
+        # Obtener lista de empleados para el filtro, solo los de la misma sucursal
+        empleados = Usuario.objects.filter(
+            tipo='EMPLEADO',
+            sucursal=request.user.sucursal
+        ).order_by('email')
+        sucursales = None
+    else:
+        # Clientes ven sus propias reservas
+        reservas = Reserva.objects.filter(cliente=request.user)
+        clientes = None
+        empleados = None
+        sucursales = None
+    
+    # Aplicar filtros si existen
+    if estado:
+        reservas = reservas.filter(estado=estado)
+    
+    if fecha_desde:
+        reservas = reservas.filter(fecha_inicio__gte=fecha_desde)
+    
+    if fecha_hasta:
+        reservas = reservas.filter(fecha_fin__lte=fecha_hasta)
+        
+    if cliente_id and (request.user.tipo in ['ADMIN', 'EMPLEADO']):
+        reservas = reservas.filter(cliente_id=cliente_id)
+        
+    if empleado_id and (request.user.tipo in ['ADMIN', 'EMPLEADO']):
+        reservas = reservas.filter(empleado_procesador_id=empleado_id)
+        
+    if sucursal_id and request.user.tipo == 'ADMIN':
+        reservas = reservas.filter(sucursal_retiro_id=sucursal_id)
+    
+    # Ordenar por fecha de creación (más recientes primero)
+    reservas = reservas.order_by('-fecha_creacion')
+    
+    # Paginación
+    paginator = Paginator(reservas, 10)  # 10 reservas por página
+    page = request.GET.get('page')
+    reservas_paginadas = paginator.get_page(page)
+    
+    context = {
+        'reservas': reservas_paginadas,
+        'is_paginated': True if reservas.count() > 10 else False,
+        'page_obj': reservas_paginadas,
+        'titulo': 'Historial de Reservas',
+        'clientes': clientes,  # Lista de clientes para el filtro
+        'empleados': empleados,  # Lista de empleados para el filtro
+        'sucursales': sucursales,  # Lista de sucursales para el filtro
+    }
+    
+    return render(request, 'reservas/lista_reservas.html', context)
 
 
 @login_required
@@ -363,7 +498,7 @@ def cancelar_reserva(request, reserva_id):
         if request.user.tipo == 'CLIENTE':
             return redirect('mis_reservas')
         else:
-            return redirect('listar_reservas_empleado')
+            return redirect('listar_reservas')
     
     context = {
         'reserva': reserva,
@@ -509,7 +644,7 @@ def get_sucursales_disponibles(request):
                 'error': 'La fecha de inicio debe ser posterior a hoy'
             }, status=400)
 
-        # Obtener las sucursales con stock disponible
+        # Obtener las sucursales activas con stock disponible
         sucursales_disponibles = []
         
         # Agregar logging para debug
@@ -517,7 +652,8 @@ def get_sucursales_disponibles(request):
         print(f"Fechas: {fecha_inicio} - {fecha_fin}")
         print(f"Cantidad solicitada: {cantidad_solicitada}")
         
-        for sucursal in Sucursal.objects.all():
+        # Solo buscar en sucursales activas
+        for sucursal in Sucursal.objects.filter(activa=True):
             try:
                 stock_disponible = sucursal.get_stock_disponible(
                     maquinaria, 

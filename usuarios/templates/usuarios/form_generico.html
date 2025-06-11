@@ -50,11 +50,11 @@
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-save me-2"></i>Guardar
                     </button>
-                    {% if 'empleado' in titulo %}
+                    {% if 'Empleado' in titulo %}
                         <a href="{% url 'listar_empleados' %}" class="btn btn-secondary">
                             <i class="fas fa-times me-2"></i>Cancelar
                         </a>
-                    {% elif 'cliente' in titulo %}
+                    {% elif 'Cliente' in titulo %}
                         <a href="{% url 'listar_clientes' %}" class="btn btn-secondary">
                             <i class="fas fa-times me-2"></i>Cancelar
                         </a>

@@ -46,12 +46,6 @@
               <h5>Stock en tu Sucursal</h5>
               <dl class="row">
                 {% if stock_sucursal %}
-                <dt class="col-sm-6">Stock Disponible</dt>
-                <dd class="col-sm-6">
-                  <span class="badge {% if stock_sucursal.stock_disponible > maquinaria.minimo %}bg-success{% elif stock_sucursal.stock_disponible > 0 %}bg-warning{% else %}bg-danger{% endif %}">
-                    {{ stock_sucursal.stock_disponible }}
-                  </span>
-                </dd>
                 <dt class="col-sm-6">Stock Total</dt>
                 <dd class="col-sm-6">{{ stock_sucursal.stock }}</dd>
                 {% else %}
@@ -121,10 +115,22 @@
             </div>
           </div>
 
-          {% if user.tipo != 'ADMIN' %}
+          {% if user.is_authenticated and user.tipo != 'ADMIN' %}
           <div class="mt-4 text-center">
-            <a href="{% url 'reservas:crear_reserva' maquinaria.id %}" class="btn btn-primary btn-lg">
-              <i class="fas fa-calendar-plus"></i> Reservar Ahora
+            {% if maquinaria.get_stock_total > 0 %}
+              <a href="{% url 'reservas:crear_reserva' maquinaria.id %}" class="btn btn-primary btn-lg">
+                <i class="fas fa-calendar-plus"></i> Reservar Ahora
+              </a>
+            {% else %}
+              <button class="btn btn-secondary btn-lg" disabled>
+                <i class="fas fa-ban"></i> Sin Stock Disponible
+              </button>
+            {% endif %}
+          </div>
+          {% elif not user.is_authenticated %}
+          <div class="mt-4 text-center">
+            <a href="{% url 'login' %}" class="btn btn-outline-primary btn-lg">
+              <i class="fas fa-sign-in-alt"></i> Iniciar Sesión para Reservar
             </a>
           </div>
           {% endif %}

@@ -37,6 +37,16 @@ class MaquinariaStockForm(forms.Form):
         label="Stock"
     )
 
+    def clean(self):
+        cleaned_data = super().clean()
+        sucursal = cleaned_data.get('sucursal')
+        stock = cleaned_data.get('stock')
+
+        if sucursal and stock == 0:
+            raise forms.ValidationError("Si se asigna una sucursal, el stock debe ser mayor a 0. Si desea quitar la sucursal, use el botón 'Quitar Sucursal'.")
+
+        return cleaned_data
+
 # Crear un formset para múltiples stocks por sucursal
 MaquinariaStockFormSet = formset_factory(
     MaquinariaStockForm, 

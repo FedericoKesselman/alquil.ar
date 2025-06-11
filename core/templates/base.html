@@ -53,33 +53,33 @@
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav me-auto">
             <li class="nav-item">
-              <a class="nav-link" href="{% url 'home' %}">Inicio</a>
+              <a class="nav-link" href="{% url 'home' %}">
+                <i class="bi bi-house-door"></i> Inicio
+              </a>
             </li>
             {% if not user.is_authenticated %}
             <li class="nav-item">
-              <a class="nav-link" href="{% url 'maquinaria_list_cliente' %}"
-                >Catálogo de Maquinarias</a
-              >
+              <a class="nav-link" href="{% url 'maquinaria_list_cliente' %}">
+                <i class="bi bi-tools"></i> Catálogo de Maquinarias
+              </a>
             </li>
             {% endif %}
-            {% if user.is_authenticated and user.tipo == 'CLIENTE' %}
+            {% if user.is_authenticated %}
             <li class="nav-item">
-              <a class="nav-link" href="{% url 'maquinaria_list_cliente' %}"
-                >Catálogo de Maquinarias</a
-              >
+              <a class="nav-link" href="{% url 'maquinaria_list_cliente' %}">
+                <i class="bi bi-tools"></i> Catálogo de Maquinarias
+              </a>
             </li>
-            {% endif %}
-            {% if user.is_authenticated and user.tipo == 'EMPLEADO' %}
             <li class="nav-item">
-              <a class="nav-link" href="{% url 'maquinaria_list_cliente' %}"
-                >Catálogo de Maquinarias</a
-              >
+              <a class="nav-link" href="{% url 'reservas:lista_reservas' %}">
+                <i class="bi bi-calendar-check"></i> Reservas
+              </a>
             </li>
             {% endif %}
           </ul>
           <ul class="navbar-nav">
             {% if user.is_authenticated %} {% if user.tipo == 'ADMIN' %}
-            <li class="nav-item dropdown">
+            <li class="nav-item dropdown me-3">
               <a
                 class="nav-link dropdown-toggle admin-link"
                 href="#"
@@ -109,7 +109,7 @@
                 </li>
               </ul>
             </li>
-            <li class="nav-item dropdown">
+            <li class="nav-item dropdown me-3">
               <a
                 class="nav-link dropdown-toggle admin-link"
                 href="#"
@@ -131,7 +131,7 @@
                 </li>
               </ul>
             </li>
-            <li class="nav-item">
+            <li class="nav-item me-3">
               <a
                 href="{% url 'admin_sucursales' %}"
                 class="nav-link admin-link"
