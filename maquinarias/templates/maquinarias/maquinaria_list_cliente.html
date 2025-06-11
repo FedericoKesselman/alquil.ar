@@ -58,13 +58,17 @@
         <div class="col-md-2">
           <label for="precio_min" class="form-label">Precio Mínimo</label>
           <input type="number" class="form-control" id="precio_min" name="precio_min" 
-                 value="{{ filtros.precio_min }}" min="0" step="0.01">
+                 value="{{ filtros.precio_min }}" min="0" step="0.01" 
+                 oninput="validarPrecios()">
+          <div id="precio_min_error" class="invalid-feedback"></div>
         </div>
 
         <div class="col-md-2">
           <label for="precio_max" class="form-label">Precio Máximo</label>
           <input type="number" class="form-control" id="precio_max" name="precio_max" 
-                 value="{{ filtros.precio_max }}" min="0" step="0.01">
+                 value="{{ filtros.precio_max }}" min="0" step="0.01"
+                 oninput="validarPrecios()">
+          <div id="precio_max_error" class="invalid-feedback"></div>
         </div>
 
         <div class="col-md-2 d-flex align-items-end">
@@ -174,4 +178,50 @@
   </div>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function validarPrecios() {
+    const precioMin = document.getElementById('precio_min');
+    const precioMax = document.getElementById('precio_max');
+    const precioMinError = document.getElementById('precio_min_error');
+    const precioMaxError = document.getElementById('precio_max_error');
+    
+    // Reset validation states
+    precioMin.classList.remove('is-invalid');
+    precioMax.classList.remove('is-invalid');
+    
+    if (precioMin.value && precioMax.value) {
+        const min = parseFloat(precioMin.value);
+        const max = parseFloat(precioMax.value);
+        
+        if (max < min) {
+            precioMax.classList.add('is-invalid');
+            precioMaxError.textContent = 'El precio máximo no puede ser menor al precio mínimo';
+            return false;
+        }
+    }
+    
+    if (precioMin.value && parseFloat(precioMin.value) < 0) {
+        precioMin.classList.add('is-invalid');
+        precioMinError.textContent = 'El precio mínimo no puede ser negativo';
+        return false;
+    }
+    
+    if (precioMax.value && parseFloat(precioMax.value) < 0) {
+        precioMax.classList.add('is-invalid');
+        precioMaxError.textContent = 'El precio máximo no puede ser negativo';
+        return false;
+    }
+    
+    return true;
+}
+
+document.querySelector('form').addEventListener('submit', function(e) {
+    if (!validarPrecios()) {
+        e.preventDefault();
+    }
+});
+</script>
 {% endblock %}
