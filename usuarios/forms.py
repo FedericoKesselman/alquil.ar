@@ -104,7 +104,9 @@ class EmpleadoForm(forms.Form):
         min_length=7,
         widget=forms.TextInput(attrs={
             'class': 'form-control', 
-            'placeholder': 'DNI (7-8 dígitos)'
+            'inputmode': 'numeric',
+            'placeholder': 'DNI (7-8 dígitos)',
+            'oninput': 'this.value = this.value.replace(/[^0-9]/g, "")',
         }),
         validators=[
             RegexValidator(
@@ -116,7 +118,7 @@ class EmpleadoForm(forms.Form):
     telefono = forms.CharField(
         label="Teléfono",
         max_length=20,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Número de teléfono'}),
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Número de teléfono','oninput': 'this.value = this.value.replace(/[^0-9]/g, "")'}),
         validators=[RegexValidator(r'^\d+$', 'Solo se permiten números en el teléfono')]
     )
     fecha_nacimiento = forms.DateField(
@@ -534,7 +536,7 @@ class CambiarPasswordPerfilForm(forms.Form):
         confirm_new_password = cleaned_data.get('confirm_new_password')
         if new_password and confirm_new_password:
             if new_password != confirm_new_password:
-                raise forms.ValidationError('Las nuevas contraseñas ingresadas no coinciden.')
+                self.add_error('confirm_new_password', 'Las nuevas contraseñas ingresadas no coinciden.')
         return cleaned_data
 
     def save(self):

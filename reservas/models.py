@@ -107,9 +107,10 @@ class Reserva(models.Model):
                     <li>Cantidad: {self.cantidad_solicitada} unidad/es</li>
                     <li>Fecha de inicio: {self.fecha_inicio.strftime('%d/%m/%Y')}</li>
                     <li>Fecha de fin: {self.fecha_fin.strftime('%d/%m/%Y')}</li>
-                    <li>Sucursal de retiro: {self.sucursal_retiro.nombre}</li>
-                    <li>Dirección de retiro: {sucursal_direccion}</li>
+                    <li>Sucursal de retiro y devolución: {self.sucursal_retiro.nombre}</li>
+                    <li>Dirección de retiro y devolución: {sucursal_direccion}</li>
                 </ul>
+                <p>Recuerde que debe devolver la maquinaria en la misma sucursal de la que fue retirada.</p>
             </div>
             
             <p>Su código de reserva es:</p>

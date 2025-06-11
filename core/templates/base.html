@@ -65,19 +65,24 @@
             </li>
             {% endif %}
             {% if user.is_authenticated %}
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'maquinaria_list_cliente' %}">
-                <i class="bi bi-tools"></i> Catálogo de Maquinarias
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'reservas:lista_reservas' %}">
-                <i class="bi bi-calendar-check"></i> Reservas
-              </a>
-            </li>
+                {% if user.tipo == 'EMPLEADO' or user.tipo == 'CLIENTE' %}
+                    <li class="nav-item">
+                      <a class="nav-link" href="{% url 'maquinaria_list_cliente' %}">
+                        <i class="bi bi-tools"></i> Catálogo de Maquinarias
+                      </a>
+                    </li>
+                {% endif %}
+                <li class="nav-item">
+                  <a class="nav-link" href="{% url 'reservas:lista_reservas' %}">
+                    <i class="bi bi-calendar-check"></i> Reservas
+                  </a>
+                </li>
             {% endif %}
           </ul>
           <ul class="navbar-nav">
+            {% if user.is_authenticated %}
+              <h3 class="text-white me-3">{{ user.tipo }}</h3>
+            {% endif %}
             {% if user.is_authenticated %} {% if user.tipo == 'ADMIN' %}
             <li class="nav-item dropdown me-3">
               <a
