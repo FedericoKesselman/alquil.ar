@@ -126,7 +126,6 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
 .venv
 env/
 venv/
@@ -170,4 +169,4 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
-db.sqlite3
+.sqlite3
