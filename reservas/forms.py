@@ -356,3 +356,28 @@ class ReservaEmpleadoForm(forms.ModelForm):
                 )
         
         return cleaned_data
+
+
+class ReservaPorCodigoForm(forms.Form):
+    """Formulario para procesar una reserva mediante su código"""
+    codigo_reserva = forms.CharField(
+        max_length=6,
+        min_length=6,
+        label='Código de Reserva',
+        widget=forms.TextInput(
+            attrs={
+                'class': 'form-control',
+                'placeholder': 'Ingrese el código de 6 dígitos',
+                'pattern': '[0-9]{6}',
+                'title': 'El código debe contener 6 dígitos',
+                'inputmode': 'numeric'
+            }
+        )
+    )
+
+    def clean_codigo_reserva(self):
+        codigo = self.cleaned_data['codigo_reserva']
+        # Verificar que sean solo dígitos
+        if not codigo.isdigit() or len(codigo) != 6:
+            raise ValidationError("El código debe contener exactamente 6 dígitos.")
+        return codigo

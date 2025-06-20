@@ -13,7 +13,8 @@ from maquinarias.models import Maquinaria, MaquinariaStock
 from .models import Reserva
 from .forms import (
     ReservaForm, SeleccionSucursalForm, ConfirmacionPagoForm,
-    BusquedaReservasForm, EditarReservaForm, ReservaEmpleadoForm
+    BusquedaReservasForm, EditarReservaForm, ReservaEmpleadoForm,
+    ReservaPorCodigoForm
 )
 import decimal
 import logging
@@ -37,26 +38,26 @@ def crear_reserva(request, maquinaria_id):
     if request.method == 'POST':
         form = ReservaForm(request.POST, maquinaria=maquinaria, usuario=request.user)
         if form.is_valid():
-            # Si es cliente, verificar que no tenga una reserva activa
+            # Si es cliente, verificar que no tenga una reserva activa o cancelada
             if request.user.tipo == 'CLIENTE':
-                reserva_activa = Reserva.objects.filter(
+                reserva_existente = Reserva.objects.filter(
                     cliente=request.user,
-                    estado='CONFIRMADA'
+                    estado__in=['CONFIRMADA', 'CANCELADA']
                 ).exists()
                 
-                if reserva_activa:
-                    messages.error(request, "Ya tienes una reserva activa. No puedes tener más de una reserva confirmada a la vez.")
+                if reserva_existente:
+                    messages.error(request, "No puedes crear una nueva reserva porque tienes una reserva activa o cancelada.")
                     return redirect('home')
-            # Si es empleado, verificar que el cliente seleccionado no tenga una reserva activa
+            # Si es empleado, verificar que el cliente seleccionado no tenga una reserva activa o cancelada
             elif request.user.tipo == 'EMPLEADO':
                 cliente = form.cleaned_data['cliente']
-                reserva_activa = Reserva.objects.filter(
+                reserva_existente = Reserva.objects.filter(
                     cliente=cliente,
-                    estado='CONFIRMADA'
+                    estado__in=['CONFIRMADA', 'CANCELADA']
                 ).exists()
                 
-                if reserva_activa:
-                    messages.error(request, "El cliente seleccionado ya tiene una reserva activa. No puede tener más de una reserva confirmada a la vez.")
+                if reserva_existente:
+                    messages.error(request, "El cliente seleccionado ya tiene una reserva activa o cancelada. No puede crear una nueva reserva.")
                     return redirect('home')
             
             # Verificar disponibilidad para las fechas y cantidad solicitadas
@@ -160,15 +161,15 @@ def confirmar_reservas(request):
                     messages.error(request, "No hay datos de reserva para confirmar")
                     return redirect('home')
                 
-                # Verificar si el cliente ya tiene una reserva confirmada
+                # Verificar si el cliente ya tiene una reserva confirmada o cancelada
                 cliente = Usuario.objects.get(id=reserva_data['cliente_id'])
-                reserva_activa = Reserva.objects.filter(
+                reserva_existente = Reserva.objects.filter(
                     cliente=cliente,
-                    estado='CONFIRMADA'
+                    estado__in=['CONFIRMADA', 'CANCELADA']
                 ).exists()
                 
-                if reserva_activa:
-                    messages.error(request, "El cliente ya tiene una reserva activa. No puede tener más de una reserva confirmada a la vez.")
+                if reserva_existente:
+                    messages.error(request, "El cliente ya tiene una reserva activa o cancelada. No puede tener más de una reserva.")
                     return redirect('home')
                 
                 # Obtener la maquinaria para calcular el precio total
@@ -392,10 +393,9 @@ def lista_reservas(request):
     cliente_id = request.GET.get('cliente')
     empleado_id = request.GET.get('empleado')
     sucursal_id = request.GET.get('sucursal')
-    
-    # Iniciar el queryset base según el tipo de usuario
-    if request.user.tipo == 'ADMIN':
-        # Administradores ven todas las reservas
+      # Iniciar el queryset base según el tipo de usuario
+    if request.user.tipo == 'ADMIN' or request.user.tipo == 'EMPLEADO':
+        # Administradores y empleados ven todas las reservas
         reservas = Reserva.objects.all()
         # Obtener lista de clientes para el filtro
         clientes = Usuario.objects.filter(tipo='CLIENTE').order_by('email')
@@ -403,31 +403,16 @@ def lista_reservas(request):
         empleados = Usuario.objects.filter(tipo='EMPLEADO').order_by('email')
         # Obtener lista de sucursales para el filtro
         sucursales = Sucursal.objects.filter(activa=True).order_by('nombre')
-    elif request.user.tipo == 'EMPLEADO':
-        # Empleados ven las reservas de su sucursal
-        reservas = Reserva.objects.filter(sucursal_retiro=request.user.sucursal)
-        # Obtener lista de clientes para el filtro, solo los que tienen reservas en esta sucursal
-        clientes = Usuario.objects.filter(
-            tipo='CLIENTE',
-            reservas__sucursal_retiro=request.user.sucursal
-        ).distinct().order_by('email')
-        # Obtener lista de empleados para el filtro, solo los de la misma sucursal
-        empleados = Usuario.objects.filter(
-            tipo='EMPLEADO',
-            sucursal=request.user.sucursal
-        ).order_by('email')
-        sucursales = None
     else:
         # Clientes ven sus propias reservas
         reservas = Reserva.objects.filter(cliente=request.user)
         clientes = None
         empleados = None
         sucursales = None
-    
-    # Aplicar filtros si existen
+      # Aplicar filtros si existen
     if estado:
         reservas = reservas.filter(estado=estado)
-    
+        
     if fecha_desde:
         reservas = reservas.filter(fecha_inicio__gte=fecha_desde)
     
@@ -440,7 +425,7 @@ def lista_reservas(request):
     if empleado_id and (request.user.tipo in ['ADMIN', 'EMPLEADO']):
         reservas = reservas.filter(empleado_procesador_id=empleado_id)
         
-    if sucursal_id and request.user.tipo == 'ADMIN':
+    if sucursal_id and (request.user.tipo in ['ADMIN', 'EMPLEADO']):
         reservas = reservas.filter(sucursal_retiro_id=sucursal_id)
     
     # Ordenar por fecha de creación (más recientes primero)
@@ -533,6 +518,66 @@ def editar_reserva(request, reserva_id):
     }
     
     return render(request, 'reservas/editar_reserva.html', context)
+
+
+@login_required
+@solo_cliente
+def reembolsar_reserva(request, reserva_id):
+    """
+    Vista para mostrar la página de confirmación de reembolso de una reserva.
+    Calcula el monto de reembolso según la política establecida.
+    """
+    reserva = get_object_or_404(Reserva, id=reserva_id)
+    
+    # Verificar que el usuario sea el dueño de la reserva
+    if request.user != reserva.cliente:
+        messages.error(request, "No tiene permisos para reembolsar esta reserva.")
+        return redirect('reservas:lista_reservas')
+    
+    # Verificar que la reserva esté en estado CONFIRMADA
+    if reserva.estado != 'CONFIRMADA':
+        messages.error(request, "Solo se pueden reembolsar reservas confirmadas.")
+        return redirect('reservas:lista_reservas')
+    
+    # Obtener la fecha actual
+    fecha_actual = timezone.now().date()
+    dias_hasta_inicio = (reserva.fecha_inicio - fecha_actual).days
+    
+    # Calcular el monto de reembolso según la política
+    monto_reembolso, porcentaje_reembolso = reserva.calcular_monto_reembolso(fecha_actual)
+    
+    # Si es un POST, procesar la confirmación del reembolso
+    if request.method == 'POST':
+        # Procesar el reembolso y restaurar stock
+        if reserva.reembolsar_reserva():
+            # Obtener el nombre de la sucursal
+            nombre_sucursal = reserva.sucursal_retiro.nombre
+            
+            # Mostrar mensaje según el tipo de reembolso
+            if porcentaje_reembolso > 0:  # Reembolso total o parcial
+                messages.success(
+                    request, 
+                    f"Acércate a la sucursal {nombre_sucursal} para que te reintegremos el monto de ${monto_reembolso:.2f}"
+                )
+            else:  # Reembolso nulo
+                messages.success(
+                    request, 
+                    f"Reembolso efectuado, acércate a {nombre_sucursal} para devolvernos la maquinaria"
+                )
+        else:
+            messages.error(request, "No se pudo procesar el reembolso. Por favor, intente nuevamente.")
+        
+        return redirect('home')
+    
+    context = {
+        'reserva': reserva,
+        'fecha_actual': fecha_actual,
+        'dias_hasta_inicio': dias_hasta_inicio,
+        'monto_reembolso': monto_reembolso,
+        'porcentaje_reembolso': porcentaje_reembolso,
+    }
+    
+    return render(request, 'reservas/confirmar_reembolso.html', context)
 
 
 # AJAX Views
@@ -681,3 +726,102 @@ def get_sucursales_disponibles(request):
         return JsonResponse({
             'error': str(e)
         }, status=400)
+
+
+@login_required
+@solo_empleado
+def procesar_reservas(request):
+    """
+    Vista para que los empleados procesen reservas por código.
+    Muestra un formulario para ingresar el código de 6 dígitos.
+    """
+    form = ReservaPorCodigoForm()
+    
+    context = {
+        'form': form,
+        'titulo': 'Procesar Reservas',
+    }
+    
+    return render(request, 'reservas/procesar_reservas.html', context)
+
+
+@login_required
+@solo_empleado
+def finalizar_reserva_por_codigo(request):
+    """
+    Vista para procesar la finalización de una reserva mediante su código.
+    Comprueba que el código exista, que la reserva esté en estado CONFIRMADA o CANCELADA,
+    y que la sucursal de la reserva coincida con la del empleado.
+    """
+    if request.method != 'POST':
+        return redirect('reservas:procesar_reservas')
+    
+    form = ReservaPorCodigoForm(request.POST)
+    
+    if form.is_valid():
+        codigo = form.cleaned_data['codigo_reserva']
+        
+        # Buscar la reserva con ese código
+        try:
+            reserva = Reserva.objects.get(codigo_reserva=codigo)
+        except Reserva.DoesNotExist:
+            messages.error(request, f"No se encontró ninguna reserva con el código {codigo}.")
+            return redirect('reservas:procesar_reservas')
+        
+        # Verificar que la sucursal de la reserva coincida con la del empleado
+        if reserva.sucursal_retiro != request.user.sucursal:
+            messages.error(
+                request, 
+                f"Esta reserva pertenece a la sucursal {reserva.sucursal_retiro.nombre}. "
+                f"No puedes procesarla desde {request.user.sucursal.nombre}."
+            )
+            return redirect('reservas:procesar_reservas')
+        
+        # Procesar según el estado
+        if reserva.estado == 'CONFIRMADA':
+            # Finalizar la reserva
+            if reserva.finalizar_reserva():
+                messages.success(
+                    request, 
+                    f"La reserva de {reserva.cliente.get_full_name()} ha sido finalizada correctamente."
+                )
+            else:
+                messages.error(request, "No se pudo finalizar la reserva. Contacte al administrador.")
+                
+        elif reserva.estado == 'CANCELADA':
+            # Para reservas canceladas, calcular si aplica reembolso
+            monto_reembolso, porcentaje = reserva.calcular_monto_reembolso()
+            
+            # Finalizar la reserva cancelada
+            if reserva.finalizar_reserva():
+                if porcentaje > 0:
+                    messages.success(
+                        request, 
+                        f"La reserva cancelada de {reserva.cliente.get_full_name()} ha sido finalizada. "
+                        f"Debes reembolsar ${monto_reembolso:.2f} ({porcentaje}% del total)."
+                    )
+                else:
+                    messages.success(
+                        request, 
+                        f"La reserva cancelada de {reserva.cliente.get_full_name()} ha sido finalizada sin reembolso."
+                    )
+            else:
+                messages.error(request, "No se pudo finalizar la reserva cancelada. Contacte al administrador.")
+                
+        else:
+            # Estado no procesable
+            messages.warning(
+                request, 
+                f"La reserva con código {codigo} tiene el estado {reserva.get_estado_display()}, "
+                f"por lo que no se puede procesar."
+            )
+        
+        return redirect('reservas:procesar_reservas')
+    
+    # Si el formulario no es válido
+    context = {
+        'form': form,
+        'titulo': 'Procesar Reservas',
+    }
+    
+    return render(request, 'reservas/procesar_reservas.html', context)

@@ -87,12 +87,9 @@
 {% block content %}
 <div class="container py-4">
     <div class="row mb-4">
-        <div class="col">
-            <h2>
-                {% if user.tipo == 'ADMIN' %}
+        <div class="col">            <h2>
+                {% if user.tipo == 'ADMIN' or user.tipo == 'EMPLEADO' %}
                     Todas las Reservas
-                {% elif user.tipo == 'EMPLEADO' %}
-                    Reservas Procesadas
                 {% else %}
                     Mis Reservas
                 {% endif %}
@@ -116,8 +113,7 @@
                 </select>
             </div>
             {% endif %}
-            
-            {% if user.tipo == 'ADMIN' %}
+              {% if user.tipo == 'ADMIN' or user.tipo == 'EMPLEADO' %}
             <div class="col-md-3">
                 <label for="sucursal" class="form-label">Sucursal</label>
                 <select name="sucursal" id="sucursal" class="form-select">
@@ -225,32 +221,31 @@
                         </div>
                     </div>
                 </div>
-                
-                {% if user.tipo == 'ADMIN' or user.tipo == 'EMPLEADO' %}
-                <div class="mt-3 pt-3 border-top">
+                  <div class="mt-3 pt-3 border-top">
+                    {% if user.tipo == 'ADMIN' or user.tipo == 'EMPLEADO' %}
                     <div class="detail-row">
                         <span class="detail-label">Cliente:</span>
                         <span class="detail-value">{{ reserva.cliente.email }}</span>
                     </div>
+                    {% endif %}
                     {% if reserva.empleado_procesador %}
                     <div class="detail-row">
                         <span class="detail-label">Procesado por:</span>
                         <span class="detail-value">{{ reserva.empleado_procesador.email }}</span>
                     </div>
                     {% endif %}
-                </div>
-                {% endif %}
-                
-                <!-- <div class="mt-3">
-                    <a href="{% url 'reservas:detalle_reserva' reserva.id %}" class="btn btn-outline-primary btn-sm">
-                        <i class="bi bi-eye"></i> Ver Detalles
-                    </a>
-                    {% if reserva.estado == 'PENDIENTE_PAGO' or reserva.estado == 'CONFIRMADA' %}
+                </div>                  <div class="mt-3">
+                    {% if reserva.estado == 'PENDIENTE_PAGO' %}
                     <a href="{% url 'reservas:cancelar_reserva' reserva.id %}" class="btn btn-outline-danger btn-sm">
                         <i class="bi bi-x-circle"></i> Cancelar Reserva
                     </a>
                     {% endif %}
-                </div> -->
+                    {% if user.tipo == 'CLIENTE' and reserva.estado == 'CONFIRMADA' %}
+                        <a href="{% url 'reservas:reembolsar_reserva' reserva.id %}" class="btn btn-warning btn-sm">
+                            <i class="bi bi-arrow-return-left"></i> Reembolsar Reserva
+                        </a>
+                    {% endif %}
+                </div>
             </div>
         </div>
         {% endfor %}
