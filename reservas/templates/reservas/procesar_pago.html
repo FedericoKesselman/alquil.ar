@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">{{ titulo }}</h3>
+                </div>
+                <div class="card-body">
+                    <h4>Detalles de la Reserva</h4>
+                    <p><strong>Maquinaria:</strong> {{ reserva.maquinaria.nombre }}</p>
+                    <p><strong>Fecha de inicio:</strong> {{ reserva.fecha_inicio }}</p>
+                    <p><strong>Fecha de fin:</strong> {{ reserva.fecha_fin }}</p>
+                    <p><strong>Cantidad:</strong> {{ reserva.cantidad_solicitada }}</p>
+                    <p><strong>Precio total:</strong> ${{ reserva.precio_total }}</p>
+
+                    <div class="mt-4">
+                        <h4>Proceder al pago</h4>
+                        <p>Haga clic en el botón de abajo para proceder con el pago seguro a través de Mercado Pago.</p>
+                        
+                        <!-- Mercado Pago Checkout Button -->
+                        <script src="https://sdk.mercadopago.com/js/v2"></script>
+                        <script>
+                        // Configure sua chave pública do Mercado Pago
+                        const publicKey = '{{ MP_PUBLIC_KEY }}'
+                        // Configure o ID de preferência que você deve receber do seu backend
+                        const preferenceId = '{{ preference_id }}';
+
+                        // Inicializa o SDK do Mercado Pago
+                        const mp = new MercadoPago(publicKey);
+
+                        // Cria o botão de pagamento
+                        const bricksBuilder = mp.bricks();
+                        const renderWalletBrick = async (bricksBuilder) => {
+                            await bricksBuilder.create("wallet", "walletBrick_container", {
+                            initialization: {
+                                preferenceId: preferenceId,
+                            }
+                        });
+                        };
+
+                        renderWalletBrick(bricksBuilder);
+                        </script>
+                        <div id="walletBrick_container"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

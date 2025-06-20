@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Detalle de Reserva{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Detalle de Reserva #{{ reserva.id }}</h3>
+                </div>
+                <div class="card-body">
+                    <!-- Estado de la Reserva -->
+                    <div class="alert {% if reserva.estado == 'CONFIRMADA' %}alert-success{% elif reserva.estado == 'PENDIENTE_PAGO' %}alert-warning{% elif reserva.estado == 'CANCELADA' %}alert-danger{% else %}alert-info{% endif %}">
+                        <strong>Estado:</strong> {{ reserva.get_estado_display }}
+                    </div>
+
+                    <!-- Información de la Maquinaria -->
+                    <h4>Maquinaria</h4>
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            {% if reserva.maquinaria.imagen %}
+                                <img src="{{ reserva.maquinaria.imagen.url }}" class="img-fluid rounded" alt="{{ reserva.maquinaria.nombre }}">
+                            {% else %}
+                                <img src="{% static 'img/no-image.jpg' %}" class="img-fluid rounded" alt="Sin imagen">
+                            {% endif %}
+                        </div>
+                        <div class="col-md-8">
+                            <h5>{{ reserva.maquinaria.nombre }}</h5>
+                            <p><strong>Categoría:</strong> {{ reserva.maquinaria.categoria.nombre }}</p>
+                            <p><strong>Precio por día:</strong> ${{ reserva.maquinaria.precio_por_dia }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Detalles de la Reserva -->
+                    <h4>Detalles de la Reserva</h4>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <p><strong>Fecha de inicio:</strong> {{ reserva.fecha_inicio|date:"d/m/Y" }}</p>
+                            <p><strong>Fecha de fin:</strong> {{ reserva.fecha_fin|date:"d/m/Y" }}</p>
+                            <p><strong>Cantidad solicitada:</strong> {{ reserva.cantidad_solicitada }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Sucursal de retiro:</strong> {{ reserva.sucursal_retiro.nombre }}</p>
+                            <p><strong>Dirección:</strong> {{ reserva.sucursal_retiro.direccion }}</p>
+                            <p><strong>Precio total:</strong> ${{ reserva.precio_total }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Pago con Mercado Pago -->
+                    {% if reserva.estado == 'PENDIENTE_PAGO' %}
+                        <div class="mt-4">
+                            <h4>Proceder al pago</h4>
+                            <div id="walletBrick_container"></div>
+                        </div>
+                    {% endif %}
+
+                    <!-- Información para reservas confirmadas -->
+                    {% if reserva.estado == 'CONFIRMADA' %}
+                        <div class="alert alert-info mt-4">
+                            <h5><i class="fas fa-info-circle"></i> Información importante</h5>
+                            <p>Tu reserva ha sido confirmada. Recibirás un código de reserva por email.</p>
+                            <p>Presenta este código junto con tu DNI al retirar la maquinaria en la sucursal.</p>
+                        </div>
+                    {% endif %}
+
+                    <!-- Acciones -->
+                    <div class="mt-4">
+                        {% if reserva.estado != 'CANCELADA' and reserva.estado != 'FINALIZADA' %}
+                            <a href="{% url 'reservas:cancelar_reserva' reserva.id %}" class="btn btn-danger">
+                                <i class="fas fa-times"></i> Cancelar reserva
+                            </a>
+                        {% endif %}
+
+                        <a href="{% url 'reservas:lista_reservas' %}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Volver a mis reservas
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if reserva.estado == 'PENDIENTE_PAGO' %}
+<script src="https://sdk.mercadopago.com/js/v2"></script>
+<script>
+    const publicKey = "{{ MP_PUBLIC_KEY }}";
+    const preferenceId = "{{ preference_id }}";
+
+    const mp = new MercadoPago(publicKey);
+    const bricksBuilder = mp.bricks();
+    const renderWalletBrick = async (bricksBuilder) => {
+        await bricksBuilder.create("wallet", "walletBrick_container", {
+            initialization: {
+                preferenceId: preferenceId,
+            }
+        });
+    };
+    renderWalletBrick(bricksBuilder);
+</script>
+{% endif %}
+{% endblock %} 

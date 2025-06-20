@@ -1,4 +1,5 @@
 # reservas/views.py
+import json
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -17,7 +18,20 @@ from .forms import (
 )
 import decimal
 import logging
+import os
+import mercadopago
+from django.urls import reverse
+from dotenv import load_dotenv
+from django.views.decorators.csrf import csrf_exempt
 
+load_dotenv()
+
+# Mercado Pago Configuration
+MP_ACCESS_TOKEN = os.getenv('MP_ACCESS_TOKEN')
+MP_PUBLIC_KEY = os.getenv('MP_PUBLIC_KEY')
+NGROK_URL = os.getenv('NGROK_URL')
+
+sdk = mercadopago.SDK(MP_ACCESS_TOKEN)
 
 @login_required
 def crear_reserva(request, maquinaria_id):
@@ -120,9 +134,7 @@ def crear_reserva(request, maquinaria_id):
                 reserva.estado = 'PENDIENTE_PAGO'
                 reserva.tipo_pago = 'ONLINE'
                 reserva.save()
-                # TODO: Redirigir a la página de pago cuando esté implementada
-                messages.info(request, "Página de pago en construcción")
-                return redirect('home')
+                return redirect('reservas:procesar_pago', reserva_id=reserva.id)
         else:
             messages.error(request, "Por favor, corrija los errores en el formulario.")
     else:
@@ -340,7 +352,7 @@ def confirmar_reserva(request, reserva_id):
             messages.success(request, 'Reserva confirmada exitosamente')
             return redirect('reservas:detalle_reserva', reserva_id=reserva.id)
         else:
-            # Si es cliente, redirigir al proceso de pago online
+            preference = gen_preference_mp(request, reserva)
             return redirect('reservas:procesar_pago', reserva_id=reserva.id)
     
     return render(request, 'reservas/confirmar_reserva.html', {
@@ -356,30 +368,40 @@ def confirmar_reserva(request, reserva_id):
 
 @login_required
 def procesar_pago(request, reserva_id):
-    """Vista temporal para simular el pago (aquí se integrará Mercado Pago)"""
-    reserva = get_object_or_404(Reserva, id=reserva_id)
-    
-    # Verificar que el usuario puede acceder a esta reserva
-    if request.user != reserva.cliente and not request.user.tipo in ['ADMIN', 'EMPLEADO']:
-        return HttpResponseForbidden("No tiene permisos para acceder a esta reserva.")
-    
-    if request.method == 'POST':
-        # Simular confirmación de pago
-        if reserva.confirmar_pago():
-            try:
-                # Generar y enviar código de reserva
-                reserva.enviar_codigo_reserva()
-                messages.success(request, 'Pago confirmado y código de reserva enviado. Su reserva ha sido procesada exitosamente.')
-            except Exception as e:
-                messages.warning(request, f'Pago confirmado pero hubo un error al enviar el código: {str(e)}')
-            return redirect('detalle_reserva', reserva_id=reserva.id)
-    
-    context = {
-        'reserva': reserva,
-        'titulo': 'Procesar Pago',
-    }
-    
-    return render(request, 'reservas/procesar_pago.html', context)
+    """Vista para procesar el pago de una reserva usando Mercado Pago"""
+    try:
+        reserva = get_object_or_404(Reserva, id=reserva_id)
+        
+        # Verificar que el usuario puede acceder a esta reserva
+        if request.user != reserva.cliente and not request.user.tipo in ['ADMIN', 'EMPLEADO']:
+            return HttpResponseForbidden("No tiene permisos para acceder a esta reserva.")
+        
+        # Generar preferencia de Mercado Pago
+        try:
+            preference = gen_preference_mp(request, reserva)
+            preference_id = preference.get('id')
+            
+            if not preference_id:
+                raise Exception("No se pudo obtener el ID de preferencia de Mercado Pago")
+                
+            context = {
+                'reserva': reserva,
+                'MP_PUBLIC_KEY': MP_PUBLIC_KEY,
+                'preference_id': preference_id,
+                'titulo': 'Procesar Pago',
+            }
+
+            return render(request, 'reservas/procesar_pago.html', context)
+        
+        except Exception as e:
+            logging.error(f"Error al generar preferencia de pago: {str(e)}")
+            messages.error(request, "Error al procesar el pago. Por favor, intente nuevamente más tarde.")
+            return redirect('reservas:detalle_reserva', reserva_id=reserva.id)
+            
+    except Exception as e:
+        logging.error(f"Error en procesar_pago: {str(e)}")
+        messages.error(request, "Error al procesar la solicitud. Por favor, intente nuevamente.")
+        return redirect('home')
 
 
 @login_required
@@ -472,9 +494,32 @@ def detalle_reserva(request, reserva_id):
     else:
         reserva = get_object_or_404(Reserva, id=reserva_id, cliente=request.user)
     
-    return render(request, 'reservas/detalle_reserva.html', {
+    context = {
         'reserva': reserva
-    })
+    }
+    
+    # Si la reserva está pendiente de pago, generar preferencia de Mercado Pago
+    if reserva.estado == 'PENDIENTE_PAGO':
+        try:
+            # Verificar credenciales
+            if not MP_ACCESS_TOKEN or not MP_PUBLIC_KEY:
+                messages.error(request, "Error de configuración del sistema de pagos. Por favor, contacte a soporte.")
+                logging.error("Mercado Pago credentials not configured")
+            else:
+                preference = gen_preference_mp(request, reserva)
+                if preference and 'id' in preference:
+                    context.update({
+                        'MP_PUBLIC_KEY': MP_PUBLIC_KEY,
+                        'preference_id': preference['id']
+                    })
+                else:
+                    messages.error(request, "Error al generar el pago. Por favor, intente nuevamente más tarde.")
+                    logging.error(f"Invalid preference response: {preference}")
+        except Exception as e:
+            logging.error(f"Error al generar preferencia de pago: {str(e)}")
+            messages.error(request, "Error al cargar el pago. Por favor, intente nuevamente más tarde.")
+    
+    return render(request, 'reservas/detalle_reserva.html', context)
 
 
 @login_required
@@ -681,3 +726,243 @@ def get_sucursales_disponibles(request):
         return JsonResponse({
             'error': str(e)
         }, status=400)
+        
+def gen_preference_mp(request, reserva):
+    """Generate Mercado Pago preference for a reservation"""
+    try:
+        # Verificar que las credenciales estén configuradas
+        if not MP_ACCESS_TOKEN or not MP_PUBLIC_KEY:   
+            print("Antes de excepcion")
+            raise Exception("Credenciales de Mercado Pago no configuradas")
+
+        # URL base de ngrok
+        base_url = NGROK_URL
+
+        preference_data = {
+            "items": [{
+                "title": f"Reserva de {reserva.maquinaria.nombre}",
+                "quantity": 1,
+                "unit_price": float(reserva.precio_total),
+                "currency_id": "ARS",
+                "description": f"Reserva desde {reserva.fecha_inicio} hasta {reserva.fecha_fin}"
+            }],
+            "back_urls": {
+                "success": f"{base_url}/reservas/payment/success/{reserva.id}/",
+                "failure": f"{base_url}/reservas/payment/failure/{reserva.id}/",
+                "pending": f"{base_url}/reservas/payment/pending/{reserva.id}/"
+            },
+            "auto_return": "approved",
+            "notification_url": f"{base_url}/reservas/payment/webhook/",
+            "external_reference": str(reserva.id),  # Referencia externa para identificar la reserva
+        }
+        
+        # Log the preference data
+        print(f"Creating preference with data: {preference_data}")
+        
+        # Crear la preferencia
+        preference_response = sdk.preference().create(preference_data)
+        
+        # Log the complete response
+        print(f"Complete Mercado Pago response: {preference_response}")
+        
+        if not preference_response:
+            raise Exception("No response from Mercado Pago")
+            
+        if 'response' not in preference_response:
+            raise Exception(f"Invalid response format: {preference_response}")
+            
+        response_data = preference_response['response']
+        
+        if 'id' not in response_data:
+            raise Exception(f"No preference ID in response: {response_data}")
+            
+        return response_data
+        
+    except Exception as e:
+        print(f"Error generating payment: {str(e)}")
+        raise
+
+# Elimina el @login_required de estas tres funciones
+def payment_success(request, reserva_id):
+    """Handle successful payment"""
+    try:
+        reserva = get_object_or_404(Reserva, id=reserva_id)
+        
+        # Si no hay usuario autenticado, redirigir a la página de inicio o detalles públicos
+        if not request.user.is_authenticated:
+            reserva.confirmar_pago()
+            messages.success(request, '¡Pago realizado con éxito!')
+            return redirect('home')  # O a una página pública de confirmación
+        
+        # Si hay usuario autenticado verificar permisos
+        if request.user != reserva.cliente and not request.user.tipo in ['ADMIN', 'EMPLEADO']:
+            return HttpResponseForbidden("No tiene permisos para acceder a esta reserva.")
+        
+        if reserva.confirmar_pago():
+            try:
+                reserva.enviar_codigo_reserva()
+                messages.success(request, '¡Pago realizado con éxito! Se ha enviado el código de reserva a tu email.')
+            except Exception as e:
+                messages.warning(request, f'Pago confirmado pero hubo un error al enviar el código: {str(e)}')
+        else:
+            messages.error(request, 'Error al confirmar el pago. Por favor, contacta a soporte.')
+            
+    except Reserva.DoesNotExist:
+        messages.error(request, 'Reserva no encontrada.')
+    except Exception as e:
+        logging.error(f"Error en payment_success: {str(e)}")
+        messages.error(request, 'Error al procesar el pago. Por favor, contacta a soporte.')
+    
+    return redirect('reservas:detalle_reserva', reserva_id=reserva_id)
+
+def payment_failure(request, reserva_id):
+    """Handle failed payment"""
+    try:
+        reserva = get_object_or_404(Reserva, id=reserva_id)
+        
+        if not request.user.is_authenticated:
+            messages.error(request, 'El pago no pudo ser procesado.')
+            return redirect('home')  # O a una página pública de confirmación
+        
+        # Verificar que el usuario puede acceder a esta reserva
+        if request.user != reserva.cliente and not request.user.tipo in ['ADMIN', 'EMPLEADO']:
+            return HttpResponseForbidden("No tiene permisos para acceder a esta reserva.")
+            
+        messages.error(request, 'El pago no pudo ser procesado. Por favor, intenta nuevamente.')
+    except Exception as e:
+        logging.error(f"Error en payment_failure: {str(e)}")
+        messages.error(request, 'Error al procesar la respuesta del pago.')
+    
+    return redirect('reservas:detalle_reserva', reserva_id=reserva_id)
+
+def payment_pending(request, reserva_id):
+    """Handle pending payment"""
+    try:
+        reserva = get_object_or_404(Reserva, id=reserva_id)
+        
+        if not request.user.is_authenticated:
+            messages.warning(request, 'Tu pago está pendiente de confirmación.')
+            return redirect('home')  # O a una página pública de confirmación
+        
+        # Verificar que el usuario puede acceder a esta reserva
+        if request.user != reserva.cliente and not request.user.tipo in ['ADMIN', 'EMPLEADO']:
+            return HttpResponseForbidden("No tiene permisos para acceder a esta reserva.")
+            
+        messages.warning(request, 'Tu pago está pendiente de confirmación.')
+    except Exception as e:
+        logging.error(f"Error en payment_pending: {str(e)}")
+        messages.error(request, 'Error al procesar la respuesta del pago.')
+    
+    return redirect('reservas:detalle_reserva', reserva_id=reserva_id)
+
+@csrf_exempt
+def payment_webhook(request):
+    """Handle Mercado Pago webhook notifications"""
+    # Registrar cada solicitud recibida
+    print("Webhook recibido:", request.method)
+    
+    if request.method == 'POST':
+        try:
+            # Guardar el contenido completo de la solicitud
+            body = request.body.decode('utf-8')
+            print(f"Cuerpo del webhook: {body}")
+            
+            # Intentar parsear los datos
+            try:
+                data = json.loads(body)
+                print(f"Datos parseados: {data}")
+            except json.JSONDecodeError:
+                print("Error al decodificar JSON")
+                data = {}
+            
+            # Extraer información del tipo de evento
+            topic = data.get('topic', '')
+            resource = data.get('resource', '')
+            
+            print(f"Topic: {topic}, Resource: {resource}")
+            
+            # Procesar notificaciones de merchant_order
+            if topic == 'merchant_order' and resource:
+                try:
+                    # Obtener ID del merchant_order desde la URL del recurso
+                    merchant_order_id = resource.split('/')[-1]
+                    print(f"Merchant Order ID: {merchant_order_id}")
+                    
+                    # Obtener información del merchant_order
+                    merchant_info = sdk.merchant_order().get(merchant_order_id)
+                    print(f"Merchant order info: {merchant_info}")
+                    
+                    if merchant_info.get('status') == 200:
+                        merchant_data = merchant_info.get('response', {})
+                        external_reference = merchant_data.get('external_reference')
+                        print(f"External reference: {external_reference}")
+                        
+                        if external_reference:
+                            try:
+                                reserva = Reserva.objects.get(id=external_reference)
+                                print(f"Reserva encontrada: {reserva.id}")
+                                
+                                # Verificar si hay pagos aprobados
+                                payments = merchant_data.get('payments', [])
+                                approved_payment = any(p.get('status') == 'approved' for p in payments)
+                                
+                                if approved_payment:
+                                    print("Pago aprobado encontrado, confirmando...")
+                                    if reserva.confirmar_pago():
+                                        print("Pago confirmado")
+                                        try:
+                                            reserva.enviar_codigo_reserva()
+                                            print("Código de reserva enviado")
+                                        except Exception as e:
+                                            print(f"Error al enviar código: {str(e)}")
+                                
+                            except Reserva.DoesNotExist:
+                                print(f"Reserva no encontrada para: {external_reference}")
+                            except Exception as e:
+                                print(f"Error procesando reserva: {str(e)}")
+                except Exception as e:
+                    print(f"Error procesando merchant_order: {str(e)}")
+                    
+            # Seguir procesando notificaciones de payment para mantener compatibilidad
+            if data.get('type') == 'payment':
+                payment_id = data.get('data', {}).get('id')
+                print(f"ID de pago recibido: {payment_id}")
+                
+                if payment_id:
+                    payment_info = sdk.payment().get(payment_id)
+                    print(f"Información de pago: {payment_info}")
+                    
+                    if payment_info.get('status') == 200:
+                        payment_data = payment_info.get('response', {})
+                        external_reference = payment_data.get('external_reference')
+                        print(f"Referencia externa: {external_reference}")
+                        
+                        if external_reference:
+                            try:
+                                reserva = Reserva.objects.get(id=external_reference)
+                                print(f"Reserva encontrada: {reserva.id}")
+                                
+                                status = payment_data.get('status')
+                                print(f"Estado del pago: {status}")
+                                
+                                if status == 'approved':
+                                    print("Intentando confirmar pago...")
+                                    if reserva.confirmar_pago():
+                                        print("Pago confirmado")
+                                        try:
+                                            reserva.enviar_codigo_reserva()
+                                            print("Código de reserva enviado")
+                                        except Exception as e:
+                                            print(f"Error al enviar código: {str(e)}")
+                                    else:
+                                        print("No se pudo confirmar el pago")
+                                        
+                            except Reserva.DoesNotExist:
+                                print(f"Reserva no encontrada para: {external_reference}")
+                            except Exception as e:
+                                print(f"Error procesando reserva: {str(e)}")
+        except Exception as e:
+            print(f"Error general en webhook: {str(e)}")
+    
+    # Siempre devolver 200 OK para que Mercado Pago sepa que recibimos la notificación
+    return JsonResponse({'status': 'ok'})
