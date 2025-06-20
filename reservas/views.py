@@ -1,4 +1,5 @@
 # reservas/views.py
+import json
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -21,6 +22,7 @@ import os
 import mercadopago
 from django.urls import reverse
 from dotenv import load_dotenv
+from django.views.decorators.csrf import csrf_exempt
 
 load_dotenv()
 
@@ -316,9 +318,9 @@ def procesar_pago(request, reserva_id):
                 'preference_id': preference_id,
                 'titulo': 'Procesar Pago',
             }
-            
+
             return render(request, 'reservas/procesar_pago.html', context)
-            
+        
         except Exception as e:
             logging.error(f"Error al generar preferencia de pago: {str(e)}")
             messages.error(request, "Error al procesar el pago. Por favor, intente nuevamente más tarde.")
@@ -593,7 +595,8 @@ def gen_preference_mp(request, reserva):
     """Generate Mercado Pago preference for a reservation"""
     try:
         # Verificar que las credenciales estén configuradas
-        if not MP_ACCESS_TOKEN or not MP_PUBLIC_KEY:
+        if not MP_ACCESS_TOKEN or not MP_PUBLIC_KEY:   
+            print("Antes de excepcion")
             raise Exception("Credenciales de Mercado Pago no configuradas")
 
         # URL base de ngrok
@@ -618,13 +621,13 @@ def gen_preference_mp(request, reserva):
         }
         
         # Log the preference data
-        logging.info(f"Creating preference with data: {preference_data}")
+        print(f"Creating preference with data: {preference_data}")
         
         # Crear la preferencia
         preference_response = sdk.preference().create(preference_data)
         
         # Log the complete response
-        logging.info(f"Complete Mercado Pago response: {preference_response}")
+        print(f"Complete Mercado Pago response: {preference_response}")
         
         if not preference_response:
             raise Exception("No response from Mercado Pago")
@@ -640,21 +643,24 @@ def gen_preference_mp(request, reserva):
         return response_data
         
     except Exception as e:
-        logging.error(f"Error generating payment: {str(e)}")
+        print(f"Error generating payment: {str(e)}")
         raise
 
-@login_required
+# Elimina el @login_required de estas tres funciones
 def payment_success(request, reserva_id):
     """Handle successful payment"""
     try:
         reserva = get_object_or_404(Reserva, id=reserva_id)
         
-        # Verificar que el usuario puede acceder a esta reserva
+        # Si no hay usuario autenticado, redirigir a la página de inicio o detalles públicos
+        if not request.user.is_authenticated:
+            reserva.confirmar_pago()
+            messages.success(request, '¡Pago realizado con éxito!')
+            return redirect('home')  # O a una página pública de confirmación
+        
+        # Si hay usuario autenticado verificar permisos
         if request.user != reserva.cliente and not request.user.tipo in ['ADMIN', 'EMPLEADO']:
             return HttpResponseForbidden("No tiene permisos para acceder a esta reserva.")
-        
-        payment_id = request.GET.get('payment_id')
-        external_reference = request.GET.get('external_reference')
         
         if reserva.confirmar_pago():
             try:
@@ -673,11 +679,14 @@ def payment_success(request, reserva_id):
     
     return redirect('reservas:detalle_reserva', reserva_id=reserva_id)
 
-@login_required
 def payment_failure(request, reserva_id):
     """Handle failed payment"""
     try:
         reserva = get_object_or_404(Reserva, id=reserva_id)
+        
+        if not request.user.is_authenticated:
+            messages.error(request, 'El pago no pudo ser procesado.')
+            return redirect('home')  # O a una página pública de confirmación
         
         # Verificar que el usuario puede acceder a esta reserva
         if request.user != reserva.cliente and not request.user.tipo in ['ADMIN', 'EMPLEADO']:
@@ -690,11 +699,14 @@ def payment_failure(request, reserva_id):
     
     return redirect('reservas:detalle_reserva', reserva_id=reserva_id)
 
-@login_required
 def payment_pending(request, reserva_id):
     """Handle pending payment"""
     try:
         reserva = get_object_or_404(Reserva, id=reserva_id)
+        
+        if not request.user.is_authenticated:
+            messages.warning(request, 'Tu pago está pendiente de confirmación.')
+            return redirect('home')  # O a una página pública de confirmación
         
         # Verificar que el usuario puede acceder a esta reserva
         if request.user != reserva.cliente and not request.user.tipo in ['ADMIN', 'EMPLEADO']:
@@ -707,33 +719,114 @@ def payment_pending(request, reserva_id):
     
     return redirect('reservas:detalle_reserva', reserva_id=reserva_id)
 
-@login_required
+@csrf_exempt
 def payment_webhook(request):
     """Handle Mercado Pago webhook notifications"""
+    # Registrar cada solicitud recibida
+    print("Webhook recibido:", request.method)
+    
     if request.method == 'POST':
         try:
-            data = request.POST
+            # Guardar el contenido completo de la solicitud
+            body = request.body.decode('utf-8')
+            print(f"Cuerpo del webhook: {body}")
+            
+            # Intentar parsear los datos
+            try:
+                data = json.loads(body)
+                print(f"Datos parseados: {data}")
+            except json.JSONDecodeError:
+                print("Error al decodificar JSON")
+                data = {}
+            
+            # Extraer información del tipo de evento
+            topic = data.get('topic', '')
+            resource = data.get('resource', '')
+            
+            print(f"Topic: {topic}, Resource: {resource}")
+            
+            # Procesar notificaciones de merchant_order
+            if topic == 'merchant_order' and resource:
+                try:
+                    # Obtener ID del merchant_order desde la URL del recurso
+                    merchant_order_id = resource.split('/')[-1]
+                    print(f"Merchant Order ID: {merchant_order_id}")
+                    
+                    # Obtener información del merchant_order
+                    merchant_info = sdk.merchant_order().get(merchant_order_id)
+                    print(f"Merchant order info: {merchant_info}")
+                    
+                    if merchant_info.get('status') == 200:
+                        merchant_data = merchant_info.get('response', {})
+                        external_reference = merchant_data.get('external_reference')
+                        print(f"External reference: {external_reference}")
+                        
+                        if external_reference:
+                            try:
+                                reserva = Reserva.objects.get(id=external_reference)
+                                print(f"Reserva encontrada: {reserva.id}")
+                                
+                                # Verificar si hay pagos aprobados
+                                payments = merchant_data.get('payments', [])
+                                approved_payment = any(p.get('status') == 'approved' for p in payments)
+                                
+                                if approved_payment:
+                                    print("Pago aprobado encontrado, confirmando...")
+                                    if reserva.confirmar_pago():
+                                        print("Pago confirmado")
+                                        try:
+                                            reserva.enviar_codigo_reserva()
+                                            print("Código de reserva enviado")
+                                        except Exception as e:
+                                            print(f"Error al enviar código: {str(e)}")
+                                
+                            except Reserva.DoesNotExist:
+                                print(f"Reserva no encontrada para: {external_reference}")
+                            except Exception as e:
+                                print(f"Error procesando reserva: {str(e)}")
+                except Exception as e:
+                    print(f"Error procesando merchant_order: {str(e)}")
+                    
+            # Seguir procesando notificaciones de payment para mantener compatibilidad
             if data.get('type') == 'payment':
                 payment_id = data.get('data', {}).get('id')
-                payment_info = sdk.payment().get(payment_id)
+                print(f"ID de pago recibido: {payment_id}")
                 
-                if payment_info['status'] == 200:
-                    payment_data = payment_info['response']
-                    external_reference = payment_data.get('external_reference')
+                if payment_id:
+                    payment_info = sdk.payment().get(payment_id)
+                    print(f"Información de pago: {payment_info}")
                     
-                    if external_reference:
-                        try:
-                            reserva = Reserva.objects.get(id=external_reference)
-                            if payment_data.get('status') == 'approved':
-                                if reserva.confirmar_pago():
-                                    reserva.enviar_codigo_reserva()
-                                    logging.info(f"Pago confirmado y código enviado para reserva {reserva.id}")
-                        except Reserva.DoesNotExist:
-                            logging.error(f"Reserva no encontrada para external_reference: {external_reference}")
-                        except Exception as e:
-                            logging.error(f"Error procesando webhook para reserva {external_reference}: {str(e)}")
-                
+                    if payment_info.get('status') == 200:
+                        payment_data = payment_info.get('response', {})
+                        external_reference = payment_data.get('external_reference')
+                        print(f"Referencia externa: {external_reference}")
+                        
+                        if external_reference:
+                            try:
+                                reserva = Reserva.objects.get(id=external_reference)
+                                print(f"Reserva encontrada: {reserva.id}")
+                                
+                                status = payment_data.get('status')
+                                print(f"Estado del pago: {status}")
+                                
+                                if status == 'approved':
+                                    print("Intentando confirmar pago...")
+                                    if reserva.confirmar_pago():
+                                        print("Pago confirmado")
+                                        try:
+                                            reserva.enviar_codigo_reserva()
+                                            print("Código de reserva enviado")
+                                        except Exception as e:
+                                            print(f"Error al enviar código: {str(e)}")
+                                    else:
+                                        print("No se pudo confirmar el pago")
+                                        
+                            except Reserva.DoesNotExist:
+                                print(f"Reserva no encontrada para: {external_reference}")
+                            except Exception as e:
+                                print(f"Error procesando reserva: {str(e)}")
         except Exception as e:
-            logging.error(f"Error processing webhook: {str(e)}")
+            print(f"Error general en webhook: {str(e)}")
     
+    # Siempre devolver 200 OK para que Mercado Pago sepa que recibimos la notificación
     return JsonResponse({'status': 'ok'})

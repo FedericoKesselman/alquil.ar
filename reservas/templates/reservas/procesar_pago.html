@@ -26,21 +26,27 @@
                         <!-- Mercado Pago Checkout Button -->
                         <script src="https://sdk.mercadopago.com/js/v2"></script>
                         <script>
-                            const mp = new MercadoPago('{{ MP_PUBLIC_KEY }}', {
-                                locale: 'es-AR'
-                            });
+                        // Configure sua chave pública do Mercado Pago
+                        const publicKey = '{{ MP_PUBLIC_KEY }}'
+                        // Configure o ID de preferência que você deve receber do seu backend
+                        const preferenceId = '{{ preference_id }}';
 
-                            mp.checkout({
-                                preference: {
-                                    id: '{{ preference_id }}'
-                                },
-                                render: {
-                                    container: '.cho-container',
-                                    label: 'Pagar ahora',
-                                }
-                            });
+                        // Inicializa o SDK do Mercado Pago
+                        const mp = new MercadoPago(publicKey);
+
+                        // Cria o botão de pagamento
+                        const bricksBuilder = mp.bricks();
+                        const renderWalletBrick = async (bricksBuilder) => {
+                            await bricksBuilder.create("wallet", "walletBrick_container", {
+                            initialization: {
+                                preferenceId: preferenceId,
+                            }
+                        });
+                        };
+
+                        renderWalletBrick(bricksBuilder);
                         </script>
-                        <div class="cho-container"></div>
+                        <div id="walletBrick_container"></div>
                     </div>
                 </div>
             </div>
