@@ -3,6 +3,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from .models import Reserva
+from maquinarias.models import MaquinariaStock
 from usuarios.models import Sucursal, Usuario
 from datetime import datetime, timedelta
 
@@ -52,93 +53,80 @@ class ReservaForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
-        self.maquinaria = kwargs.pop('maquinaria', None)
-        self.usuario = kwargs.pop('usuario', None)
+        self._maquinaria = kwargs.pop('maquinaria', None)
+        self._usuario = kwargs.pop('usuario', None)
         super().__init__(*args, **kwargs)
-        
-        if self.maquinaria:
-            self.fields['maquinaria'].initial = self.maquinaria.id
-            self.fields['maquinaria'].widget = forms.HiddenInput()
-            
-        # Si el usuario es empleado
-        if self.usuario and self.usuario.tipo == 'EMPLEADO':
-            # Mostrar selector de cliente
-            self.fields['cliente'] = forms.ModelChoiceField(
-                queryset=Usuario.objects.filter(tipo='CLIENTE'),
-                label='Seleccionar Cliente',
-                widget=forms.Select(attrs={'class': 'form-control'})
-            )
-            # Restringir la sucursal a la del empleado
-            self.fields['sucursal_retiro'].initial = self.usuario.sucursal
-            self.fields['sucursal_retiro'].widget = forms.HiddenInput()
-        elif self.usuario:
-            # Si es cliente, ocultar el campo cliente y asignar el valor
-            self.fields['cliente'].initial = self.usuario.id
-            self.fields['cliente'].widget = forms.HiddenInput()
-            
-        # Configurar las opciones de sucursales disponibles
-        self.fields['sucursal_retiro'].queryset = Sucursal.objects.filter(activa=True)
-        self.fields['sucursal_retiro'].empty_label = "Seleccione una sucursal"
+
+        if self._maquinaria:
+            self.fields['maquinaria'].initial = self._maquinaria.id
+            # Mostrar solo las sucursales activas que tienen la maquinaria asignada
+            self.fields['sucursal_retiro'].queryset = Sucursal.objects.filter(
+                stocks__maquinaria=self._maquinaria,
+                activa=True
+            ).distinct()
+            # Agregar información de stock al label de cada sucursal
+            choices = []
+            for sucursal in self.fields['sucursal_retiro'].queryset:
+                try:
+                    stock = self._maquinaria.stocks.get(sucursal=sucursal)
+                    choices.append(
+                        (sucursal.id, f"{sucursal.nombre} - Stock: {stock.stock}")
+                    )
+                except MaquinariaStock.DoesNotExist:
+                    continue
+            self.fields['sucursal_retiro'].choices = choices
+
+        if self._usuario:
+            if self._usuario.tipo == 'EMPLEADO':
+                # Para empleados, mostrar selector de clientes
+                self.fields['cliente'] = forms.ModelChoiceField(
+                    queryset=Usuario.objects.filter(tipo='CLIENTE'),
+                    widget=forms.Select(attrs={'class': 'form-control'}),
+                    label='Cliente'
+                )
+            else:
+                # Para clientes, establecer el cliente automáticamente
+                self.fields['cliente'].initial = self._usuario.id
+
+    def clean_cantidad_solicitada(self):
+        cantidad = self.cleaned_data.get('cantidad_solicitada')
+        if cantidad is not None and cantidad <= 0:
+            raise forms.ValidationError("La cantidad debe ser mayor a 0")
+        return cantidad
 
     def clean(self):
         cleaned_data = super().clean()
         fecha_inicio = cleaned_data.get('fecha_inicio')
         fecha_fin = cleaned_data.get('fecha_fin')
-        cantidad = cleaned_data.get('cantidad_solicitada')
-        sucursal = cleaned_data.get('sucursal_retiro')
         
-        if not self.maquinaria:
-            raise forms.ValidationError('No se ha especificado la maquinaria')
-            
-        if not self.usuario:
-            raise forms.ValidationError('No se ha especificado el cliente')
-        
-        # Validar fechas
         if fecha_inicio and fecha_fin:
-            if fecha_inicio > fecha_fin:
-                raise forms.ValidationError('La fecha de inicio debe ser anterior a la fecha de fin')
-            
+            # Validar que la fecha de inicio no sea anterior a hoy
             if fecha_inicio < timezone.now().date():
-                raise forms.ValidationError('La fecha de inicio debe ser posterior a hoy')
+                raise forms.ValidationError("La fecha de inicio no puede ser anterior a hoy")
             
-            # Validar días mínimos y máximos
-            dias = (fecha_fin - fecha_inicio).days
-            if dias < self.maquinaria.minimo:
-                raise forms.ValidationError(f'La reserva debe ser por al menos {self.maquinaria.minimo} días')
-            if dias > self.maquinaria.maximo:
-                raise forms.ValidationError(f'La reserva no puede ser por más de {self.maquinaria.maximo} días')
-        
-        # Validar disponibilidad si tenemos todos los datos necesarios
-        if all([fecha_inicio, fecha_fin, cantidad, sucursal]):
-            stock_disponible = sucursal.get_stock_disponible(
-                self.maquinaria,
-                fecha_inicio,
-                fecha_fin,
-                cantidad
-            )
+            # Validar que la fecha de fin no sea anterior a la fecha de inicio
+            if fecha_fin < fecha_inicio:
+                raise forms.ValidationError("La fecha de finalización debe ser posterior a la fecha de inicio")
             
-            if stock_disponible < cantidad:
-                raise forms.ValidationError(
-                    f'No hay suficiente stock disponible en la sucursal seleccionada. '
-                    f'Stock disponible: {stock_disponible}'
-                )
-        
-        # Asignar maquinaria y cliente a los datos limpiados
-        cleaned_data['maquinaria'] = self.maquinaria
-        
-        # Si el usuario es empleado, el cliente viene del formulario
-        # Si el usuario es cliente, el cliente es el mismo usuario
-        if self.usuario.tipo == 'EMPLEADO':
-            if not cleaned_data.get('cliente'):
-                raise forms.ValidationError('Debe seleccionar un cliente')
-        else:
-            cleaned_data['cliente'] = self.usuario
+            # Calcular la cantidad de días
+            dias = (fecha_fin - fecha_inicio).days + 1
+            
+            # Validar contra los límites de la maquinaria
+            if self._maquinaria:
+                if dias < self._maquinaria.minimo:
+                    raise forms.ValidationError(
+                        f"El período mínimo de reserva es de {self._maquinaria.minimo} días"
+                    )
+                if dias > self._maquinaria.maximo:
+                    raise forms.ValidationError(
+                        f"El período máximo de reserva es de {self._maquinaria.maximo} días"
+                    )
         
         return cleaned_data
 
     def calcular_precio_total(self):
         """Calcula el precio total de la reserva"""
-        if not self.is_valid() or not self.maquinaria:
+        if not self.is_valid() or not self._maquinaria:
             return 0
         
         fecha_inicio = self.cleaned_data['fecha_inicio']
@@ -146,7 +134,7 @@ class ReservaForm(forms.ModelForm):
         cantidad = self.cleaned_data['cantidad_solicitada']
         
         dias = (fecha_fin - fecha_inicio).days
-        return self.maquinaria.precio_por_dia * dias * cantidad
+        return self._maquinaria.precio_por_dia * dias * cantidad
 
 
 class SeleccionSucursalForm(forms.Form):

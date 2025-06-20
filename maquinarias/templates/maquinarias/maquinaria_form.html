@@ -118,12 +118,13 @@
                 {% for error in form.imagen.errors %}{{ error }}{% endfor %}
               </div>
               {% endif %}
-              {% if maquinaria.imagen %}
-                <img id="imagenExistente" src="{{ maquinaria.imagen.url }}" alt="Imagen actual" class="img-fluid mb-3" style="max-width: 300px;">
-              {% else %}
-                <img id="imagenExistente" src="" alt="" style="display: none;">
-              {% endif %}
-
+              <div class="mt-2 image-preview-container" style="max-width: 300px; max-height: 300px; overflow: hidden;">
+                {% if maquinaria.imagen %}
+                  <img id="imagenExistente" src="{{ maquinaria.imagen.url }}" alt="Imagen actual" class="img-fluid rounded" style="width: 100%; height: 100%; object-fit: contain;">
+                {% else %}
+                  <img id="imagenExistente" src="" alt="" style="display: none; width: 100%; height: 100%; object-fit: contain;" class="img-fluid rounded">
+                {% endif %}
+              </div>
             </div>
           </div>
 
@@ -207,11 +208,38 @@
                     </div>
                     {% endif %}
                   </div>
+                  <div class="col-md-3 d-flex align-items-end mb-2">
+                    <button type="button" class="btn btn-outline-danger btn-sm remove-stock-form">
+                      <i class="fas fa-trash"></i> Quitar Sucursal
+                    </button>
+                  </div>
                   {% for hidden in form.hidden_fields %}
                     {{ hidden }}
                   {% endfor %}
                 </div>
               {% endfor %}
+            </div>
+
+            <!-- Template oculto para nuevos formularios -->
+            <div id="empty-form-template" style="display: none;">
+              <div class="stock-form row mb-3">
+                <div class="col-md-5">
+                  <label class="form-label">Sucursal</label>
+                  {{ stock_formset.empty_form.sucursal }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Stock</label>
+                  {{ stock_formset.empty_form.stock }}
+                </div>
+                <div class="col-md-3 d-flex align-items-end mb-2">
+                  <button type="button" class="btn btn-outline-danger btn-sm remove-stock-form">
+                    <i class="fas fa-trash"></i> Quitar Sucursal
+                  </button>
+                </div>
+                {% for hidden in stock_formset.empty_form.hidden_fields %}
+                  {{ hidden }}
+                {% endfor %}
+              </div>
             </div>
             
             <button type="button" class="btn btn-outline-primary btn-sm" id="add-stock-form">
@@ -233,8 +261,33 @@
 document.addEventListener('DOMContentLoaded', function() {
     const addButton = document.getElementById('add-stock-form');
     const formsContainer = document.getElementById('stock-forms');
+    const emptyFormTemplate = document.getElementById('empty-form-template');
     const totalForms = document.querySelector('#id_stocks-TOTAL_FORMS');
     
+    // Función para obtener todas las sucursales seleccionadas
+    function getSelectedSucursales() {
+        const selectedSucursales = new Set();
+        formsContainer.querySelectorAll('.stock-form:not([style*="display: none"]) select[name$="-sucursal"]').forEach(select => {
+            if (select.value) {
+                selectedSucursales.add(select.value);
+            }
+        });
+        return selectedSucursales;
+    }
+
+    // Función para actualizar las opciones disponibles en los dropdowns
+    function updateAvailableSucursales() {
+        const selectedSucursales = getSelectedSucursales();
+        formsContainer.querySelectorAll('.stock-form:not([style*="display: none"]) select[name$="-sucursal"]').forEach(select => {
+            const currentValue = select.value;
+            Array.from(select.options).forEach(option => {
+                if (option.value && option.value !== currentValue) {
+                    option.disabled = selectedSucursales.has(option.value);
+                }
+            });
+        });
+    }
+
     // Función para eliminar formulario
     function removeForm(button) {
         const formRow = button.closest('.stock-form');
@@ -247,8 +300,10 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             // Si no existe, eliminar del DOM
             formRow.remove();
-            updateFormNumbers();
         }
+        updateFormNumbers();
+        // Actualizar las opciones disponibles después de eliminar
+        updateAvailableSucursales();
     }
     
     // Función para actualizar números de formularios
@@ -274,11 +329,23 @@ document.addEventListener('DOMContentLoaded', function() {
             removeForm(this);
         });
     });
+
+    // Agregar event listeners a los selects existentes
+    formsContainer.querySelectorAll('select[name$="-sucursal"]').forEach(select => {
+        select.addEventListener('change', updateAvailableSucursales);
+    });
     
     // Agregar nuevo formulario
     addButton.addEventListener('click', function() {
         const formCount = parseInt(totalForms.value);
-        const newForm = document.querySelector('.stock-form').cloneNode(true);
+        let newForm;
+
+        // Si hay formularios existentes, clonar el primero, si no, usar el template
+        if (formsContainer.querySelector('.stock-form')) {
+            newForm = formsContainer.querySelector('.stock-form').cloneNode(true);
+        } else {
+            newForm = emptyFormTemplate.querySelector('.stock-form').cloneNode(true);
+        }
         
         // Limpiar valores
         newForm.querySelectorAll('input, select').forEach(input => {
@@ -286,8 +353,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 input.value = '';
             }
             if (input.name) {
-                input.name = input.name.replace(/stocks-\d+/, `stocks-${formCount}`);
-                input.id = input.id.replace(/id_stocks-\d+/, `id_stocks-${formCount}`);
+                input.name = input.name.replace(/-\d+-|-__prefix__-/, `-${formCount}-`);
+                input.id = input.id.replace(/-\d+-|-__prefix__-/, `-${formCount}-`);
             }
         });
         
@@ -301,10 +368,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 removeForm(this);
             });
         }
+
+        // Agregar event listener al nuevo select
+        const newSelect = newForm.querySelector('select[name$="-sucursal"]');
+        if (newSelect) {
+            newSelect.addEventListener('change', updateAvailableSucursales);
+        }
         
         formsContainer.appendChild(newForm);
         totalForms.value = formCount + 1;
+        
+        // Actualizar las opciones disponibles después de agregar
+        updateAvailableSucursales();
     });
+
+    // Inicializar las opciones disponibles al cargar la página
+    updateAvailableSucursales();
 });
 document.getElementById('guardarBtn').addEventListener('click', function(e) {
   const inputImagen = document.getElementById('id_imagen');

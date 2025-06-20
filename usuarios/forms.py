@@ -16,7 +16,6 @@ from .models import Sucursal, Usuario
 User = get_user_model()
 
 class LoginForm(forms.Form):
-    #Declarar los campos del formulario
     email = forms.EmailField(
         label="Email",
         widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'Email'})
@@ -105,7 +104,9 @@ class EmpleadoForm(forms.Form):
         min_length=7,
         widget=forms.TextInput(attrs={
             'class': 'form-control', 
-            'placeholder': 'DNI (7-8 dígitos)'
+            'inputmode': 'numeric',
+            'placeholder': 'DNI (7-8 dígitos)',
+            'oninput': 'this.value = this.value.replace(/[^0-9]/g, "")',
         }),
         validators=[
             RegexValidator(
@@ -117,8 +118,18 @@ class EmpleadoForm(forms.Form):
     telefono = forms.CharField(
         label="Teléfono",
         max_length=20,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Número de teléfono'}),
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Número de teléfono','oninput': 'this.value = this.value.replace(/[^0-9]/g, "")'}),
         validators=[RegexValidator(r'^\d+$', 'Solo se permiten números en el teléfono')]
+    )
+    fecha_nacimiento = forms.DateField(
+        label="Fecha de nacimiento",
+        widget=forms.DateInput(
+            attrs={
+                'class': 'form-control', 
+                'type': 'date',
+                'max': date.today().isoformat(),
+            }
+        )
     )
     sucursal = forms.ModelChoiceField(
         queryset=Sucursal.objects.filter(activa=True),
@@ -147,6 +158,24 @@ class EmpleadoForm(forms.Form):
         if User.objects.filter(dni=dni).exists():
             raise forms.ValidationError('El DNI ingresado ya se encuentra registrado en el sistema.')
         return dni
+
+    def clean_fecha_nacimiento(self):
+        fecha_nacimiento = self.cleaned_data.get('fecha_nacimiento')
+        
+        if not fecha_nacimiento:
+            raise forms.ValidationError("La fecha de nacimiento es obligatoria")
+            
+        hoy = date.today()
+        edad = hoy.year - fecha_nacimiento.year - ((hoy.month, hoy.day) < (fecha_nacimiento.month, fecha_nacimiento.day))
+
+        # Verificar que no sea una fecha futura
+        if fecha_nacimiento > hoy:
+            raise forms.ValidationError("La fecha de nacimiento no puede ser futura")
+        
+        if edad < 18:
+            raise forms.ValidationError("El empleado debe ser mayor de 18 años")
+    
+        return fecha_nacimiento
 
     def clean_password(self):
         password = self.cleaned_data.get('password')
@@ -187,6 +216,7 @@ class EmpleadoForm(forms.Form):
             nombre=self.cleaned_data['nombre'],
             dni=self.cleaned_data['dni'],
             telefono=self.cleaned_data['telefono'],
+            fecha_nacimiento=self.cleaned_data['fecha_nacimiento'],
             sucursal=self.cleaned_data['sucursal'],
             tipo='EMPLEADO'
         )
@@ -410,51 +440,53 @@ class RestablecerPasswordForm(forms.Form):
         label="Confirmar nueva contraseña",
         widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Repetir nueva contraseña'})
     )
-    
+
     def __init__(self, user=None, *args, **kwargs):
         self.user = user
         super().__init__(*args, **kwargs)
-    
+
     def clean_password(self):
         password = self.cleaned_data.get('password')
-        
+
         if not password:
             raise forms.ValidationError('La contraseña es obligatoria.')
-            
+
         if len(password) < 8:
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula, una minúscula y un número.')
-        
+
         if not any(c.isupper() for c in password):
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula, una minúscula y un número.')
-        
+
         if not any(c.islower() for c in password):
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula, una minúscula y un número.')
-        
+
         if not any(c.isdigit() for c in password):
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula, una minúscula y un número.')
-        
+
+        # Validar que la nueva contraseña no sea igual a la actual
+        if self.user.check_password(password):
+            raise forms.ValidationError('La nueva contraseña no puede ser igual a la contraseña actual.')
+
         return password
-    
+
     def clean(self):
         cleaned_data = super().clean()
         password = cleaned_data.get('password')
         confirm_password = cleaned_data.get('confirm_password')
-        
+
         if password and confirm_password:
             if password != confirm_password:
                 raise forms.ValidationError('Las contraseñas ingresadas no coinciden.')
-        
+
         return cleaned_data
-    
+
     def save(self):
         password = self.cleaned_data['password']
         self.user.set_password(password)
-        
         self.user.reset_token_used = True
         self.user.reset_token = None
         self.user.reset_token_timestamp = None
         self.user.save()
-        
         return self.user
 
 class CambiarPasswordPerfilForm(forms.Form):
@@ -470,54 +502,43 @@ class CambiarPasswordPerfilForm(forms.Form):
         label="Confirmar nueva contraseña",
         widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Repetir nueva contraseña'})
     )
-    
+
     def __init__(self, user=None, *args, **kwargs):
         self.user = user
         super().__init__(*args, **kwargs)
-    
+
     def clean_current_password(self):
         current_password = self.cleaned_data.get('current_password')
-        
         if not self.user.check_password(current_password):
             raise forms.ValidationError('La contraseña actual ingresada no es válida.')
-        
         return current_password
-    
+
     def clean_new_password(self):
         new_password = self.cleaned_data.get('new_password')
-        
         if not new_password:
             raise forms.ValidationError('La nueva contraseña es obligatoria.')
-            
         if len(new_password) < 8:
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula, una minúscula y un número.')
-        
         if not any(c.isupper() for c in new_password):
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula, una minúscula y un número.')
-        
         if not any(c.islower() for c in new_password):
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula, una minúscula y un número.')
-        
         if not any(c.isdigit() for c in new_password):
             raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula, una minúscula y un número.')
-        
         current_password = self.cleaned_data.get('current_password')
         if current_password and self.user.check_password(new_password):
             raise forms.ValidationError('La nueva contraseña no puede ser igual a la anterior.')
-        
         return new_password
-    
+
     def clean(self):
         cleaned_data = super().clean()
         new_password = cleaned_data.get('new_password')
         confirm_new_password = cleaned_data.get('confirm_new_password')
-        
         if new_password and confirm_new_password:
             if new_password != confirm_new_password:
-                raise forms.ValidationError('Las nuevas contraseñas ingresadas no coinciden.')
-        
+                self.add_error('confirm_new_password', 'Las nuevas contraseñas ingresadas no coinciden.')
         return cleaned_data
-    
+
     def save(self):
         new_password = self.cleaned_data['new_password']
         self.user.set_password(new_password)

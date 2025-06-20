@@ -107,9 +107,10 @@ class Reserva(models.Model):
                     <li>Cantidad: {self.cantidad_solicitada} unidad/es</li>
                     <li>Fecha de inicio: {self.fecha_inicio.strftime('%d/%m/%Y')}</li>
                     <li>Fecha de fin: {self.fecha_fin.strftime('%d/%m/%Y')}</li>
-                    <li>Sucursal de retiro: {self.sucursal_retiro.nombre}</li>
-                    <li>Dirección de retiro: {sucursal_direccion}</li>
+                    <li>Sucursal de retiro y devolución: {self.sucursal_retiro.nombre}</li>
+                    <li>Dirección de retiro y devolución: {sucursal_direccion}</li>
                 </ul>
+                <p>Recuerde que debe devolver la maquinaria en la misma sucursal de la que fue retirada.</p>
             </div>
             
             <p>Su código de reserva es:</p>
@@ -309,11 +310,18 @@ class Reserva(models.Model):
         sucursales_disponibles = []
         
         if sucursal:
-            # Verificar solo una sucursal específica
+            # Verificar solo una sucursal específica si está activa
+            if not sucursal.activa:
+                return {
+                    'disponible': False,
+                    'sucursales_disponibles': [],
+                    'mensaje': "La sucursal seleccionada no está activa"
+                }
             sucursales_a_verificar = [sucursal]
         else:
-            # Verificar todas las sucursales que tienen stock de esta maquinaria
+            # Verificar todas las sucursales activas que tienen stock de esta maquinaria
             sucursales_a_verificar = Sucursal.objects.filter(
+                activa=True,
                 stocks__maquinaria=maquinaria,
                 stocks__stock__gte=cantidad_solicitada
             ).distinct()
