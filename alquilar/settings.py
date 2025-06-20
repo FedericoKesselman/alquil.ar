@@ -28,13 +28,13 @@ DEBUG = True
 
 # settings.py
 ALLOWED_HOSTS = [
-    'localhost', 
-    '127.0.0.1', 
-    '9cd3-152-168-99-206.ngrok-free.app'
+    '*',  # Permite todos los hosts, pero en producción deberías especificar los permitidos
 ]
 
+trsut_ngrok = os.getenv('NGROK_URL')
+
 CSRF_TRUSTED_ORIGINS = [
-    'https://9cd3-152-168-99-206.ngrok-free.app'
+    trsut_ngrok if trsut_ngrok else 'https://*.ngrok.io',
 ]
 
 # También agrega esto si no lo tienes
