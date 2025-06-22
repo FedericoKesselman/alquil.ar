@@ -792,7 +792,7 @@ def payment_success(request, reserva_id):
         if not request.user.is_authenticated:
             reserva.confirmar_pago()
             messages.success(request, '¡Pago realizado con éxito!')
-            return redirect('home')  # O a una página pública de confirmación
+            return redirect('http://127.0.0.1:8000/reservas/historial/')  
         
         # Si hay usuario autenticado verificar permisos
         if request.user != reserva.cliente and not request.user.tipo in ['ADMIN', 'EMPLEADO']:
@@ -822,7 +822,7 @@ def payment_failure(request, reserva_id):
         
         if not request.user.is_authenticated:
             messages.error(request, 'El pago no pudo ser procesado.')
-            return redirect('home')  # O a una página pública de confirmación
+            return redirect('http://127.0.0.1:8000/reservas/historial/')  
         
         # Verificar que el usuario puede acceder a esta reserva
         if request.user != reserva.cliente and not request.user.tipo in ['ADMIN', 'EMPLEADO']:
@@ -842,7 +842,7 @@ def payment_pending(request, reserva_id):
         
         if not request.user.is_authenticated:
             messages.warning(request, 'Tu pago está pendiente de confirmación.')
-            return redirect('home')  # O a una página pública de confirmación
+            return redirect('http://127.0.0.1:8000/reservas/historial/')  
         
         # Verificar que el usuario puede acceder a esta reserva
         if request.user != reserva.cliente and not request.user.tipo in ['ADMIN', 'EMPLEADO']:
