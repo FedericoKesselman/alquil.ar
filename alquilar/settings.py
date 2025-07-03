@@ -31,10 +31,10 @@ ALLOWED_HOSTS = [
     '*',  # Permite todos los hosts, pero en producción deberías especificar los permitidos
 ]
 
-trsut_ngrok = os.getenv('NGROK_URL')
+trust_ngrok = os.getenv('NGROK_URL')
 
 CSRF_TRUSTED_ORIGINS = [
-    trsut_ngrok if trsut_ngrok else 'https://*.ngrok.io',
+    trust_ngrok if trust_ngrok else 'https://*.ngrok.io',
 ]
 
 # También agrega esto si no lo tienes
