@@ -78,12 +78,22 @@ class ReservaForm(forms.ModelForm):
 
         if self._usuario:
             if self._usuario.tipo == 'EMPLEADO':
-                # Para empleados, mostrar selector de clientes
-                self.fields['cliente'] = forms.ModelChoiceField(
-                    queryset=Usuario.objects.filter(tipo='CLIENTE'),
-                    widget=forms.Select(attrs={'class': 'form-control'}),
-                    label='Cliente'
+                # Para empleados, mostrar campo de DNI del cliente
+                self.fields['dni_cliente'] = forms.CharField(
+                    max_length=8,
+                    min_length=1,
+                    label='DNI del Cliente',
+                    widget=forms.TextInput(attrs={
+                        'class': 'form-control',
+                        'placeholder': 'Ingrese el DNI del cliente (1-8 dígitos)',
+                        'pattern': '[0-9]{1,8}',
+                        'title': 'El DNI debe contener entre 1 y 8 dígitos',
+                        'inputmode': 'numeric'
+                    })
                 )
+                # Eliminar el campo de cliente del formulario (se buscará por DNI)
+                if 'cliente' in self.fields:
+                    del self.fields['cliente']
             else:
                 # Para clientes, establecer el cliente automáticamente
                 self.fields['cliente'].initial = self._usuario.id
@@ -98,6 +108,30 @@ class ReservaForm(forms.ModelForm):
         cleaned_data = super().clean()
         fecha_inicio = cleaned_data.get('fecha_inicio')
         fecha_fin = cleaned_data.get('fecha_fin')
+        
+        # Si el usuario es un empleado y ha introducido un DNI de cliente, buscar el cliente
+        if self._usuario and self._usuario.tipo == 'EMPLEADO':
+            dni_cliente = cleaned_data.get('dni_cliente')
+            if not dni_cliente:
+                raise forms.ValidationError("Debe ingresar el DNI del cliente")
+                
+            try:
+                cliente = Usuario.objects.get(dni=dni_cliente, tipo='CLIENTE')
+                # Añadir el cliente encontrado a los datos limpiados
+                cleaned_data['cliente'] = cliente
+                
+                # Verificar que el cliente no tenga reservas activas o canceladas
+                reserva_existente = Reserva.objects.filter(
+                    cliente=cliente,
+                    estado__in=['CONFIRMADA', 'CANCELADA']
+                ).exists()
+                
+                if reserva_existente:
+                    raise forms.ValidationError(
+                        f"El cliente con DNI {dni_cliente} ya tiene una reserva activa o cancelada. No puede crear una nueva reserva."
+                    )
+            except Usuario.DoesNotExist:
+                raise forms.ValidationError(f"DNI ingresado no registrado en el sistema")
         
         if fecha_inicio and fecha_fin:
             # Validar que la fecha de inicio no sea anterior a hoy
@@ -289,15 +323,22 @@ class EditarReservaForm(forms.ModelForm):
 
 class ReservaEmpleadoForm(forms.ModelForm):
     """Formulario para que empleados creen reservas"""
-    cliente = forms.ModelChoiceField(
-        queryset=Usuario.objects.filter(tipo='CLIENTE'),
-        label='Cliente',
-        widget=forms.Select(attrs={'class': 'form-control'})
+    dni_cliente = forms.CharField(
+        max_length=8,
+        min_length=1,
+        label='DNI del Cliente',
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Ingrese el DNI del cliente (1-8 dígitos)',
+            'pattern': '[0-9]{1,8}',
+            'title': 'El DNI debe contener entre 1 y 8 dígitos',
+            'inputmode': 'numeric'
+        })
     )
     
     class Meta:
         model = Reserva
-        fields = ['cliente', 'maquinaria', 'fecha_inicio', 'fecha_fin', 
+        fields = ['maquinaria', 'fecha_inicio', 'fecha_fin', 
                  'cantidad_solicitada', 'sucursal_retiro']
         widgets = {
             'fecha_inicio': forms.DateInput(
@@ -339,6 +380,27 @@ class ReservaEmpleadoForm(forms.ModelForm):
         maquinaria = cleaned_data.get('maquinaria')
         cantidad = cleaned_data.get('cantidad_solicitada')
         sucursal = cleaned_data.get('sucursal_retiro')
+        dni_cliente = cleaned_data.get('dni_cliente')
+        
+        # Verificar que exista un cliente con ese DNI
+        try:
+            cliente = Usuario.objects.get(dni=dni_cliente, tipo='CLIENTE')
+            # Guardar el cliente encontrado en los datos limpiados
+            cleaned_data['cliente'] = cliente
+            
+            # Verificar que el cliente no tenga reservas activas o canceladas
+            reserva_existente = Reserva.objects.filter(
+                cliente=cliente,
+                estado__in=['CONFIRMADA', 'CANCELADA']
+            ).exists()
+            
+            if reserva_existente:
+                raise forms.ValidationError(
+                    "El cliente seleccionado ya tiene una reserva activa o cancelada. No puede crear una nueva reserva."
+                )
+                
+        except Usuario.DoesNotExist:
+            raise forms.ValidationError("DNI ingresado no registrado en el sistema")
         
         if all([fecha_inicio, fecha_fin, maquinaria, cantidad, sucursal]):
             # Verificar disponibilidad
@@ -374,6 +436,21 @@ class ReservaPorCodigoForm(forms.Form):
             }
         )
     )
+    
+    dni_cliente = forms.CharField(
+        max_length=8,
+        min_length=1,
+        label='DNI del Cliente',
+        widget=forms.TextInput(
+            attrs={
+                'class': 'form-control',
+                'placeholder': 'Ingrese el DNI del cliente (1-8 dígitos)',
+                'pattern': '[0-9]{1,8}',
+                'title': 'El DNI debe contener entre 1 y 8 dígitos',
+                'inputmode': 'numeric'
+            }
+        )
+    )
 
     def clean_codigo_reserva(self):
         codigo = self.cleaned_data['codigo_reserva']
@@ -381,3 +458,56 @@ class ReservaPorCodigoForm(forms.Form):
         if not codigo.isdigit() or len(codigo) != 6:
             raise ValidationError("El código debe contener exactamente 6 dígitos.")
         return codigo
+        
+    def clean_dni_cliente(self):
+        dni = self.cleaned_data['dni_cliente']
+        # Verificar que sean solo dígitos
+        if not dni.isdigit() or not (1 <= len(dni) <= 8):
+            raise ValidationError("El DNI debe contener entre 1 y 8 dígitos.")
+        return dni
+        
+    def clean(self):
+        cleaned_data = super().clean()
+        codigo = cleaned_data.get('codigo_reserva')
+        dni = cleaned_data.get('dni_cliente')
+        
+        if codigo and dni:
+            # Verificar que el código de reserva y el DNI coincidan con una reserva existente
+            try:
+                reserva = Reserva.objects.get(codigo_reserva=codigo)
+                if reserva.cliente.dni != dni:
+                    raise forms.ValidationError(
+                        "El DNI ingresado no coincide con el cliente de la reserva."
+                    )
+            except Reserva.DoesNotExist:
+                # Este error se manejará en la vista
+                pass
+                
+        return cleaned_data
+
+
+class DevolucionForm(forms.Form):
+    """Formulario para procesar la devolución de una maquinaria"""
+    
+    necesita_servicio = forms.BooleanField(
+        required=False,
+        label='¿La maquinaria necesita servicio técnico?',
+        widget=forms.CheckboxInput(
+            attrs={
+                'class': 'form-check-input',
+                'id': 'necesita-servicio'
+            }
+        )
+    )
+    
+    observaciones = forms.CharField(
+        widget=forms.Textarea(
+            attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Observaciones sobre el estado de la maquinaria (opcional)'
+            }
+        ),
+        required=False,
+        label='Observaciones'
+    )

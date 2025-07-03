@@ -177,11 +177,16 @@ class Reserva(models.Model):
         if self.cantidad_solicitada and self.cantidad_solicitada <= 0:
             errors['cantidad_solicitada'] = "La cantidad debe ser mayor a 0."
         
-        # Validar que el cliente sea realmente cliente
-        if self.cliente and self.cliente.tipo != 'CLIENTE':
-            # Si hay un empleado procesador, significa que es una reserva creada por un empleado
-            if not self.empleado_procesador:
-                errors['cliente'] = "Solo los usuarios tipo CLIENTE pueden hacer reservas."
+        # Validar que el cliente sea realmente cliente (solo si el cliente está establecido)
+        # Esto es necesario porque durante la validación del formulario, cliente puede no estar establecido todavía
+        try:
+            if self.cliente and self.cliente.tipo != 'CLIENTE':
+                # Si hay un empleado procesador, significa que es una reserva creada por un empleado
+                if not self.empleado_procesador:
+                    errors['cliente'] = "Solo los usuarios tipo CLIENTE pueden hacer reservas."
+        except Reserva.cliente.RelatedObjectDoesNotExist:
+            # El cliente aún no está establecido, lo cual es válido durante la validación del formulario
+            pass
         
         # Validar que el empleado procesador sea empleado (si existe)
         if self.empleado_procesador and self.empleado_procesador.tipo != 'EMPLEADO':

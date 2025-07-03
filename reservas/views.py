@@ -14,7 +14,7 @@ from .models import Reserva
 from .forms import (
     ReservaForm, SeleccionSucursalForm, ConfirmacionPagoForm,
     BusquedaReservasForm, EditarReservaForm, ReservaEmpleadoForm,
-    ReservaPorCodigoForm
+    ReservaPorCodigoForm, DevolucionForm
 )
 import decimal
 import logging
@@ -36,7 +36,10 @@ def crear_reserva(request, maquinaria_id):
         return redirect('maquinaria_list')
     
     if request.method == 'POST':
+        # Inicializar el formulario con los datos POST
         form = ReservaForm(request.POST, maquinaria=maquinaria, usuario=request.user)
+        
+        # Verificar si el formulario es válido
         if form.is_valid():
             # Si es cliente, verificar que no tenga una reserva activa o cancelada
             if request.user.tipo == 'CLIENTE':
@@ -48,17 +51,7 @@ def crear_reserva(request, maquinaria_id):
                 if reserva_existente:
                     messages.error(request, "No puedes crear una nueva reserva porque tienes una reserva activa o cancelada.")
                     return redirect('home')
-            # Si es empleado, verificar que el cliente seleccionado no tenga una reserva activa o cancelada
-            elif request.user.tipo == 'EMPLEADO':
-                cliente = form.cleaned_data['cliente']
-                reserva_existente = Reserva.objects.filter(
-                    cliente=cliente,
-                    estado__in=['CONFIRMADA', 'CANCELADA']
-                ).exists()
-                
-                if reserva_existente:
-                    messages.error(request, "El cliente seleccionado ya tiene una reserva activa o cancelada. No puede crear una nueva reserva.")
-                    return redirect('home')
+            # Si es empleado, la verificación del cliente se hace en el clean() del formulario
             
             # Verificar disponibilidad para las fechas y cantidad solicitadas
             fecha_inicio = form.cleaned_data['fecha_inicio']
@@ -97,6 +90,12 @@ def crear_reserva(request, maquinaria_id):
             reserva = form.save(commit=False)
             reserva.maquinaria = maquinaria
             
+            # Si es empleado, obtener el cliente del DNI
+            if request.user.tipo == 'EMPLEADO':
+                # El cliente se encontró a partir del DNI en el clean() del formulario
+                cliente = form.cleaned_data['cliente']
+                reserva.cliente = cliente
+                
             # Calcular precio total
             dias = (reserva.fecha_fin - reserva.fecha_inicio).days
             reserva.precio_total = maquinaria.precio_por_dia * dias * reserva.cantidad_solicitada
@@ -104,7 +103,8 @@ def crear_reserva(request, maquinaria_id):
             if request.user.tipo == 'EMPLEADO':
                 # Para empleados, redirigir a la página de confirmación
                 request.session['reserva_data'] = {
-                    'cliente_id': form.cleaned_data['cliente'].id,
+                    'cliente_id': cliente.id,
+                    'cliente_dni': cliente.dni,  # Guardar el DNI del cliente
                     'maquinaria_id': maquinaria.id,
                     'fecha_inicio': form.cleaned_data['fecha_inicio'].isoformat(),
                     'fecha_fin': form.cleaned_data['fecha_fin'].isoformat(),
@@ -760,10 +760,19 @@ def finalizar_reserva_por_codigo(request):
     
     if form.is_valid():
         codigo = form.cleaned_data['codigo_reserva']
+        dni = form.cleaned_data['dni_cliente']
+        action = request.POST.get('action', 'finalizar')
+        
+        # Debug información sobre la acción
+        print(f"Acción solicitada: {action}")
         
         # Buscar la reserva con ese código
         try:
             reserva = Reserva.objects.get(codigo_reserva=codigo)
+            # Verificar que el DNI coincida con el cliente de la reserva
+            if reserva.cliente.dni != dni:
+                messages.error(request, "El DNI ingresado no corresponde al cliente de la reserva.")
+                return redirect('reservas:procesar_reservas')
         except Reserva.DoesNotExist:
             messages.error(request, f"No se encontró ninguna reserva con el código {codigo}.")
             return redirect('reservas:procesar_reservas')
@@ -776,6 +785,23 @@ def finalizar_reserva_por_codigo(request):
                 f"No puedes procesarla desde {request.user.sucursal.nombre}."
             )
             return redirect('reservas:procesar_reservas')
+            
+        # Si se presionó el botón de devolución, redirigir al formulario de devolución
+        print(f"Action check: '{action}' == 'devolucion'? {action == 'devolucion'}")
+        if action == 'devolucion':
+            print(f"Entrando en caso de devolución")
+            if reserva.estado == 'CONFIRMADA':
+                # Add debug message
+                messages.info(request, f"Redirigiendo a formulario de devolución para la reserva")
+                # Ensure using the correct URL name and parameter name
+                return redirect('reservas:devolucion_reserva', reserva_id=reserva.id)
+            else:
+                print(f"Reserva no está en estado CONFIRMADA: {reserva.estado}")
+                messages.warning(
+                    request,
+                    f"Solo se pueden procesar devoluciones para reservas en estado CONFIRMADA."
+                )
+                return redirect('reservas:procesar_reservas')
         
         # Procesar según el estado
         if reserva.estado == 'CONFIRMADA':
@@ -825,3 +851,97 @@ def finalizar_reserva_por_codigo(request):
     }
     
     return render(request, 'reservas/procesar_reservas.html', context)
+
+@login_required
+@solo_empleado
+def devolucion_reserva(request, reserva_id):
+    """
+    Vista para mostrar el formulario de devolución de una reserva.
+    Permite marcar si la maquinaria necesita servicio y agregar observaciones.
+    """
+    # Log para debugging
+    print(f"Entrando a devolucion_reserva con ID: {reserva_id}")
+    
+    # Obtener la reserva
+    reserva = get_object_or_404(Reserva, id=reserva_id)
+    
+    # Log información de la reserva
+    print(f"Reserva encontrada: {reserva.id}, Estado: {reserva.estado}")
+    
+    # Verificar que la reserva esté en estado CONFIRMADA
+    if reserva.estado != 'CONFIRMADA':
+        messages.error(request, "Solo se pueden procesar devoluciones para reservas en estado CONFIRMADA.")
+        return redirect('reservas:procesar_reservas')
+    
+    # Verificar que la sucursal de la reserva coincida con la del empleado
+    if reserva.sucursal_retiro != request.user.sucursal:
+        messages.error(
+            request, 
+            f"Esta reserva pertenece a la sucursal {reserva.sucursal_retiro.nombre}. "
+            f"No puedes procesarla desde {request.user.sucursal.nombre}."
+        )
+        return redirect('reservas:procesar_reservas')
+    
+    form = DevolucionForm()
+    
+    context = {
+        'reserva': reserva,
+        'form': form,
+    }
+    
+    return render(request, 'reservas/devolucion_reserva.html', context)
+
+
+@login_required
+@solo_empleado
+def confirmar_devolucion(request, reserva_id):
+    """
+    Vista para procesar la devolución de una reserva.
+    Registra si la maquinaria necesita servicio y finaliza la reserva.
+    """
+    if request.method != 'POST':
+        return redirect('reservas:procesar_reservas')
+    
+    # Obtener la reserva
+    reserva = get_object_or_404(Reserva, id=reserva_id)
+    
+    # Verificar que la reserva esté en estado CONFIRMADA
+    if reserva.estado != 'CONFIRMADA':
+        messages.error(request, "Solo se pueden procesar devoluciones para reservas en estado CONFIRMADA.")
+        return redirect('reservas:procesar_reservas')
+    
+    # Verificar que la sucursal de la reserva coincida con la del empleado
+    if reserva.sucursal_retiro != request.user.sucursal:
+        messages.error(
+            request, 
+            f"Esta reserva pertenece a la sucursal {reserva.sucursal_retiro.nombre}. "
+            f"No puedes procesarla desde {request.user.sucursal.nombre}."
+        )
+        return redirect('reservas:procesar_reservas')
+    
+    form = DevolucionForm(request.POST)
+    
+    if form.is_valid():
+        # Aquí iría la lógica para registrar la devolución y si necesita servicio
+        # Por ahora solo finalizamos la reserva
+        necesita_servicio = form.cleaned_data.get('necesita_servicio', False)
+        observaciones = form.cleaned_data.get('observaciones', '')
+        
+        # Actualizar las observaciones de la reserva
+        if observaciones:
+            reserva.observaciones = (reserva.observaciones or "") + f"\n\nDEVOLUCIÓN: {observaciones}"
+            
+        # TODO: En el futuro, registrar si la maquinaria necesita servicio
+        
+        # Finalizar la reserva
+        if reserva.finalizar_reserva():
+            messages.success(
+                request, 
+                f"La devolución de {reserva.cliente.get_full_name()} ha sido procesada correctamente."
+            )
+            if necesita_servicio:
+                messages.info(request, "Se ha registrado que la maquinaria necesita servicio técnico.")
+        else:
+            messages.error(request, "No se pudo finalizar la reserva. Contacte al administrador.")
+    
+    return redirect('reservas:procesar_reservas')

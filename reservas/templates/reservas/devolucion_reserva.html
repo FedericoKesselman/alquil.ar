@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Devolución de Reserva{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0"><i class="bi bi-arrow-return-left"></i> Devolución de Reserva</h4>
+                </div>
+                
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h5 class="mb-2">Información de la Reserva</h5>
+                        <p class="mb-1"><strong>Cliente:</strong> {{ reserva.cliente.get_full_name }}</p>
+                        <p class="mb-1"><strong>DNI:</strong> {{ reserva.cliente.dni }}</p>
+                        <p class="mb-1"><strong>Maquinaria:</strong> {{ reserva.maquinaria.nombre }}</p>
+                        <p class="mb-1"><strong>Cantidad:</strong> {{ reserva.cantidad_solicitada }}</p>
+                        <p class="mb-1"><strong>Fecha Inicio:</strong> {{ reserva.fecha_inicio|date:"d/m/Y" }}</p>
+                        <p class="mb-0"><strong>Fecha Fin:</strong> {{ reserva.fecha_fin|date:"d/m/Y" }}</p>
+                    </div>
+                    
+                    <form method="post" action="{% url 'reservas:confirmar_devolucion' reserva.id %}" id="form-devolucion">
+                        {% csrf_token %}
+                        <div class="mb-4">
+                            <div class="form-check">
+                                {{ form.necesita_servicio }}
+                                <label class="form-check-label" for="{{ form.necesita_servicio.id_for_label }}">
+                                    {{ form.necesita_servicio.label }}
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="{{ form.observaciones.id_for_label }}" class="form-label fw-bold">
+                                {{ form.observaciones.label }}
+                            </label>
+                            {{ form.observaciones }}
+                            {% if form.observaciones.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.observaciones.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-success" id="btn-confirmar-devolucion">
+                                <i class="bi bi-check-lg"></i> Confirmar Devolución
+                            </button>
+                            <a href="{% url 'reservas:procesar_reservas' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-lg"></i> Cancelar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Confirmar antes de procesar la devolución
+        document.getElementById('form-devolucion').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            if (confirm('¿Está seguro de que desea registrar la devolución de esta reserva?')) {
+                this.submit();
+            }
+        });
+    });
+</script>
+{% endblock %}

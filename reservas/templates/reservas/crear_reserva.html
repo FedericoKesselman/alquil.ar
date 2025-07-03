@@ -130,16 +130,16 @@
           {% endif %}
 
           {% if user.tipo == 'EMPLEADO' %}
-          <!-- Campo de selección de cliente (solo para empleados) -->
+          <!-- Campo de DNI del cliente (solo para empleados) -->
           <div class="form-group mb-4">
-            <label for="{{ form.cliente.id_for_label }}" class="form-label">{{ form.cliente.label }}</label>
-            {{ form.cliente }}
-            {% if form.cliente.help_text %}
-            <div class="help-text">{{ form.cliente.help_text }}</div>
+            <label for="{{ form.dni_cliente.id_for_label }}" class="form-label">{{ form.dni_cliente.label }}</label>
+            {{ form.dni_cliente }}
+            {% if form.dni_cliente.help_text %}
+            <div class="help-text">{{ form.dni_cliente.help_text }}</div>
             {% endif %}
-            {% if form.cliente.errors %}
+            {% if form.dni_cliente.errors %}
             <div class="text-danger">
-              {% for error in form.cliente.errors %}
+              {% for error in form.dni_cliente.errors %}
               <small>{{ error }}</small>
               {% endfor %}
             </div>

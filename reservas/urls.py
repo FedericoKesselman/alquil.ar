@@ -21,6 +21,8 @@ urlpatterns = [
     # URLs para empleados
     path('procesar-reservas/', views.procesar_reservas, name='procesar_reservas'),
     path('finalizar-por-codigo/', views.finalizar_reserva_por_codigo, name='finalizar_reserva_por_codigo'),
+    path('devolucion/<int:reserva_id>/', views.devolucion_reserva, name='devolucion_reserva'),
+    path('confirmar-devolucion/<int:reserva_id>/', views.confirmar_devolucion, name='confirmar_devolucion'),
     
     # URLs para verificación AJAX
     path('verificar-disponibilidad/', views.verificar_disponibilidad_ajax, name='verificar_disponibilidad_ajax'),
