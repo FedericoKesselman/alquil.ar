@@ -2,6 +2,9 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
+from django.db.models.signals import pre_save
+from django.dispatch import receiver
+from django.core.exceptions import ValidationError
 
 # Aca van las declaraciones de las tablas de la base de datos
 
@@ -15,6 +18,61 @@ class Sucursal(models.Model):
 
     def __str__(self):
         return self.nombre
+        
+    def clean(self):
+        """
+        Validar que no se pueda desactivar una sucursal si tiene reservas activas
+        """
+        # Si estamos desactivando la sucursal (cambiando activa de True a False)
+        if not self.activa and self.pk:
+            # Verificar si el valor original era True (estamos desactivando)
+            original = Sucursal.objects.get(pk=self.pk)
+            if original.activa:
+                # Importar aquí para evitar importaciones circulares
+                from reservas.models import Reserva
+                
+                # Verificar si hay reservas activas para esta sucursal
+                active_reservations = Reserva.objects.filter(
+                    sucursal_retiro=self
+                ).exclude(
+                    estado='FINALIZADA'
+                ).exists()
+                
+                if active_reservations:
+                    from django.core.exceptions import ValidationError
+                    # Usar un error simple de texto sin formato de diccionario
+                    raise ValidationError("No se puede desactivar una sucursal con reservas en curso")
+        
+        return super().clean()
+        
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+        
+    def delete(self, *args, **kwargs):
+        """
+        Override the delete method to prevent deletion if the branch
+        is associated with any active (non-finalized) reservations
+        """
+        # Import here to avoid circular imports
+        from reservas.models import Reserva
+        
+        # Check if there are any active reservations for this branch
+        active_reservations = Reserva.objects.filter(
+            sucursal_retiro=self
+        ).exclude(
+            estado='FINALIZADA'
+        ).exists()
+        
+        if active_reservations:
+            from django.db.models.deletion import ProtectedError
+            raise ProtectedError(
+                "No se puede eliminar una sucursal con reservas en curso",
+                self
+            )
+        
+        # If no active reservations, proceed with deletion
+        super().delete(*args, **kwargs)
 
     def get_stock_disponible(self, maquinaria, fecha_inicio, fecha_fin, cantidad_solicitada):
         """
@@ -97,3 +155,35 @@ class Usuario(AbstractUser):
     
     def __str__(self):
         return f"{self.nombre} ({self.email})"
+
+# Signal para prevenir desactivación de sucursal con reservas activas
+@receiver(pre_save, sender=Sucursal)
+def prevent_sucursal_deactivation(sender, instance, **kwargs):
+    """
+    Prevent deactivation of a Sucursal if it has active reservations
+    """
+    # Only run for existing branches, not for new ones
+    if not instance.pk:
+        return
+    
+    # Check if we're deactivating the branch
+    try:
+        # Get the original branch from the database
+        original = Sucursal.objects.get(pk=instance.pk)
+        
+        # If we're changing from active to inactive
+        if original.activa and not instance.activa:
+            # Check for active reservations
+            from reservas.models import Reserva
+            has_active_reservations = Reserva.objects.filter(
+                sucursal_retiro=instance
+            ).exclude(
+                estado='FINALIZADA'
+            ).exists()
+            
+            if has_active_reservations:
+                # Use a simple error message without JSON formatting
+                raise ValidationError("No se puede desactivar una sucursal con reservas en curso")
+    except Sucursal.DoesNotExist:
+        # This should not happen, but just in case
+        pass

@@ -76,10 +76,61 @@ class Maquinaria(models.Model):
             for stock in self.stocks.select_related('sucursal').all()
         }
 
+    def delete(self, *args, **kwargs):
+        """
+        Override the delete method to prevent deletion if the machinery
+        is associated with any active (non-finalized) reservations
+        """
+        # Import here to avoid circular imports
+        from reservas.models import Reserva
+        
+        # Check if there are any active reservations for this machinery
+        active_reservations = Reserva.objects.filter(
+            maquinaria=self
+        ).exclude(
+            estado='FINALIZADA'
+        ).exists()
+        
+        if active_reservations:
+            from django.db.models.deletion import ProtectedError
+            raise ProtectedError(
+                "No se puede eliminar una maquinaria con reservas en curso",
+                self
+            )
+        
+        # If no active reservations, proceed with deletion
+        super().delete(*args, **kwargs)
+
+    def clean(self):
+        """
+        Validate that critical properties can't be changed when there are active reservations
+        """
+        if self.pk:  # Only for existing objects (not for new ones)
+            # Get the original object from the database
+            original = Maquinaria.objects.get(pk=self.pk)
+            
+            # Import here to avoid circular imports
+            from reservas.models import Reserva
+            has_active_reservations = Reserva.objects.filter(
+                maquinaria=self
+            ).exclude(
+                estado='FINALIZADA'
+            ).exists()
+            
+            if has_active_reservations:
+                # Check if critical fields are being modified
+                if self.nombre != original.nombre or self.tipo != original.tipo:
+                    from django.core.exceptions import ValidationError
+                    raise ValidationError("No se pueden modificar los datos básicos de una maquinaria con reservas en curso")
+        
+        return super().clean()
+
     def save(self, *args, **kwargs):
-        # Primero guardar el objeto
+        # Run validation
+        self.full_clean()
+        # Save the object
         super().save(*args, **kwargs)
-        # Luego actualizar los stocks
+        # Then update stocks
         self.actualizar_stocks()
 
 class MaquinariaStock(models.Model):
