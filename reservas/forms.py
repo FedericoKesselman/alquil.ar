@@ -489,15 +489,30 @@ class ReservaPorCodigoForm(forms.Form):
 class DevolucionForm(forms.Form):
     """Formulario para procesar la devolución de una maquinaria"""
     
-    necesita_servicio = forms.BooleanField(
-        required=False,
-        label='¿La maquinaria necesita servicio técnico?',
-        widget=forms.CheckboxInput(
+    RATING_CHOICES = [
+        (0.5, '0.5 estrella'),
+        (1.0, '1 estrella'),
+        (1.5, '1.5 estrellas'),
+        (2.0, '2 estrellas'),
+        (2.5, '2.5 estrellas'),
+        (3.0, '3 estrellas'),
+        (3.5, '3.5 estrellas'),
+        (4.0, '4 estrellas'),
+        (4.5, '4.5 estrellas'),
+        (5.0, '5 estrellas'),
+    ]
+    
+    calificacion_cliente = forms.FloatField(
+        required=True,
+        label='Calificación del cliente',
+        widget=forms.HiddenInput(
             attrs={
-                'class': 'form-check-input',
-                'id': 'necesita-servicio'
+                'id': 'calificacion-cliente-input'
             }
-        )
+        ),
+        initial=5.0,
+        min_value=0.5,
+        max_value=5.0
     )
     
     observaciones = forms.CharField(

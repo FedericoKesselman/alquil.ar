@@ -390,24 +390,18 @@ def lista_reservas(request):
     estado = request.GET.get('estado')
     fecha_desde = request.GET.get('fecha_desde')
     fecha_hasta = request.GET.get('fecha_hasta')
-    cliente_id = request.GET.get('cliente')
-    empleado_id = request.GET.get('empleado')
+    cliente_dni = request.GET.get('cliente_dni', '').strip()
+    empleado_dni = request.GET.get('empleado_dni', '').strip()
     sucursal_id = request.GET.get('sucursal')
       # Iniciar el queryset base según el tipo de usuario
     if request.user.tipo == 'ADMIN' or request.user.tipo == 'EMPLEADO':
         # Administradores y empleados ven todas las reservas
         reservas = Reserva.objects.all()
-        # Obtener lista de clientes para el filtro
-        clientes = Usuario.objects.filter(tipo='CLIENTE').order_by('email')
-        # Obtener lista de empleados para el filtro
-        empleados = Usuario.objects.filter(tipo='EMPLEADO').order_by('email')
         # Obtener lista de sucursales para el filtro
         sucursales = Sucursal.objects.filter(activa=True).order_by('nombre')
     else:
         # Clientes ven sus propias reservas
         reservas = Reserva.objects.filter(cliente=request.user)
-        clientes = None
-        empleados = None
         sucursales = None
       # Aplicar filtros si existen
     if estado:
@@ -419,19 +413,28 @@ def lista_reservas(request):
     if fecha_hasta:
         reservas = reservas.filter(fecha_fin__lte=fecha_hasta)
         
-    if cliente_id and (request.user.tipo in ['ADMIN', 'EMPLEADO']):
-        reservas = reservas.filter(cliente_id=cliente_id)
+    if cliente_dni and (request.user.tipo in ['ADMIN', 'EMPLEADO']):
+        # Filtrar por DNI de cliente (búsqueda parcial)
+        cliente_ids = Usuario.objects.filter(
+            tipo='CLIENTE', 
+            dni__icontains=cliente_dni
+        ).values_list('id', flat=True)
+        reservas = reservas.filter(cliente_id__in=cliente_ids)
         
-    if empleado_id and (request.user.tipo in ['ADMIN', 'EMPLEADO']):
-        reservas = reservas.filter(empleado_procesador_id=empleado_id)
+    if empleado_dni and (request.user.tipo in ['ADMIN', 'EMPLEADO']):
+        # Filtrar por DNI de empleado (búsqueda parcial)
+        empleado_ids = Usuario.objects.filter(
+            tipo='EMPLEADO', 
+            dni__icontains=empleado_dni
+        ).values_list('id', flat=True)
+        reservas = reservas.filter(empleado_procesador_id__in=empleado_ids)
         
     if sucursal_id and (request.user.tipo in ['ADMIN', 'EMPLEADO']):
         reservas = reservas.filter(sucursal_retiro_id=sucursal_id)
     
     # Ordenar por fecha de creación (más recientes primero)
     reservas = reservas.order_by('-fecha_creacion')
-    
-    # Paginación
+      # Paginación
     paginator = Paginator(reservas, 10)  # 10 reservas por página
     page = request.GET.get('page')
     reservas_paginadas = paginator.get_page(page)
@@ -441,9 +444,9 @@ def lista_reservas(request):
         'is_paginated': True if reservas.count() > 10 else False,
         'page_obj': reservas_paginadas,
         'titulo': 'Historial de Reservas',
-        'clientes': clientes,  # Lista de clientes para el filtro
-        'empleados': empleados,  # Lista de empleados para el filtro
         'sucursales': sucursales,  # Lista de sucursales para el filtro
+        'cliente_dni': cliente_dni,  # DNI del cliente para mantener el filtro
+        'empleado_dni': empleado_dni,  # DNI del empleado para mantener el filtro
     }
     
     return render(request, 'reservas/lista_reservas.html', context)
@@ -918,29 +921,52 @@ def confirmar_devolucion(request, reserva_id):
             f"No puedes procesarla desde {request.user.sucursal.nombre}."
         )
         return redirect('reservas:procesar_reservas')
-    
     form = DevolucionForm(request.POST)
-    
     if form.is_valid():
-        # Aquí iría la lógica para registrar la devolución y si necesita servicio
-        # Por ahora solo finalizamos la reserva
-        necesita_servicio = form.cleaned_data.get('necesita_servicio', False)
+        # Obtener la calificación del cliente y las observaciones
+        calificacion_cliente = form.cleaned_data.get('calificacion_cliente', 5.0)
         observaciones = form.cleaned_data.get('observaciones', '')
         
         # Actualizar las observaciones de la reserva
         if observaciones:
             reserva.observaciones = (reserva.observaciones or "") + f"\n\nDEVOLUCIÓN: {observaciones}"
-            
-        # TODO: En el futuro, registrar si la maquinaria necesita servicio
         
-        # Finalizar la reserva
+        # Guardar los cambios en la reserva
+        reserva.save()
+            
+        # Registrar la calificación en el historial
+        from usuarios.calificaciones import CalificacionCliente
+        
+        # Verificar si ya existe una calificación para esta reserva
+        calificacion, creado = CalificacionCliente.objects.get_or_create(
+            reserva=reserva,
+            defaults={
+                'cliente': reserva.cliente,
+                'calificacion': calificacion_cliente,
+                'observaciones': observaciones
+            }
+        )
+        
+        # Si la calificación ya existía, actualizarla
+        if not creado:
+            calificacion.calificacion = calificacion_cliente
+            calificacion.observaciones = observaciones
+            calificacion.save()
+        
+        # Actualizar el promedio de calificaciones del cliente
+        cliente = reserva.cliente
+        cliente.actualizar_calificacion_promedio()
+          # Finalizar la reserva
         if reserva.finalizar_reserva():
             messages.success(
                 request, 
                 f"La devolución de {reserva.cliente.get_full_name()} ha sido procesada correctamente."
             )
-            if necesita_servicio:
-                messages.info(request, "Se ha registrado que la maquinaria necesita servicio técnico.")
+            messages.info(
+                request, 
+                f"Se ha registrado una calificación de {calificacion_cliente} estrellas para el cliente. "
+                f"Su calificación promedio actual es {reserva.cliente.calificacion} estrellas."
+            )
         else:
             messages.error(request, "No se pudo finalizar la reserva. Contacte al administrador.")
     

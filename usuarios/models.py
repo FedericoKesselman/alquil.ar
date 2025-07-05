@@ -64,6 +64,11 @@ class Usuario(AbstractUser):
     telefono = models.CharField(max_length=20)
     fecha_nacimiento = models.DateField()  
     sucursal = models.ForeignKey(Sucursal, on_delete=models.SET_NULL, null=True, blank=True)
+    calificacion = models.FloatField(
+        default=5.0, 
+        verbose_name="Calificación del cliente",
+        help_text="Calificación del cliente en escala de 0.5 a 5 estrellas"
+    )
     
     # Campos para 2FA
     token_2fa = models.CharField(
@@ -94,6 +99,25 @@ class Usuario(AbstractUser):
         default=False,
         verbose_name="Token usado"
     )
-    
     def __str__(self):
         return f"{self.nombre} ({self.email})"
+        
+    def actualizar_calificacion_promedio(self):
+        """
+        Actualiza la calificación promedio del cliente basado en su historial de calificaciones.
+        """
+        from usuarios.calificaciones import CalificacionCliente
+        
+        # Obtener todas las calificaciones del cliente
+        calificaciones = CalificacionCliente.objects.filter(cliente=self)
+        
+        if calificaciones.exists():
+            # Calcular el promedio
+            total_calificaciones = sum(c.calificacion for c in calificaciones)
+            promedio = total_calificaciones / calificaciones.count()
+            
+            # Actualizar la calificación del cliente
+            self.calificacion = round(promedio * 2) / 2  # Redondear al 0.5 más cercano
+            self.save(update_fields=['calificacion'])
+        
+        return self.calificacion

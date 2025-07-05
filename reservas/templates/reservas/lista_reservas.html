@@ -99,18 +99,11 @@
 
     <!-- Filtros -->
     <div class="filters mb-4">
-        <form method="get" class="row g-3">
-            {% if user.tipo == 'ADMIN' or user.tipo == 'EMPLEADO' %}
+        <form method="get" class="row g-3">            {% if user.tipo == 'ADMIN' or user.tipo == 'EMPLEADO' %}
             <div class="col-md-3">
-                <label for="cliente" class="form-label">Cliente</label>
-                <select name="cliente" id="cliente" class="form-select">
-                    <option value="">Todos los clientes</option>
-                    {% for cliente in clientes %}
-                    <option value="{{ cliente.id }}" {% if request.GET.cliente|stringformat:"s" == cliente.id|stringformat:"s" %}selected{% endif %}>
-                        {{ cliente.email }}
-                    </option>
-                    {% endfor %}
-                </select>
+                <label for="cliente_dni" class="form-label">DNI Cliente</label>
+                <input type="text" name="cliente_dni" id="cliente_dni" class="form-control" 
+                       value="{{ cliente_dni }}" placeholder="Buscar por DNI">
             </div>
             {% endif %}
               {% if user.tipo == 'ADMIN' or user.tipo == 'EMPLEADO' %}
@@ -125,19 +118,11 @@
                     {% endfor %}
                 </select>
             </div>
-            {% endif %}
-
-            {% if user.tipo == 'ADMIN' or user.tipo == 'EMPLEADO' %}
+            {% endif %}            {% if user.tipo == 'ADMIN' or user.tipo == 'EMPLEADO' %}
             <div class="col-md-3">
-                <label for="empleado" class="form-label">Empleado Procesador</label>
-                <select name="empleado" id="empleado" class="form-select">
-                    <option value="">Todos los empleados</option>
-                    {% for emp in empleados %}
-                    <option value="{{ emp.id }}" {% if request.GET.empleado|stringformat:"s" == emp.id|stringformat:"s" %}selected{% endif %}>
-                        {{ emp.email }}
-                    </option>
-                    {% endfor %}
-                </select>
+                <label for="empleado_dni" class="form-label">DNI Empleado Procesador</label>
+                <input type="text" name="empleado_dni" id="empleado_dni" class="form-control" 
+                       value="{{ empleado_dni }}" placeholder="Buscar por DNI">
             </div>
             {% endif %}
             
@@ -183,7 +168,7 @@
         <div class="reservation-card">
             <div class="reservation-header d-flex justify-content-between align-items-center">
                 <div>
-                    <h5 class="mb-0">Reserva #{{ reserva.id }}</h5>
+                    <h5 class="mb-0">Reserva {{ reserva.codigo_reserva }}</h5>
                     <small class="text-muted">{{ reserva.fecha_creacion|date:"d/m/Y H:i" }}</small>
                 </div>
                 <span class="status-badge status-{{ reserva.estado|lower }}">
@@ -221,17 +206,16 @@
                         </div>
                     </div>
                 </div>
-                  <div class="mt-3 pt-3 border-top">
-                    {% if user.tipo == 'ADMIN' or user.tipo == 'EMPLEADO' %}
+                  <div class="mt-3 pt-3 border-top">                    {% if user.tipo == 'ADMIN' or user.tipo == 'EMPLEADO' %}
                     <div class="detail-row">
                         <span class="detail-label">Cliente:</span>
-                        <span class="detail-value">{{ reserva.cliente.email }}</span>
+                        <span class="detail-value">{{ reserva.cliente.dni }}</span>
                     </div>
                     {% endif %}
                     {% if reserva.empleado_procesador %}
                     <div class="detail-row">
                         <span class="detail-label">Procesado por:</span>
-                        <span class="detail-value">{{ reserva.empleado_procesador.email }}</span>
+                        <span class="detail-value">{{ reserva.empleado_procesador.dni }}</span>
                     </div>
                     {% endif %}
                 </div>                  <div class="mt-3">
@@ -255,8 +239,7 @@
         <nav aria-label="Navegación de páginas">
             <ul class="pagination justify-content-center">
                 {% if page_obj.has_previous %}
-                <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.estado %}&estado={{ request.GET.estado }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}">
+                <li class="page-item">                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.estado %}&estado={{ request.GET.estado }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}{% if request.GET.cliente_dni %}&cliente_dni={{ request.GET.cliente_dni }}{% endif %}{% if request.GET.empleado_dni %}&empleado_dni={{ request.GET.empleado_dni }}{% endif %}{% if request.GET.sucursal %}&sucursal={{ request.GET.sucursal }}{% endif %}">
                         Anterior
                     </a>
                 </li>
@@ -268,8 +251,7 @@
                         <span class="page-link">{{ num }}</span>
                     </li>
                     {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ num }}{% if request.GET.estado %}&estado={{ request.GET.estado }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}">
+                    <li class="page-item">                        <a class="page-link" href="?page={{ num }}{% if request.GET.estado %}&estado={{ request.GET.estado }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}{% if request.GET.cliente_dni %}&cliente_dni={{ request.GET.cliente_dni }}{% endif %}{% if request.GET.empleado_dni %}&empleado_dni={{ request.GET.empleado_dni }}{% endif %}{% if request.GET.sucursal %}&sucursal={{ request.GET.sucursal }}{% endif %}">
                             {{ num }}
                         </a>
                     </li>
@@ -277,8 +259,7 @@
                 {% endfor %}
                 
                 {% if page_obj.has_next %}
-                <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.estado %}&estado={{ request.GET.estado }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}">
+                <li class="page-item">                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.estado %}&estado={{ request.GET.estado }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}{% if request.GET.cliente_dni %}&cliente_dni={{ request.GET.cliente_dni }}{% endif %}{% if request.GET.empleado_dni %}&empleado_dni={{ request.GET.empleado_dni }}{% endif %}{% if request.GET.sucursal %}&sucursal={{ request.GET.sucursal }}{% endif %}">
                         Siguiente
                     </a>
                 </li>

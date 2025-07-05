@@ -26,11 +26,17 @@
                     <form method="post" action="{% url 'reservas:confirmar_devolucion' reserva.id %}" id="form-devolucion">
                         {% csrf_token %}
                         <div class="mb-4">
-                            <div class="form-check">
-                                {{ form.necesita_servicio }}
-                                <label class="form-check-label" for="{{ form.necesita_servicio.id_for_label }}">
-                                    {{ form.necesita_servicio.label }}
-                                </label>
+                            <label class="form-label fw-bold">Calificación del Cliente</label>
+                            {{ form.calificacion_cliente }}
+                            <div class="star-rating-container">
+                                <div class="star-rating">
+                                    <span class="star" data-rating="1"><i class="bi bi-star-fill"></i></span>
+                                    <span class="star" data-rating="2"><i class="bi bi-star-fill"></i></span>
+                                    <span class="star" data-rating="3"><i class="bi bi-star-fill"></i></span>
+                                    <span class="star" data-rating="4"><i class="bi bi-star-fill"></i></span>
+                                    <span class="star" data-rating="5"><i class="bi bi-star-fill"></i></span>
+                                </div>
+                                <span class="rating-value">5.0 estrellas</span>
                             </div>
                         </div>
                         
@@ -62,6 +68,57 @@
 </div>
 {% endblock %}
 
+{% block extra_css %}
+<style>
+    .star-rating-container {
+        margin-top: 10px;
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        text-align: center;
+    }
+    
+    .star-rating {
+        display: inline-flex;
+        font-size: 2.5rem;
+        position: relative;
+        margin-bottom: 10px;
+    }
+
+    .star {
+        cursor: pointer;
+        margin-right: 8px;
+        transition: all 0.2s ease;
+        display: inline-block;
+    }
+    
+    .star:hover {
+        transform: scale(1.1);
+    }
+    
+    .star i {
+        color: #ddd;
+    }
+    
+    .star.active i {
+        color: #FFD700; /* Dorado para estrellas activas */
+        text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    }
+    
+    .star.half-active i {
+        color: #FFD700; /* Dorado para medias estrellas */
+        text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    }
+    }
+
+    .rating-value {
+        margin-left: 10px;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
+
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -72,7 +129,94 @@
             if (confirm('¿Está seguro de que desea registrar la devolución de esta reserva?')) {
                 this.submit();
             }
+        });        // Sistema de calificación por estrellas
+        const stars = document.querySelectorAll('.star');
+        const ratingInput = document.getElementById('calificacion-cliente-input');
+        const ratingValue = document.querySelector('.rating-value');
+        let currentRating = 5.0; // Valor predeterminado
+
+        // Configurar estrellas iniciales (5 estrellas por defecto)
+        updateStarDisplay(currentRating);
+
+        stars.forEach((star, index) => {
+            const starValue = index + 1;
+            
+            star.addEventListener('click', function(e) {
+                // Determinar si se hizo clic en la mitad izquierda o derecha de la estrella
+                const rect = star.getBoundingClientRect();
+                const halfWidth = rect.width / 2;
+                const clickX = e.clientX - rect.left;
+                
+                // Calcular el valor de la calificación basado en la posición del clic
+                let rating;
+                if (clickX < halfWidth) {
+                    rating = starValue - 0.5; // Media estrella
+                } else {
+                    rating = starValue; // Estrella completa
+                }
+                
+                // Asegurarse de que la calificación mínima sea 0.5
+                rating = Math.max(0.5, rating);
+                
+                currentRating = rating;
+                ratingInput.value = rating;
+                ratingValue.textContent = `${rating} ${rating === 1.0 ? 'estrella' : 'estrellas'}`;
+                updateStarDisplay(rating);
+            });
+
+            star.addEventListener('mousemove', function(e) {
+                // Determinar si el mouse está sobre la mitad izquierda o derecha de la estrella
+                const rect = star.getBoundingClientRect();
+                const halfWidth = rect.width / 2;
+                const mouseX = e.clientX - rect.left;
+                
+                // Calcular el valor de la calificación basado en la posición del mouse
+                let rating;
+                if (mouseX < halfWidth) {
+                    rating = starValue - 0.5; // Media estrella
+                } else {
+                    rating = starValue; // Estrella completa
+                }
+                
+                // Asegurarse de que la calificación mínima sea 0.5
+                rating = Math.max(0.5, rating);
+                
+                updateStarDisplay(rating, true);
+            });
         });
+        
+        // Restablecer la pantalla cuando el mouse sale del área de estrellas
+        document.querySelector('.star-rating').addEventListener('mouseleave', function() {
+            updateStarDisplay(currentRating);
+        });
+
+        function updateStarDisplay(rating, isHover = false) {
+            const fullStars = Math.floor(rating);
+            const hasHalfStar = (rating % 1) !== 0;
+            
+            stars.forEach((star, index) => {
+                const starValue = index + 1;
+                star.classList.remove('active', 'half-active');
+                
+                if (starValue <= fullStars) {
+                    // Estrella completa
+                    star.classList.add('active');
+                    star.innerHTML = '<i class="bi bi-star-fill"></i>';
+                } else if (hasHalfStar && starValue === fullStars + 1) {
+                    // Media estrella
+                    star.classList.add('half-active');
+                    star.innerHTML = '<i class="bi bi-star-half"></i>';
+                } else {
+                    // Estrella vacía
+                    star.innerHTML = '<i class="bi bi-star"></i>';
+                }
+            });
+
+            if (!isHover) {
+                ratingInput.value = rating;
+                ratingValue.textContent = `${rating} ${rating === 1.0 ? 'estrella' : 'estrellas'}`;
+            }
+        }
     });
 </script>
 {% endblock %}
