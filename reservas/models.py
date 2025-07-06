@@ -19,6 +19,7 @@ class Reserva(models.Model):
         ('CONFIRMADA', 'Confirmada'),
         ('CANCELADA', 'Cancelada'),
         ('FINALIZADA', 'Finalizada'),
+        ('NO_DEVUELTA', 'No Devuelta'),
     ]
     
     TIPO_PAGO_CHOICES = [
@@ -198,10 +199,11 @@ class Reserva(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         
-        # Calcular precio total si no está definido
+        # Calcular precio total si no está definido, con posible recargo
         if not self.precio_total and self.maquinaria and self.fecha_inicio and self.fecha_fin:
             dias = (self.fecha_fin - self.fecha_inicio).days
-            self.precio_total = self.maquinaria.precio_por_dia * dias * self.cantidad_solicitada
+            precio_por_dia, _ = self.maquinaria.get_precio_para_cliente(self.cliente)
+            self.precio_total = precio_por_dia * dias * self.cantidad_solicitada
         
         super().save(*args, **kwargs)
 
@@ -212,8 +214,9 @@ class Reserva(models.Model):
             return (self.fecha_fin - self.fecha_inicio).days
         return 0    @property
     def precio_por_dia_total(self):
-        """Precio por día considerando la cantidad solicitada"""
-        return self.maquinaria.precio_por_dia * self.cantidad_solicitada
+        """Precio por día considerando la cantidad solicitada y posible recargo"""
+        precio_por_dia, _ = self.maquinaria.get_precio_para_cliente(self.cliente)
+        return precio_por_dia * self.cantidad_solicitada
         
     def confirmar_pago(self, empleado=None):
         """Confirma el pago de la reserva"""
@@ -376,7 +379,8 @@ class Reserva(models.Model):
         Returns:
             bool: True si se finalizó exitosamente
         """
-        if self.estado not in ['CONFIRMADA', 'CANCELADA']:
+        # Permitir finalizar reservas que estén en estado CONFIRMADA, CANCELADA o NO_DEVUELTA
+        if self.estado not in ['CONFIRMADA', 'CANCELADA', 'NO_DEVUELTA']:
             return False
         
         # Cambiar estado a finalizada
@@ -505,3 +509,46 @@ class Reserva(models.Model):
         else:
             # Sin reembolso (0%)
             return 0, 0
+    
+    def verificar_vencimiento(self):
+        """
+        Verifica si la fecha de fin ha pasado sin que la reserva haya sido finalizada,
+        y en ese caso actualiza el estado a NO_DEVUELTA.
+        
+        Returns:
+            bool: True si se actualizó el estado, False en caso contrario
+        """
+        # Solo comprobar reservas CONFIRMADAS
+        if self.estado != 'CONFIRMADA':
+            return False
+            
+        # Si la fecha de fin ha pasado y aún no está finalizada o marcada como no devuelta
+        if self.fecha_fin < timezone.now().date():
+            self.estado = 'NO_DEVUELTA'
+            self.save(update_fields=['estado'])
+            return True
+            
+        return False
+        
+    @classmethod
+    def actualizar_reservas_vencidas(cls):
+        """
+        Método de clase que actualiza todas las reservas confirmadas que ya han pasado su fecha
+        de fin y las marca como NO_DEVUELTA.
+        
+        Returns:
+            int: Número de reservas actualizadas
+        """
+        # Obtener todas las reservas confirmadas cuya fecha de fin ha pasado
+        reservas_vencidas = cls.objects.filter(
+            estado='CONFIRMADA',
+            fecha_fin__lt=timezone.now().date()
+        )
+        
+        contador = 0
+        for reserva in reservas_vencidas:
+            reserva.estado = 'NO_DEVUELTA'
+            reserva.save(update_fields=['estado'])
+            contador += 1
+            
+        return contador

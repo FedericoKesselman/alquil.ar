@@ -96,12 +96,13 @@ def crear_reserva(request, maquinaria_id):
                 cliente = form.cleaned_data['cliente']
                 reserva.cliente = cliente
                 
-            # Calcular precio total
+            # Calcular precio total con posible recargo para clientes con baja calificación
             dias = (reserva.fecha_fin - reserva.fecha_inicio).days
-            reserva.precio_total = maquinaria.precio_por_dia * dias * reserva.cantidad_solicitada
+            precio_por_dia = maquinaria.get_precio_para_cliente(reserva.cliente)
+            reserva.precio_total = precio_por_dia * dias * reserva.cantidad_solicitada
             
             if request.user.tipo == 'EMPLEADO':
-                # Para empleados, redirigir a la página de confirmación
+                # Para empleados, guardar datos en sesión y redirigir a la página de confirmación
                 request.session['reserva_data'] = {
                     'cliente_id': cliente.id,
                     'cliente_dni': cliente.dni,  # Guardar el DNI del cliente
@@ -116,14 +117,18 @@ def crear_reserva(request, maquinaria_id):
                 messages.info(request, "Por favor, confirme los detalles de la reserva.")
                 return redirect('reservas:confirmar_reservas')
             else:
-                # Para clientes, guardar como pendiente y redirigir al pago
-                reserva.cliente = request.user
-                reserva.estado = 'PENDIENTE_PAGO'
-                reserva.tipo_pago = 'ONLINE'
-                reserva.save()
-                # TODO: Redirigir a la página de pago cuando esté implementada
-                messages.info(request, "Página de pago en construcción")
-                return redirect('home')
+                # Para clientes, guardar datos en sesión y redirigir a la página de confirmación/pago
+                request.session['reserva_data'] = {
+                    'cliente_id': request.user.id,
+                    'maquinaria_id': maquinaria.id,
+                    'fecha_inicio': form.cleaned_data['fecha_inicio'].isoformat(),
+                    'fecha_fin': form.cleaned_data['fecha_fin'].isoformat(),
+                    'cantidad_solicitada': form.cleaned_data['cantidad_solicitada'],
+                    'sucursal_retiro_id': form.cleaned_data['sucursal_retiro'].id,
+                    'precio_total': str(reserva.precio_total)
+                }
+                messages.info(request, "Por favor, confirme los detalles de la reserva.")
+                return redirect('reservas:confirmar_reserva_cliente')
         else:
             messages.error(request, "Por favor, corrija los errores en el formulario.")
     else:
@@ -134,11 +139,22 @@ def crear_reserva(request, maquinaria_id):
             initial_data['cliente'] = request.user.id
         form = ReservaForm(initial=initial_data, maquinaria=maquinaria, usuario=request.user)
     
-    return render(request, 'reservas/crear_reserva.html', {
+    context = {
         'form': form,
         'maquinaria': maquinaria,
         'titulo': 'Crear Reserva'
-    })
+    }
+    
+    # Añadir información de recargo si el usuario es un cliente con baja calificación
+    if request.user.tipo == 'CLIENTE':
+        if request.user.calificacion <= 1.0:
+            context['aplicar_recargo'] = True
+            context['porcentaje_recargo'] = 30
+        elif request.user.calificacion <= 2.0:
+            context['aplicar_recargo'] = True
+            context['porcentaje_recargo'] = 20
+        
+    return render(request, 'reservas/crear_reserva.html', context)
 
 
 @login_required
@@ -172,12 +188,16 @@ def confirmar_reservas(request):
                     messages.error(request, "El cliente ya tiene una reserva activa o cancelada. No puede tener más de una reserva.")
                     return redirect('home')
                 
-                # Obtener la maquinaria para calcular el precio total
+                # Obtener la maquinaria y cliente para calcular el precio total
                 maquinaria = Maquinaria.objects.get(id=reserva_data['maquinaria_id'])
+                cliente = Usuario.objects.get(id=reserva_data['cliente_id'])
                 fecha_inicio = datetime.strptime(reserva_data['fecha_inicio'], '%Y-%m-%d').date()
                 fecha_fin = datetime.strptime(reserva_data['fecha_fin'], '%Y-%m-%d').date()
                 dias = (fecha_fin - fecha_inicio).days + 1
-                precio_total = maquinaria.precio_por_dia * dias * reserva_data['cantidad_solicitada']
+                
+                # Aplicar recargo según calificación del cliente
+                precio_por_dia, _ = maquinaria.get_precio_para_cliente(cliente)
+                precio_total = precio_por_dia * dias * reserva_data['cantidad_solicitada']
                 
                 # Crear la reserva
                 reserva = Reserva.objects.create(
@@ -260,7 +280,10 @@ def confirmar_reservas(request):
     fecha_inicio = datetime.strptime(reserva_data['fecha_inicio'], '%Y-%m-%d').date()
     fecha_fin = datetime.strptime(reserva_data['fecha_fin'], '%Y-%m-%d').date()
     dias = (fecha_fin - fecha_inicio).days + 1
-    precio_total = maquinaria.precio_por_dia * dias * reserva_data['cantidad_solicitada']
+    
+    # Aplicar recargo según calificación del cliente
+    precio_por_dia, porcentaje_recargo = maquinaria.get_precio_para_cliente(cliente)
+    precio_total = precio_por_dia * dias * reserva_data['cantidad_solicitada']
     
     context = {
         'cliente': cliente,
@@ -278,6 +301,145 @@ def confirmar_reservas(request):
 
 @login_required
 @solo_cliente
+def confirmar_reserva_cliente(request):
+    """
+    Vista para confirmar reservas pendientes por parte de clientes.
+    Solo accesible por clientes.
+    """
+    logger = logging.getLogger(__name__)
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'confirmar':
+            try:
+                # Obtener datos de la reserva de la sesión
+                reserva_data = request.session.get('reserva_data')
+                if not reserva_data:
+                    messages.error(request, "No hay datos de reserva para confirmar")
+                    return redirect('home')
+                
+                # Verificar si el cliente ya tiene una reserva confirmada o cancelada
+                cliente = request.user
+                reserva_existente = Reserva.objects.filter(
+                    cliente=cliente,
+                    estado__in=['CONFIRMADA', 'CANCELADA']
+                ).exists()
+                
+                if reserva_existente:
+                    messages.error(request, "Ya tienes una reserva activa o cancelada. No puedes tener más de una reserva.")
+                    return redirect('home')
+                
+                # Obtener la maquinaria para calcular el precio total
+                maquinaria = Maquinaria.objects.get(id=reserva_data['maquinaria_id'])
+                fecha_inicio = datetime.strptime(reserva_data['fecha_inicio'], '%Y-%m-%d').date()
+                fecha_fin = datetime.strptime(reserva_data['fecha_fin'], '%Y-%m-%d').date()
+                dias = (fecha_fin - fecha_inicio).days
+                
+                # Aplicar recargo según calificación del cliente
+                precio_por_dia, _ = maquinaria.get_precio_para_cliente(cliente)
+                precio_total = precio_por_dia * dias * int(reserva_data['cantidad_solicitada'])
+                
+                # Crear la reserva
+                reserva = Reserva.objects.create(
+                    cliente=cliente,
+                    maquinaria_id=reserva_data['maquinaria_id'],
+                    fecha_inicio=reserva_data['fecha_inicio'],
+                    fecha_fin=reserva_data['fecha_fin'],
+                    cantidad_solicitada=int(reserva_data['cantidad_solicitada']),
+                    sucursal_retiro_id=reserva_data['sucursal_retiro_id'],
+                    tipo_pago='ONLINE',
+                    estado='PENDIENTE_PAGO',
+                    precio_total=precio_total
+                )
+                
+                # TODO: Proceso de pago online
+                # Por ahora, simplemente marcaremos la reserva como confirmada
+                try:
+                    if reserva.confirmar_reserva():
+                        messages.success(request, "¡Reserva confirmada exitosamente! Se ha enviado un correo con los detalles.")
+                    else:
+                        # Verificar disponibilidad
+                        try:
+                            maquinaria_stock = maquinaria.stocks.get(sucursal_id=reserva_data['sucursal_retiro_id'])
+                            stock_total = maquinaria_stock.stock_disponible
+                            
+                            # Obtener reservas superpuestas
+                            reservas_superpuestas = Reserva.objects.filter(
+                                maquinaria=maquinaria,
+                                sucursal_retiro_id=reserva_data['sucursal_retiro_id'],
+                                estado='CONFIRMADA',
+                                fecha_inicio__lte=fecha_fin,
+                                fecha_fin__gte=fecha_inicio
+                            )
+                            
+                            stock_reservado = sum(reserva.cantidad_solicitada for reserva in reservas_superpuestas)
+                            stock_disponible = stock_total - stock_reservado
+                            
+                            mensaje_error = f"Para las fechas seleccionadas solo hay {stock_disponible} unidad/es disponible/s. Por favor, seleccione una cantidad o fecha distinta."
+                        except Exception as e:
+                            mensaje_error = "No se pudo confirmar la reserva. Por favor, intente nuevamente."
+                            
+                        messages.error(request, mensaje_error)
+                        reserva.delete()
+                except Exception as e:
+                    logger.error(f"Error al confirmar reserva: {str(e)}")
+                    messages.error(request, "Error al confirmar la reserva")
+                    reserva.delete()
+                
+                # Limpiar datos de la sesión
+                if 'reserva_data' in request.session:
+                    del request.session['reserva_data']
+                
+                return redirect('home')
+            
+            except Exception as e:
+                logger.error(f"Error general: {str(e)}")
+                messages.error(request, "Error al procesar la reserva.")
+                return redirect('home')
+                
+        elif action == 'cancelar':
+            # Limpiar datos de la sesión y redirigir
+            if 'reserva_data' in request.session:
+                del request.session['reserva_data']
+            messages.info(request, "Proceso de reserva cancelado")
+            return redirect('maquinaria_list_cliente')
+    
+    # Mostrar formulario de confirmación con datos de la reserva
+    reserva_data = request.session.get('reserva_data')
+    if not reserva_data:
+        messages.error(request, "No hay datos de reserva para confirmar")
+        return redirect('home')
+    
+    # Obtener objetos relacionados para mostrar en la confirmación
+    cliente = request.user
+    maquinaria = get_object_or_404(Maquinaria, id=reserva_data['maquinaria_id'])
+    sucursal = get_object_or_404(Sucursal, id=reserva_data['sucursal_retiro_id'])
+    
+    # Calcular precio total con posible recargo
+    fecha_inicio = datetime.strptime(reserva_data['fecha_inicio'], '%Y-%m-%d').date()
+    fecha_fin = datetime.strptime(reserva_data['fecha_fin'], '%Y-%m-%d').date()
+    dias = (fecha_fin - fecha_inicio).days
+    precio_por_dia, porcentaje_recargo = maquinaria.get_precio_para_cliente(cliente)
+    precio_total = precio_por_dia * dias * int(reserva_data['cantidad_solicitada'])
+    
+    context = {
+        'cliente': cliente,
+        'maquinaria': maquinaria,
+        'sucursal': sucursal,
+        'fecha_inicio': reserva_data['fecha_inicio'],
+        'fecha_fin': reserva_data['fecha_fin'],
+        'cantidad_solicitada': reserva_data['cantidad_solicitada'],
+        'precio_total': precio_total,
+        'titulo': 'Confirmar Reserva',
+        'aplicar_recargo': porcentaje_recargo > 0,
+        'porcentaje_recargo': porcentaje_recargo
+    }
+    
+    return render(request, 'reservas/confirmar_reserva_cliente.html', context)
+
+@login_required
+@solo_empleado
 def seleccionar_sucursal(request):
     """Vista para seleccionar la sucursal de retiro"""
     reserva_data = request.session.get('reserva_data')
@@ -386,6 +548,11 @@ def procesar_pago(request, reserva_id):
 @login_required
 def lista_reservas(request):
     """Vista para listar reservas según el tipo de usuario"""
+    # Actualizar automáticamente las reservas vencidas
+    reservas_actualizadas = Reserva.actualizar_reservas_vencidas()
+    if reservas_actualizadas > 0 and (request.user.tipo == 'ADMIN' or request.user.tipo == 'EMPLEADO'):
+        messages.info(request, f"Se actualizaron {reservas_actualizadas} reservas vencidas a estado 'No Devuelta'.")
+    
     # Obtener parámetros de filtrado
     estado = request.GET.get('estado')
     fecha_desde = request.GET.get('fecha_desde')
@@ -789,25 +956,28 @@ def finalizar_reserva_por_codigo(request):
             )
             return redirect('reservas:procesar_reservas')
             
+        # Verificar si la reserva ha vencido (pasó su fecha de fin) y actualizarla si es necesario
+        reserva.verificar_vencimiento()
+        
         # Si se presionó el botón de devolución, redirigir al formulario de devolución
         print(f"Action check: '{action}' == 'devolucion'? {action == 'devolucion'}")
         if action == 'devolucion':
             print(f"Entrando en caso de devolución")
-            if reserva.estado == 'CONFIRMADA':
+            if reserva.estado in ['CONFIRMADA', 'NO_DEVUELTA']:
                 # Add debug message
                 messages.info(request, f"Redirigiendo a formulario de devolución para la reserva")
                 # Ensure using the correct URL name and parameter name
                 return redirect('reservas:devolucion_reserva', reserva_id=reserva.id)
             else:
-                print(f"Reserva no está en estado CONFIRMADA: {reserva.estado}")
+                print(f"Reserva no está en estado CONFIRMADA o NO_DEVUELTA: {reserva.estado}")
                 messages.warning(
                     request,
-                    f"Solo se pueden procesar devoluciones para reservas en estado CONFIRMADA."
+                    f"Solo se pueden procesar devoluciones para reservas en estado CONFIRMADA o NO DEVUELTA."
                 )
                 return redirect('reservas:procesar_reservas')
         
         # Procesar según el estado
-        if reserva.estado == 'CONFIRMADA':
+        if reserva.estado in ['CONFIRMADA', 'NO_DEVUELTA']:
             # Finalizar la reserva
             if reserva.finalizar_reserva():
                 messages.success(
@@ -871,9 +1041,12 @@ def devolucion_reserva(request, reserva_id):
     # Log información de la reserva
     print(f"Reserva encontrada: {reserva.id}, Estado: {reserva.estado}")
     
-    # Verificar que la reserva esté en estado CONFIRMADA
-    if reserva.estado != 'CONFIRMADA':
-        messages.error(request, "Solo se pueden procesar devoluciones para reservas en estado CONFIRMADA.")
+    # Verificar si la reserva ha vencido y actualizarla si es necesario
+    reserva.verificar_vencimiento()
+    
+    # Verificar que la reserva esté en estado CONFIRMADA o NO_DEVUELTA
+    if reserva.estado not in ['CONFIRMADA', 'NO_DEVUELTA']:
+        messages.error(request, "Solo se pueden procesar devoluciones para reservas en estado CONFIRMADA o NO DEVUELTA.")
         return redirect('reservas:procesar_reservas')
     
     # Verificar que la sucursal de la reserva coincida con la del empleado
@@ -908,9 +1081,12 @@ def confirmar_devolucion(request, reserva_id):
     # Obtener la reserva
     reserva = get_object_or_404(Reserva, id=reserva_id)
     
-    # Verificar que la reserva esté en estado CONFIRMADA
-    if reserva.estado != 'CONFIRMADA':
-        messages.error(request, "Solo se pueden procesar devoluciones para reservas en estado CONFIRMADA.")
+    # Verificar si la reserva ha vencido y actualizarla si es necesario
+    reserva.verificar_vencimiento()
+    
+    # Verificar que la reserva esté en estado CONFIRMADA o NO_DEVUELTA
+    if reserva.estado not in ['CONFIRMADA', 'NO_DEVUELTA']:
+        messages.error(request, "Solo se pueden procesar devoluciones para reservas en estado CONFIRMADA o NO DEVUELTA.")
         return redirect('reservas:procesar_reservas')
     
     # Verificar que la sucursal de la reserva coincida con la del empleado
