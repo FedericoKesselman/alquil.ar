@@ -19,6 +19,7 @@ class Reserva(models.Model):
         ('CONFIRMADA', 'Confirmada'),
         ('CANCELADA', 'Cancelada'),
         ('FINALIZADA', 'Finalizada'),
+        ('NO_DEVUELTA', 'No Devuelta'),
     ]
     
     TIPO_PAGO_CHOICES = [
@@ -177,11 +178,16 @@ class Reserva(models.Model):
         if self.cantidad_solicitada and self.cantidad_solicitada <= 0:
             errors['cantidad_solicitada'] = "La cantidad debe ser mayor a 0."
         
-        # Validar que el cliente sea realmente cliente
-        if self.cliente and self.cliente.tipo != 'CLIENTE':
-            # Si hay un empleado procesador, significa que es una reserva creada por un empleado
-            if not self.empleado_procesador:
-                errors['cliente'] = "Solo los usuarios tipo CLIENTE pueden hacer reservas."
+        # Validar que el cliente sea realmente cliente (solo si el cliente está establecido)
+        # Esto es necesario porque durante la validación del formulario, cliente puede no estar establecido todavía
+        try:
+            if self.cliente and self.cliente.tipo != 'CLIENTE':
+                # Si hay un empleado procesador, significa que es una reserva creada por un empleado
+                if not self.empleado_procesador:
+                    errors['cliente'] = "Solo los usuarios tipo CLIENTE pueden hacer reservas."
+        except Reserva.cliente.RelatedObjectDoesNotExist:
+            # El cliente aún no está establecido, lo cual es válido durante la validación del formulario
+            pass
         
         # Validar que el empleado procesador sea empleado (si existe)
         if self.empleado_procesador and self.empleado_procesador.tipo != 'EMPLEADO':
@@ -193,10 +199,11 @@ class Reserva(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         
-        # Calcular precio total si no está definido
+        # Calcular precio total si no está definido, con posible recargo
         if not self.precio_total and self.maquinaria and self.fecha_inicio and self.fecha_fin:
             dias = (self.fecha_fin - self.fecha_inicio).days
-            self.precio_total = self.maquinaria.precio_por_dia * dias * self.cantidad_solicitada
+            precio_por_dia, _ = self.maquinaria.get_precio_para_cliente(self.cliente)
+            self.precio_total = precio_por_dia * dias * self.cantidad_solicitada
         
         super().save(*args, **kwargs)
 
@@ -205,13 +212,12 @@ class Reserva(models.Model):
         """Calcula la cantidad de días de la reserva"""
         if self.fecha_inicio and self.fecha_fin:
             return (self.fecha_fin - self.fecha_inicio).days
-        return 0
-
-    @property
+        return 0    @property
     def precio_por_dia_total(self):
-        """Precio por día considerando la cantidad solicitada"""
-        return self.maquinaria.precio_por_dia * self.cantidad_solicitada
-
+        """Precio por día considerando la cantidad solicitada y posible recargo"""
+        precio_por_dia, _ = self.maquinaria.get_precio_para_cliente(self.cliente)
+        return precio_por_dia * self.cantidad_solicitada
+        
     def confirmar_pago(self, empleado=None):
         """Confirma el pago de la reserva"""
         if self.estado == 'PENDIENTE_PAGO':
@@ -222,7 +228,7 @@ class Reserva(models.Model):
             self.save()
             return True
         return False
-
+        
     def cancelar(self):
         """Cancela la reserva"""
         if self.estado in ['PENDIENTE_PAGO', 'CONFIRMADA']:
@@ -230,7 +236,7 @@ class Reserva(models.Model):
             self.save()
             return True
         return False
-
+        
     def confirmar_reserva(self):
         """
         Confirma la reserva y actualiza su estado.
@@ -260,25 +266,16 @@ class Reserva(models.Model):
         except Exception as e:
             logger.error(f"Error al confirmar reserva: {str(e)}")
             return False
-
+            
     def cancelar_reserva(self):
         """
-        Cancela una reserva y restaura el stock si estaba confirmada.
+        Cancela una reserva. No modifica el stock de la maquinaria.
         
         Returns:
             bool: True si se canceló exitosamente
         """
         if self.estado not in ['PENDIENTE_PAGO', 'CONFIRMADA']:
             return False
-        
-        # Si la reserva estaba confirmada, restaurar el stock
-        if self.estado == 'CONFIRMADA':
-            try:
-                maquinaria_stock = self.maquinaria.stocks.get(sucursal=self.sucursal_retiro)
-                maquinaria_stock.stock_disponible += self.cantidad_solicitada
-                maquinaria_stock.save()
-            except Exception as e:
-                print(f"Error al restaurar stock: {str(e)}")
         
         # Cambiar estado a cancelada
         self.estado = 'CANCELADA'
@@ -361,9 +358,8 @@ class Reserva(models.Model):
                     'sucursal': suc,
                     'stock_disponible': stock_final_disponible,
                     'stock_total': stock_sucursal.stock,
-                    'sucursal_id': suc.id
-                })
-        
+                    'sucursal_id': suc.id                })
+                
         disponible = len(sucursales_disponibles) > 0
         
         if disponible:
@@ -372,28 +368,19 @@ class Reserva(models.Model):
             mensaje = "No hay disponibilidad para las fechas y cantidad solicitadas"
         
         return {
-            'disponible': disponible,
-            'sucursales_disponibles': sucursales_disponibles,
+            'disponible': disponible,            'sucursales_disponibles': sucursales_disponibles,
             'mensaje': mensaje
         }
-
+        
     def finalizar_reserva(self):
         """
-        Finaliza una reserva y restaura el stock disponible.
+        Finaliza una reserva. No modifica el stock de la maquinaria.
         
         Returns:
             bool: True si se finalizó exitosamente
         """
-        if self.estado != 'CONFIRMADA':
-            return False
-        
-        # Restaurar el stock disponible
-        try:
-            maquinaria_stock = self.maquinaria.stocks.get(sucursal=self.sucursal_retiro)
-            maquinaria_stock.stock_disponible += self.cantidad_solicitada
-            maquinaria_stock.save()
-        except Exception as e:
-            print(f"Error al restaurar stock al finalizar reserva: {str(e)}")
+        # Permitir finalizar reservas que estén en estado CONFIRMADA, CANCELADA o NO_DEVUELTA
+        if self.estado not in ['CONFIRMADA', 'CANCELADA', 'NO_DEVUELTA']:
             return False
         
         # Cambiar estado a finalizada
@@ -467,3 +454,101 @@ class Reserva(models.Model):
         except Exception as e:
             logger.error(f"Error al verificar stock: {str(e)}")
             return False
+    
+    def is_active(self):
+        """
+        Verifica si la reserva está activa, es decir, si la fecha actual
+        está dentro del rango de fecha_inicio y fecha_fin.        
+        Returns:
+            bool: True si la fecha actual está en el rango, False en caso contrario
+        """
+        today = timezone.now().date()
+        return self.estado == 'CONFIRMADA' and self.fecha_inicio <= today <= self.fecha_fin
+        
+    def reembolsar_reserva(self):
+        """
+        Marca la reserva como cancelada por reembolso.
+        No modifica el stock de la maquinaria.
+        
+        Returns:
+            bool: True si el reembolso se procesó correctamente, False en caso contrario.
+        """
+        if self.estado != 'CONFIRMADA':
+            return False
+            
+        # Cambiar estado a cancelada
+        self.estado = 'CANCELADA'
+        self.save()
+        
+        return True
+        
+    def calcular_monto_reembolso(self, fecha_actual=None):
+        """
+        Calcula el monto a reembolsar según la política de la maquinaria.
+        
+        Args:
+            fecha_actual: La fecha desde la que calcular los días hasta el inicio 
+                         (por defecto la fecha actual del sistema)
+                         
+        Returns:
+            tuple: (monto_reembolso, porcentaje_reembolso)
+        """
+        if not fecha_actual:
+            fecha_actual = timezone.now().date()
+            
+        # Calcular días hasta el inicio de la reserva
+        dias_hasta_inicio = (self.fecha_inicio - fecha_actual).days
+        
+        # Determinar el porcentaje de reembolso según los días
+        if dias_hasta_inicio > self.maquinaria.cantDias_total:
+            # Reembolso total (100%)
+            return float(self.precio_total), 100
+        elif dias_hasta_inicio > self.maquinaria.cantDias_parcial:
+            # Reembolso parcial (50%)
+            return float(self.precio_total) * 0.5, 50
+        else:
+            # Sin reembolso (0%)
+            return 0, 0
+    
+    def verificar_vencimiento(self):
+        """
+        Verifica si la fecha de fin ha pasado sin que la reserva haya sido finalizada,
+        y en ese caso actualiza el estado a NO_DEVUELTA.
+        
+        Returns:
+            bool: True si se actualizó el estado, False en caso contrario
+        """
+        # Solo comprobar reservas CONFIRMADAS
+        if self.estado != 'CONFIRMADA':
+            return False
+            
+        # Si la fecha de fin ha pasado y aún no está finalizada o marcada como no devuelta
+        if self.fecha_fin < timezone.now().date():
+            self.estado = 'NO_DEVUELTA'
+            self.save(update_fields=['estado'])
+            return True
+            
+        return False
+        
+    @classmethod
+    def actualizar_reservas_vencidas(cls):
+        """
+        Método de clase que actualiza todas las reservas confirmadas que ya han pasado su fecha
+        de fin y las marca como NO_DEVUELTA.
+        
+        Returns:
+            int: Número de reservas actualizadas
+        """
+        # Obtener todas las reservas confirmadas cuya fecha de fin ha pasado
+        reservas_vencidas = cls.objects.filter(
+            estado='CONFIRMADA',
+            fecha_fin__lt=timezone.now().date()
+        )
+        
+        contador = 0
+        for reserva in reservas_vencidas:
+            reserva.estado = 'NO_DEVUELTA'
+            reserva.save(update_fields=['estado'])
+            contador += 1
+            
+        return contador

@@ -1,0 +1,222 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Devolución de Reserva{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0"><i class="bi bi-arrow-return-left"></i> Devolución de Reserva</h4>
+                </div>
+                
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h5 class="mb-2">Información de la Reserva</h5>
+                        <p class="mb-1"><strong>Cliente:</strong> {{ reserva.cliente.get_full_name }}</p>
+                        <p class="mb-1"><strong>DNI:</strong> {{ reserva.cliente.dni }}</p>
+                        <p class="mb-1"><strong>Maquinaria:</strong> {{ reserva.maquinaria.nombre }}</p>
+                        <p class="mb-1"><strong>Cantidad:</strong> {{ reserva.cantidad_solicitada }}</p>
+                        <p class="mb-1"><strong>Fecha Inicio:</strong> {{ reserva.fecha_inicio|date:"d/m/Y" }}</p>
+                        <p class="mb-0"><strong>Fecha Fin:</strong> {{ reserva.fecha_fin|date:"d/m/Y" }}</p>
+                    </div>
+                    
+                    <form method="post" action="{% url 'reservas:confirmar_devolucion' reserva.id %}" id="form-devolucion">
+                        {% csrf_token %}
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Calificación del Cliente</label>
+                            {{ form.calificacion_cliente }}
+                            <div class="star-rating-container">
+                                <div class="star-rating">
+                                    <span class="star" data-rating="1"><i class="bi bi-star-fill"></i></span>
+                                    <span class="star" data-rating="2"><i class="bi bi-star-fill"></i></span>
+                                    <span class="star" data-rating="3"><i class="bi bi-star-fill"></i></span>
+                                    <span class="star" data-rating="4"><i class="bi bi-star-fill"></i></span>
+                                    <span class="star" data-rating="5"><i class="bi bi-star-fill"></i></span>
+                                </div>
+                                <span class="rating-value">5.0 estrellas</span>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="{{ form.observaciones.id_for_label }}" class="form-label fw-bold">
+                                {{ form.observaciones.label }}
+                            </label>
+                            {{ form.observaciones }}
+                            {% if form.observaciones.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.observaciones.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-success" id="btn-confirmar-devolucion">
+                                <i class="bi bi-check-lg"></i> Confirmar Devolución
+                            </button>
+                            <a href="{% url 'reservas:procesar_reservas' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-lg"></i> Cancelar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .star-rating-container {
+        margin-top: 10px;
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        text-align: center;
+    }
+    
+    .star-rating {
+        display: inline-flex;
+        font-size: 2.5rem;
+        position: relative;
+        margin-bottom: 10px;
+    }
+
+    .star {
+        cursor: pointer;
+        margin-right: 8px;
+        transition: all 0.2s ease;
+        display: inline-block;
+    }
+    
+    .star:hover {
+        transform: scale(1.1);
+    }
+    
+    .star i {
+        color: #ddd;
+    }
+    
+    .star.active i {
+        color: #FFD700; /* Dorado para estrellas activas */
+        text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    }
+    
+    .star.half-active i {
+        color: #FFD700; /* Dorado para medias estrellas */
+        text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    }
+    }
+
+    .rating-value {
+        margin-left: 10px;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Confirmar antes de procesar la devolución
+        document.getElementById('form-devolucion').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            if (confirm('¿Está seguro de que desea registrar la devolución de esta reserva?')) {
+                this.submit();
+            }
+        });        // Sistema de calificación por estrellas
+        const stars = document.querySelectorAll('.star');
+        const ratingInput = document.getElementById('calificacion-cliente-input');
+        const ratingValue = document.querySelector('.rating-value');
+        let currentRating = 5.0; // Valor predeterminado
+
+        // Configurar estrellas iniciales (5 estrellas por defecto)
+        updateStarDisplay(currentRating);
+
+        stars.forEach((star, index) => {
+            const starValue = index + 1;
+            
+            star.addEventListener('click', function(e) {
+                // Determinar si se hizo clic en la mitad izquierda o derecha de la estrella
+                const rect = star.getBoundingClientRect();
+                const halfWidth = rect.width / 2;
+                const clickX = e.clientX - rect.left;
+                
+                // Calcular el valor de la calificación basado en la posición del clic
+                let rating;
+                if (clickX < halfWidth) {
+                    rating = starValue - 0.5; // Media estrella
+                } else {
+                    rating = starValue; // Estrella completa
+                }
+                
+                // Asegurarse de que la calificación mínima sea 0.5
+                rating = Math.max(0.5, rating);
+                
+                currentRating = rating;
+                ratingInput.value = rating;
+                ratingValue.textContent = `${rating} ${rating === 1.0 ? 'estrella' : 'estrellas'}`;
+                updateStarDisplay(rating);
+            });
+
+            star.addEventListener('mousemove', function(e) {
+                // Determinar si el mouse está sobre la mitad izquierda o derecha de la estrella
+                const rect = star.getBoundingClientRect();
+                const halfWidth = rect.width / 2;
+                const mouseX = e.clientX - rect.left;
+                
+                // Calcular el valor de la calificación basado en la posición del mouse
+                let rating;
+                if (mouseX < halfWidth) {
+                    rating = starValue - 0.5; // Media estrella
+                } else {
+                    rating = starValue; // Estrella completa
+                }
+                
+                // Asegurarse de que la calificación mínima sea 0.5
+                rating = Math.max(0.5, rating);
+                
+                updateStarDisplay(rating, true);
+            });
+        });
+        
+        // Restablecer la pantalla cuando el mouse sale del área de estrellas
+        document.querySelector('.star-rating').addEventListener('mouseleave', function() {
+            updateStarDisplay(currentRating);
+        });
+
+        function updateStarDisplay(rating, isHover = false) {
+            const fullStars = Math.floor(rating);
+            const hasHalfStar = (rating % 1) !== 0;
+            
+            stars.forEach((star, index) => {
+                const starValue = index + 1;
+                star.classList.remove('active', 'half-active');
+                
+                if (starValue <= fullStars) {
+                    // Estrella completa
+                    star.classList.add('active');
+                    star.innerHTML = '<i class="bi bi-star-fill"></i>';
+                } else if (hasHalfStar && starValue === fullStars + 1) {
+                    // Media estrella
+                    star.classList.add('half-active');
+                    star.innerHTML = '<i class="bi bi-star-half"></i>';
+                } else {
+                    // Estrella vacía
+                    star.innerHTML = '<i class="bi bi-star"></i>';
+                }
+            });
+
+            if (!isHover) {
+                ratingInput.value = rating;
+                ratingValue.textContent = `${rating} ${rating === 1.0 ? 'estrella' : 'estrellas'}`;
+            }
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Confirmar Reembolso{% endblock %}
+
+{% block extra_css %}
+<style>
+    .refund-card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 1.5rem;
+        padding: 2rem;
+    }
+    
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+        align-items: center;
+    }
+    
+    .detail-label {
+        color: #6c757d;
+        font-weight: 500;
+    }
+    
+    .detail-value {
+        color: #212529;
+        font-weight: 600;
+    }
+    
+    .refund-amount {
+        font-size: 1.5rem;
+        font-weight: bold;
+        padding: 1rem;
+        text-align: center;
+        margin: 1rem 0;
+        border-radius: 5px;
+    }
+    
+    .refund-full {
+        background-color: #d4edda;
+        color: #155724;
+    }
+    
+    .refund-partial {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+    
+    .refund-none {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>Confirmar Reembolso</h2>
+            <p class="text-muted">Revise los detalles del reembolso antes de confirmar</p>
+        </div>
+    </div>
+
+    <div class="refund-card">
+        <div class="row">
+            <div class="col-md-12">
+                <h4 class="mb-4">Detalles de la Reserva</h4>
+                
+                <div class="detail-row">
+                    <span class="detail-label">Número de Reserva:</span>
+                    <span class="detail-value">{{ reserva.id }}</span>
+                </div>
+                
+                <div class="detail-row">
+                    <span class="detail-label">Maquinaria:</span>
+                    <span class="detail-value">{{ reserva.maquinaria.nombre }}</span>
+                </div>
+                
+                <div class="detail-row">
+                    <span class="detail-label">Fecha de inicio:</span>
+                    <span class="detail-value">{{ reserva.fecha_inicio|date:"d/m/Y" }}</span>
+                </div>
+                
+                <div class="detail-row">
+                    <span class="detail-label">Fecha de fin:</span>
+                    <span class="detail-value">{{ reserva.fecha_fin|date:"d/m/Y" }}</span>
+                </div>
+                
+                <div class="detail-row">
+                    <span class="detail-label">Monto total de la reserva:</span>
+                    <span class="detail-value">${{ reserva.precio_total|floatformat:2 }}</span>
+                </div>
+                
+                <hr class="my-4">
+                
+                <h4 class="mb-4">Cálculo del Reembolso</h4>
+                
+                <div class="detail-row">
+                    <span class="detail-label">Fecha de solicitud:</span>
+                    <span class="detail-value">{{ fecha_actual|date:"d/m/Y" }}</span>
+                </div>
+                
+                <div class="detail-row">
+                    <span class="detail-label">Días hasta el inicio de la reserva:</span>
+                    <span class="detail-value">{{ dias_hasta_inicio }} día(s)</span>
+                </div>
+                
+                <div class="detail-row">
+                    <span class="detail-label">Política de reembolso:</span>
+                    <span class="detail-value">
+                        {% if dias_hasta_inicio > reserva.maquinaria.cantDias_total %}
+                            100% del monto (más de {{ reserva.maquinaria.cantDias_total }} días antes)
+                        {% elif dias_hasta_inicio > reserva.maquinaria.cantDias_parcial %}
+                            50% del monto (entre {{ reserva.maquinaria.cantDias_parcial }} y {{ reserva.maquinaria.cantDias_total }} días antes)
+                        {% else %}
+                            Sin reembolso (menos de {{ reserva.maquinaria.cantDias_parcial }} días antes)
+                        {% endif %}
+                    </span>
+                </div>
+                
+                <div class="refund-amount 
+                    {% if porcentaje_reembolso == 100 %}refund-full
+                    {% elif porcentaje_reembolso == 50 %}refund-partial
+                    {% else %}refund-none{% endif %}">
+                    Monto a reembolsar: ${{ monto_reembolso|floatformat:2 }} ({{ porcentaje_reembolso }}%)
+                </div>
+                
+                <div class="d-flex justify-content-between mt-4">
+                    <a href="{% url 'reservas:lista_reservas' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Volver
+                    </a>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-warning">
+                            <i class="bi bi-cash-coin"></i> Confirmar Reembolso
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

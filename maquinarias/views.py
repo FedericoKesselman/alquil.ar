@@ -188,8 +188,18 @@ def maquinaria_list_cliente(request):
             'precio_max': precio_max
         },
         'is_cliente': request.user.tipo == 'CLIENTE',
-        'is_empleado': request.user.tipo == 'EMPLEADO'
+        'is_empleado': request.user.tipo == 'EMPLEADO',
+        'cliente': request.user if request.user.is_authenticated and request.user.tipo == 'CLIENTE' else None
     }
+    
+    # Agregar información sobre recargos si es cliente
+    if request.user.is_authenticated and request.user.tipo == 'CLIENTE':
+        if request.user.calificacion <= 1.0:
+            context['aplicar_recargo'] = True
+            context['porcentaje_recargo'] = 30
+        elif request.user.calificacion <= 2.0:
+            context['aplicar_recargo'] = True
+            context['porcentaje_recargo'] = 20
     
     return render(request, 'maquinarias/maquinaria_list_cliente.html', context)
 
@@ -341,6 +351,14 @@ def maquinaria_detail(request, pk):
             context['stock_sucursal'] = stock_sucursal
         except MaquinariaStock.DoesNotExist:
             context['stock_sucursal'] = None
+    
+    # Si es cliente, verificar si tiene 2 estrellas o menos para aplicar recargo
+    if request.user.is_authenticated and request.user.tipo == 'CLIENTE':
+        context['cliente'] = request.user
+        precio_ajustado, porcentaje_recargo = maquinaria.get_precio_para_cliente(request.user)
+        context['aplicar_recargo'] = porcentaje_recargo > 0
+        context['porcentaje_recargo'] = porcentaje_recargo
+        context['precio_con_recargo'] = precio_ajustado
     
     return render(request, 'maquinarias/maquinaria_detail.html', context)
 

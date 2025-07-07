@@ -37,6 +37,31 @@ class Maquinaria(models.Model):
     def __str__(self):
         return f"{self.nombre} - {self.marca} {self.modelo}"
 
+    def get_precio_para_cliente(self, cliente=None):
+        """
+        Calcula el precio por día considerando recargos según la calificación del cliente:
+        - Clientes con 1 estrella o menos: 30% de recargo
+        - Clientes con 2 estrellas o menos (pero más de 1): 20% de recargo
+        - Clientes con más de 2 estrellas: sin recargo
+        
+        Args:
+            cliente: Usuario cliente para el que se calcula el precio
+            
+        Returns:
+            tuple: (precio ajustado, porcentaje de recargo)
+        """
+        if not cliente or not hasattr(cliente, 'calificacion'):
+            return (self.precio_por_dia, 0)
+            
+        if cliente.calificacion <= 1.0:
+            # Aplicar recargo del 30% para clientes con 1 estrella o menos
+            return (self.precio_por_dia * 1.3, 30)
+        elif cliente.calificacion <= 2.0:
+            # Aplicar recargo del 20% para clientes con 2 estrellas o menos (pero más de 1)
+            return (self.precio_por_dia * 1.2, 20)
+            
+        return (self.precio_por_dia, 0)
+
     def actualizar_stocks(self):
         """Actualiza los campos de stock total y disponible"""
         from django.db.models import Sum

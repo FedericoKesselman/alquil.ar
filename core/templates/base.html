@@ -143,8 +143,12 @@
               >
                 <i class="bi bi-building"></i> Sucursales
               </a>
+            </li>            {% elif user.tipo == 'EMPLEADO' %}
+            <li class="nav-item">
+              <a class="nav-link empleado-link" href="{% url 'reservas:procesar_reservas' %}">
+                <i class="bi bi-clipboard-check"></i> Procesar Reservas
+              </a>
             </li>
-            {% elif user.tipo == 'EMPLEADO' %}
             <li class="nav-item dropdown">
               <a
                 class="nav-link dropdown-toggle empleado-link"
