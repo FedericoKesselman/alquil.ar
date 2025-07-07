@@ -163,19 +163,27 @@ class Usuario(AbstractUser):
     def actualizar_calificacion_promedio(self):
         """
         Actualiza la calificación promedio del cliente basado en su historial de calificaciones.
+        Todos los clientes comienzan con una calificación inicial de 5 estrellas que se considera
+        al calcular el promedio.
         """
         from usuarios.calificaciones import CalificacionCliente
         
         # Obtener todas las calificaciones del cliente
         calificaciones = CalificacionCliente.objects.filter(cliente=self)
         
+        # Calcular el promedio incluyendo la calificación inicial de 5 estrellas
         if calificaciones.exists():
-            # Calcular el promedio
-            total_calificaciones = sum(c.calificacion for c in calificaciones)
-            promedio = total_calificaciones / calificaciones.count()
+            # Incluir la calificación inicial de 5 en el cálculo
+            # Sumamos 5 al total y sumamos 1 al contador
+            total_calificaciones = sum(c.calificacion for c in calificaciones) + 5.0
+            promedio = total_calificaciones / (calificaciones.count() + 1)
             
             # Actualizar la calificación del cliente
             self.calificacion = round(promedio * 2) / 2  # Redondear al 0.5 más cercano
+            self.save(update_fields=['calificacion'])
+        else:
+            # Si no hay calificaciones, mantener la calificación inicial de 5
+            self.calificacion = 5.0
             self.save(update_fields=['calificacion'])
         
         return self.calificacion
