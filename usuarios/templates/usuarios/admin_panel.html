@@ -1,9 +1,24 @@
 {% extends 'base.html' %}
 
-{% block title %}Panel de Administrador{% endblock %}
+{% block title %}Estadísticas del Negocio{% endblock %}
 
 {% block content %}
-<h1>Panel de Administración</h1>
-<p>Bienvenido {{ user.nombre }} ({{ user.get_tipo_display }})</p>
-<a href="{% url 'logout' %}">Cerrar sesión</a>
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1>Panel de Estadísticas</h1>
+            <p>Bienvenido {{ user.nombre }} ({{ user.get_tipo_display }})</p>
+        </div>
+    </div>
+
+    <!-- Incluir solo la sección de estadísticas -->
+    {% include 'usuarios/estadisticas/panel_estadisticas.html' %}
+    
+    <!-- Botón de retorno discreto al final de la página -->
+    <div class="row mt-3">
+        <div class="col-12 text-end">
+            <a href="javascript:history.back()" class="btn btn-link">Volver</a>
+        </div>
+    </div>
+</div>
 {% endblock %}

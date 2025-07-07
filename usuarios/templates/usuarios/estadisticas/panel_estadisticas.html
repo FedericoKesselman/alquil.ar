@@ -1,0 +1,334 @@
+{% comment %}
+Template parcial para la sección de estadísticas del panel de administrador
+{% endcomment %}
+
+<div class="card">
+    <div class="card-header">
+        <h3>Estadísticas del Negocio</h3>
+    </div>
+    <div class="card-body">
+        <!-- Formulario de filtros -->
+        <form id="estadisticasForm" class="row g-3 mb-4">
+            {% csrf_token %}
+            <div class="col-md-4">
+                <label for="rango_rapido" class="form-label">Rango de Fechas</label>
+                <select class="form-select" id="rango_rapido" name="rango_rapido">
+                    <option value="mes">Último mes</option>
+                    <option value="semana">Última semana</option>
+                    <option value="24hs">Últimas 24hs</option>
+                    <option value="anio">Último año</option>
+                    <option value="historico">Histórico</option>
+                    <option value="personalizado">Personalizado</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-none" id="fechaDesdeCol">
+                <label for="fecha_desde" class="form-label">Fecha Desde</label>
+                <input type="date" class="form-control" id="fecha_desde" name="fecha_desde">
+            </div>
+            <div class="col-md-3 d-none" id="fechaHastaCol">
+                <label for="fecha_hasta" class="form-label">Fecha Hasta</label>
+                <input type="date" class="form-control" id="fecha_hasta" name="fecha_hasta">
+            </div>
+            <div class="col-md-5">
+                <label for="tipo_estadistica" class="form-label">Tipo de Estadística</label>
+                <select class="form-select" id="tipo_estadistica" name="tipo_estadistica" required>
+                    <option value="maquinas_alquiladas">Máquinas más alquiladas</option>
+                    <option value="usuarios_reservas">Usuarios con más reservas</option>
+                    <option value="ingresos_reembolsos">Ingresos vs reembolsos</option>
+                </select>
+            </div>
+        </form>
+
+        <!-- Contenedor para mensajes de error -->
+        <div id="mensajeError" class="alert alert-warning d-none"></div>
+
+        <!-- Contenedor para gráficos -->
+        <div class="row">
+            <div class="col-12">
+                <div id="loadingIndicator" class="text-center d-none">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                    <p>Generando estadísticas...</p>
+                </div>
+                <canvas id="estadisticasChart" width="400" height="300" class="d-none" style="max-height: 400px;"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Script para estadísticas -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Referencias al DOM
+    const form = document.getElementById('estadisticasForm');
+    const errorDiv = document.getElementById('mensajeError');
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const canvas = document.getElementById('estadisticasChart');
+    const tipoEstadistica = document.getElementById('tipo_estadistica');
+    const rangoRapido = document.getElementById('rango_rapido');
+    const fechaDesde = document.getElementById('fecha_desde');
+    const fechaHasta = document.getElementById('fecha_hasta');
+    const fechaDesdeCol = document.getElementById('fechaDesdeCol');
+    const fechaHastaCol = document.getElementById('fechaHastaCol');
+    let chartInstance = null;
+
+    // Helpers para fechas
+    function formatDate(date) {
+        return date.toISOString().slice(0,10);
+    }
+    function setFechasByRango(rango) {
+        const hoy = new Date();
+        let desde, hasta;
+        hasta = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+        switch(rango) {
+            case 'mes':
+                desde = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+                desde.setMonth(desde.getMonth() - 1);
+                break;
+            case 'semana':
+                desde = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - 7);
+                break;
+            case '24hs':
+                desde = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - 1);
+                break;
+            case 'anio':
+                desde = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+                desde.setFullYear(desde.getFullYear() - 1);
+                break;
+            case 'historico':
+                desde = new Date(2000, 0, 1); // Fecha muy antigua
+                break;
+            default:
+                desde = null;
+        }
+        if (desde && hasta) {
+            fechaDesde.value = formatDate(desde);
+            fechaHasta.value = formatDate(hasta);
+        }
+    }
+
+    // Mostrar/ocultar inputs personalizados
+    function togglePersonalizado(show) {
+        if (show) {
+            fechaDesdeCol.classList.remove('d-none');
+            fechaHastaCol.classList.remove('d-none');
+        } else {
+            fechaDesdeCol.classList.add('d-none');
+            fechaHastaCol.classList.add('d-none');
+        }
+    }
+
+    // Inicialización: por defecto, "Ingresos vs reembolsos" y último mes
+    tipoEstadistica.value = 'ingresos_reembolsos';
+    rangoRapido.value = 'mes';
+    setFechasByRango('mes');
+    togglePersonalizado(false);
+
+    // Función para mostrar mensaje de error
+    function mostrarError(mensaje) {
+        errorDiv.textContent = mensaje;
+        errorDiv.classList.remove('d-none');
+        canvas.classList.add('d-none');
+    }
+    function ocultarError() {
+        errorDiv.classList.add('d-none');
+    }
+    function toggleLoading(show) {
+        if (show) {
+            loadingIndicator.classList.remove('d-none');
+            canvas.classList.add('d-none');
+        } else {
+            loadingIndicator.classList.add('d-none');
+        }
+    }
+    // Formato de números claro
+    function formatNumber(num) {
+        if (typeof num !== 'number') return num;
+        if (num >= 1000000) return (num/1000000).toLocaleString('es-AR', {maximumFractionDigits:2}) + 'M';
+        if (num >= 1000) return (num/1000).toLocaleString('es-AR', {maximumFractionDigits:2}) + 'K';
+        return num.toLocaleString('es-AR', {maximumFractionDigits:0});
+    }
+    // Crear/actualizar gráfico
+    function renderizarGrafico(datos) {
+        if (chartInstance) chartInstance.destroy();
+        const ctx = canvas.getContext('2d');
+        canvas.classList.remove('d-none');
+        // Limpiar mensaje destacado
+        let destacadoDiv = document.getElementById('usuarioDestacado');
+        if (destacadoDiv) destacadoDiv.remove();
+        // Si es usuarios_reservas, destacar el usuario top
+        if (datos.tipo_estadistica === 'usuarios_reservas' && datos.datos_grafico.labels.length > 0) {
+            const topUser = datos.datos_grafico.labels[0];
+            const topValue = datos.datos_grafico.data[0];
+            const parent = canvas.parentElement;
+            const div = document.createElement('div');
+            div.id = 'usuarioDestacado';
+            div.className = 'mb-2 fw-bold text-primary';
+            div.innerHTML = `Usuario con más reservas: <span class='text-success'>${topUser}</span> (<span class='text-success'>${formatNumber(topValue)}</span> reservas)`;
+            parent.insertBefore(div, canvas);
+        }
+        if (datos.datos_grafico.tipo === 'pie') {
+            chartInstance = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: datos.datos_grafico.labels,
+                    datasets: [{
+                        data: datos.datos_grafico.data,
+                        backgroundColor: datos.datos_grafico.colores,
+                        borderColor: datos.datos_grafico.bordes,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false, // Permitir altura personalizada
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: datos.datos_grafico.titulo,
+                            font: { size: 16 }
+                        },
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let value = context.raw;
+                                    let sum = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    let percentage = Math.round((value * 100 / sum) * 10) / 10;
+                                    return `${context.label}: $${formatNumber(value)} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        } else {
+            // Colores: el primero destacado
+            let colores = datos.datos_grafico.labels.map((_,i) => i===0 ? 'rgba(255, 193, 7, 0.8)' : datos.datos_grafico.color);
+            let bordes = datos.datos_grafico.labels.map((_,i) => i===0 ? 'rgba(255, 193, 7, 1)' : datos.datos_grafico.borde);
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: datos.datos_grafico.labels,
+                    datasets: [{
+                        label: datos.datos_grafico.leyenda,
+                        data: datos.datos_grafico.data,
+                        backgroundColor: colores,
+                        borderColor: bordes,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    indexAxis: 'y', // Barras horizontales
+                    responsive: true,
+                    maintainAspectRatio: false, // Permitir altura personalizada
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: datos.datos_grafico.titulo,
+                            font: { size: 16 }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.label}: ${formatNumber(context.raw)} reservas`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) { return formatNumber(value); },
+                                precision: 0
+                            }
+                        }
+                    },
+                    layout: {
+                        padding: {
+                            right: 50 // Espacio para los números
+                        }
+                    },
+                    plugins: [{
+                        afterDatasetsDraw: function(chart) {
+                            const ctx = chart.ctx;
+                            ctx.font = 'bold 12px Arial';
+                            ctx.fillStyle = '#333';
+                            ctx.textAlign = 'left';
+                            ctx.textBaseline = 'middle';
+                            
+                            chart.data.datasets.forEach((dataset, i) => {
+                                const meta = chart.getDatasetMeta(i);
+                                meta.data.forEach((bar, index) => {
+                                    const data = dataset.data[index];
+                                    const x = bar.x + 5;
+                                    const y = bar.y;
+                                    ctx.fillText(formatNumber(data), x, y);
+                                });
+                            });
+                        }
+                    }]
+                }
+            });
+        }
+    }
+    // Enviar solicitud AJAX
+    function solicitarEstadisticas() {
+        ocultarError();
+        toggleLoading(true);
+        const formData = new FormData();
+        // Tomar el token CSRF actualizado del DOM
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        formData.append('csrfmiddlewaretoken', csrfToken);
+        formData.append('fecha_desde', fechaDesde.value);
+        formData.append('fecha_hasta', fechaHasta.value);
+        formData.append('tipo_estadistica', tipoEstadistica.value);
+        fetch('/usuarios/admin/estadisticas/procesar/', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            toggleLoading(false);
+            if (data.error) {
+                mostrarError(data.error);
+                if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+            } else {
+                renderizarGrafico(data);
+            }
+        })
+        .catch(error => {
+            toggleLoading(false);
+            mostrarError('Error al procesar la solicitud: ' + error.message);
+        });
+    }
+    // Listeners para filtros
+    rangoRapido.addEventListener('change', function() {
+        if (this.value === 'personalizado') {
+            togglePersonalizado(true);
+        } else {
+            togglePersonalizado(false);
+            setFechasByRango(this.value);
+            solicitarEstadisticas();
+        }
+    });
+    tipoEstadistica.addEventListener('change', function() {
+        solicitarEstadisticas();
+    });
+    fechaDesde.addEventListener('change', function() {
+        if (rangoRapido.value === 'personalizado') solicitarEstadisticas();
+    });
+    fechaHasta.addEventListener('change', function() {
+        if (rangoRapido.value === 'personalizado') solicitarEstadisticas();
+    });
+    // Al cargar la página, mostrar la estadística por defecto
+    solicitarEstadisticas();
+});
+</script>

@@ -2,6 +2,7 @@
 from django.urls import path
 from . import views
 from .views import cambiar_password_perfil_view
+from .estadisticas import views as estadisticas_views  # Asegúrate de que esta línea esté presente
 
 # Cuando se accede al path, se ejecuta la view indicada.
 urlpatterns = [
@@ -9,7 +10,8 @@ urlpatterns = [
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('redirigir/', views.redireccionar_por_rol, name='redireccionar_por_rol'),
-    path('admin/panel/', views.admin_panel_view, name="panel_admin"),
+    path('admin/panel/', views.admin_panel_view, name='panel_admin'),
+    path('admin/estadisticas/procesar/', estadisticas_views.procesar_estadisticas, name='procesar_estadisticas'),
     path('empleado/panel/', views.empleado_panel_view, name="panel_empleado"),
     path('cliente/panel/', views.cliente_panel_view, name="panel_cliente"),
     path('registrar-empleado/', views.crear_empleado_view, name="crear_empleado"),

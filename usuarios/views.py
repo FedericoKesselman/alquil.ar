@@ -94,7 +94,13 @@ def redireccionar_por_rol(request):
 @login_required
 @solo_admin
 def admin_panel_view(request):
-    return render(request, 'usuarios/admin_panel.html')
+    """Vista del panel de administrador"""
+    context = {}
+    
+    # Aquí solo incluimos el contexto necesario sin procesar estadísticas
+    # La lógica de estadísticas está en usuarios/estadisticas/views.py
+    
+    return render(request, 'usuarios/admin_panel.html', context)
 
 @login_required
 @solo_empleado
