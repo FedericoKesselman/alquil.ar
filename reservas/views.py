@@ -136,9 +136,7 @@ def crear_reserva(request, maquinaria_id):
                 reserva.estado = 'PENDIENTE_PAGO'
                 reserva.tipo_pago = 'ONLINE'
                 reserva.save()
-                # TODO: Redirigir a la página de pago cuando esté implementada
-                messages.info(request, "Página de pago en construcción")
-                return redirect('home')
+                return redirect('reservas:procesar_pago', reserva_id=reserva.id)
         else:
             messages.error(request, "Por favor, corrija los errores en el formulario.")
     else:
