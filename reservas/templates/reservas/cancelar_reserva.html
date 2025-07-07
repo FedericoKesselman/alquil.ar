@@ -1,0 +1,70 @@
+<!-- templates/reservas/cancelar_reserva.html -->
+{% extends 'base.html' %}
+
+{% block title %}Cancelar Reserva{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-danger text-white">
+                    <h3 class="mb-0">Cancelar Reserva</h3>
+                </div>
+                <div class="card-body">
+                    {% if reserva.estado == None %}
+                        <div class="alert alert-warning">
+                            <p>Esta reserva está en estado incompleto (None). Probablemente fue creada pero no confirmada.</p>
+                            <p>Puede regresar al catálogo de maquinarias para crear una nueva reserva.</p>
+                        </div>
+                    {% else %}
+                        <h4>¿Está seguro que desea cancelar esta reserva?</h4>
+                        
+                        <div class="alert alert-warning mt-3">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <strong>Atención:</strong> Al cancelar una reserva, puede aplicarse la política de cancelación:
+                            <ul class="mb-0">
+                                <li>Cancelación con {{ reserva.maquinaria.cantDias_total }}+ días de anticipación: Reembolso total</li>
+                                <li>Cancelación entre {{ reserva.maquinaria.cantDias_parcial }}-{{ reserva.maquinaria.cantDias_total }} días de anticipación: Reembolso parcial</li>
+                                <li>Cancelación con menos de {{ reserva.maquinaria.cantDias_nulo }} días de anticipación: Sin reembolso</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="card mb-4 mt-4">
+                            <div class="card-header">
+                                <h5 class="mb-0">Información de la Reserva</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <p><strong>Maquinaria:</strong> {{ reserva.maquinaria.nombre }}</p>
+                                        <p><strong>Fecha de inicio:</strong> {{ reserva.fecha_inicio }}</p>
+                                        <p><strong>Fecha de fin:</strong> {{ reserva.fecha_fin }}</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <p><strong>Cantidad:</strong> {{ reserva.cantidad_solicitada }}</p>
+                                        <p><strong>Estado actual:</strong> {{ reserva.get_estado_display }}</p>
+                                        <p><strong>Precio total:</strong> ${{ reserva.precio_total }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <form method="post" class="mt-4">
+                            {% csrf_token %}
+                            <div class="d-flex justify-content-between">
+                                <a href="{% url 'reservas:lista_reservas' %}" class="btn btn-secondary">
+                                    <i class="bi bi-arrow-left"></i> Volver
+                                </a>
+                                <button type="submit" class="btn btn-danger">
+                                    <i class="bi bi-x-circle"></i> Confirmar Cancelación
+                                </button>
+                            </div>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -112,8 +112,10 @@ def crear_reserva(request, maquinaria_id):
                 
             # Calcular precio total con posible recargo para clientes con baja calificación
             dias = (reserva.fecha_fin - reserva.fecha_inicio).days
-            precio_por_dia = maquinaria.get_precio_para_cliente(reserva.cliente)
-            reserva.precio_total = precio_por_dia * dias * reserva.cantidad_solicitada
+            precio_por_dia, _ = maquinaria.get_precio_para_cliente(reserva.cliente)
+            # Redondear a 2 decimales para evitar errores de validación
+            precio_total = precio_por_dia * dias * reserva.cantidad_solicitada
+            precio_total_decimal = decimal.Decimal(str(precio_total)).quantize(decimal.Decimal('0.01'), rounding=decimal.ROUND_HALF_UP)
             
             if request.user.tipo == 'EMPLEADO':
                 # Para empleados, guardar datos en sesión y redirigir a la página de confirmación
@@ -125,18 +127,24 @@ def crear_reserva(request, maquinaria_id):
                     'fecha_fin': form.cleaned_data['fecha_fin'].isoformat(),
                     'cantidad_solicitada': form.cleaned_data['cantidad_solicitada'],
                     'sucursal_retiro_id': form.cleaned_data['sucursal_retiro'].id,
-                    'precio_total': str(reserva.precio_total),
+                    'precio_total': str(precio_total_decimal),
                     'empleado_id': request.user.id
                 }
                 messages.info(request, "Por favor, confirme los detalles de la reserva.")
                 return redirect('reservas:confirmar_reservas')
             else:
-                # Para clientes, guardar como pendiente y redirigir al pago
-                reserva.cliente = request.user
-                reserva.estado = 'PENDIENTE_PAGO'
-                reserva.tipo_pago = 'ONLINE'
-                reserva.save()
-                return redirect('reservas:procesar_pago', reserva_id=reserva.id)
+                # Para clientes, guardar datos en sesión y redirigir a la página de confirmación/pago
+                request.session['reserva_data'] = {
+                    'cliente_id': request.user.id,
+                    'maquinaria_id': maquinaria.id,
+                    'fecha_inicio': form.cleaned_data['fecha_inicio'].isoformat(),
+                    'fecha_fin': form.cleaned_data['fecha_fin'].isoformat(),
+                    'cantidad_solicitada': form.cleaned_data['cantidad_solicitada'],
+                    'sucursal_retiro_id': form.cleaned_data['sucursal_retiro'].id,
+                    'precio_total': str(precio_total_decimal)
+                }
+                messages.info(request, "Por favor, confirme los detalles de la reserva.")
+                return redirect('reservas:confirmar_reserva_cliente')
         else:
             messages.error(request, "Por favor, corrija los errores en el formulario.")
     else:
@@ -206,6 +214,9 @@ def confirmar_reservas(request):
                 # Aplicar recargo según calificación del cliente
                 precio_por_dia, _ = maquinaria.get_precio_para_cliente(cliente)
                 precio_total = precio_por_dia * dias * reserva_data['cantidad_solicitada']
+                
+                # Round to 2 decimal places to ensure it fits the model constraint
+                precio_total = decimal.Decimal(str(precio_total)).quantize(decimal.Decimal('0.01'), rounding=decimal.ROUND_HALF_UP)
                 
                 # Crear la reserva
                 reserva = Reserva.objects.create(
@@ -293,6 +304,9 @@ def confirmar_reservas(request):
     precio_por_dia, porcentaje_recargo = maquinaria.get_precio_para_cliente(cliente)
     precio_total = precio_por_dia * dias * reserva_data['cantidad_solicitada']
     
+    # Round to 2 decimal places to ensure it fits the model constraint
+    precio_total = decimal.Decimal(str(precio_total)).quantize(decimal.Decimal('0.01'), rounding=decimal.ROUND_HALF_UP)
+    
     context = {
         'cliente': cliente,
         'maquinaria': maquinaria,
@@ -347,6 +361,8 @@ def confirmar_reserva_cliente(request):
                 # Aplicar recargo según calificación del cliente
                 precio_por_dia, _ = maquinaria.get_precio_para_cliente(cliente)
                 precio_total = precio_por_dia * dias * int(reserva_data['cantidad_solicitada'])
+                # Redondear a 2 decimales para evitar errores de validación
+                precio_total = decimal.Decimal(str(precio_total)).quantize(decimal.Decimal('0.01'), rounding=decimal.ROUND_HALF_UP)
                 
                 # Crear la reserva
                 reserva = Reserva.objects.create(
@@ -685,16 +701,26 @@ def cancelar_reserva(request, reserva_id):
         return HttpResponseForbidden("No tiene permisos para cancelar reservas.")
     
     if request.method == 'POST':
-        if reserva.cancelar():
+        if reserva.estado is None:
+            # Handle incomplete reservations (estado=None)
+            reserva_id = reserva.id
+            try:
+                # Directly delete from database to avoid issues with signals or validations
+                Reserva.objects.filter(id=reserva_id).delete()
+                messages.success(request, f'Reserva incompleta #{reserva_id} eliminada correctamente.')
+            except Exception as e:
+                messages.error(request, f'Error al eliminar la reserva incompleta: {str(e)}')
+                return redirect('reservas:lista_reservas')
+        elif reserva.cancelar():
             messages.success(request, 'Reserva cancelada exitosamente.')
         else:
             messages.error(request, 'No se pudo cancelar la reserva.')
         
         # Redirigir según el tipo de usuario
         if request.user.tipo == 'CLIENTE':
-            return redirect('mis_reservas')
+            return redirect('usuarios:panel_cliente')
         else:
-            return redirect('listar_reservas')
+            return redirect('reservas:lista_reservas')
     
     context = {
         'reserva': reserva,

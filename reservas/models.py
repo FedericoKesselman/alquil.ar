@@ -161,7 +161,8 @@ class Reserva(models.Model):
             if self.fecha_inicio >= self.fecha_fin:
                 errors['fecha_fin'] = "La fecha de fin debe ser posterior a la fecha de inicio."
             
-            if self.fecha_inicio < timezone.now().date():
+            # Solo validar que la fecha no sea pasada si es una reserva nueva
+            if not self.pk and self.fecha_inicio < timezone.now().date():
                 errors['fecha_inicio'] = "La fecha de inicio no puede ser anterior a hoy."
         
         # Validar días mínimos y máximos
@@ -231,10 +232,17 @@ class Reserva(models.Model):
         
     def cancelar(self):
         """Cancela la reserva"""
+        # For NULL estado (incomplete reservations), just return True but don't delete here
+        # The view will handle the deletion for these
+        if self.estado is None:
+            return True
+            
+        # For regular reservations with valid estado
         if self.estado in ['PENDIENTE_PAGO', 'CONFIRMADA']:
             self.estado = 'CANCELADA'
             self.save()
             return True
+            
         return False
         
     def confirmar_reserva(self):
@@ -540,15 +548,9 @@ class Reserva(models.Model):
             int: Número de reservas actualizadas
         """
         # Obtener todas las reservas confirmadas cuya fecha de fin ha pasado
-        reservas_vencidas = cls.objects.filter(
+        contador = cls.objects.filter(
             estado='CONFIRMADA',
             fecha_fin__lt=timezone.now().date()
-        )
-        
-        contador = 0
-        for reserva in reservas_vencidas:
-            reserva.estado = 'NO_DEVUELTA'
-            reserva.save(update_fields=['estado'])
-            contador += 1
+        ).update(estado='NO_DEVUELTA')
             
         return contador

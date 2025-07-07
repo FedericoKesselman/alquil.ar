@@ -5,8 +5,6 @@ from .calificaciones import CalificacionCliente
 
 
 # Registra los modelos
-admin.site.register(Usuario)
-admin.site.register(Sucursal)
 admin.site.register(CalificacionCliente)
 @admin.register(Sucursal)
 class SucursalAdmin(admin.ModelAdmin):
