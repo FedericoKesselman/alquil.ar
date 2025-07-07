@@ -162,8 +162,8 @@ class Reserva(models.Model):
                 errors['fecha_fin'] = "La fecha de fin debe ser posterior a la fecha de inicio."
             
             # Solo validar que la fecha no sea pasada si es una reserva nueva
-            # if not self.pk and self.fecha_inicio < timezone.now().date():
-            #     errors['fecha_inicio'] = "La fecha de inicio no puede ser anterior a hoy."
+            if not self.pk and self.fecha_inicio < timezone.now().date():
+                errors['fecha_inicio'] = "La fecha de inicio no puede ser anterior a hoy."
         
         # Validar días mínimos y máximos
         if self.fecha_inicio and self.fecha_fin and self.maquinaria:
