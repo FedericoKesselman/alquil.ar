@@ -13,6 +13,28 @@ from django.core.mail import EmailMessage
 import logging
 
 
+class Reembolso(models.Model):
+    """
+    Modelo para registrar los reembolsos realizados a clientes.
+    Guarda información sobre el cliente, monto reembolsado y la reserva asociada.
+    """
+    cliente = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name='reembolsos', null=True)
+    reserva = models.ForeignKey('Reserva', on_delete=models.PROTECT, related_name='reembolsos', null=True)
+    monto = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    fecha_reembolso = models.DateTimeField(auto_now_add=True)
+    dni_cliente = models.CharField(max_length=20, blank=True, default='')
+    
+    def __str__(self):
+        reserva_id = self.reserva.id if self.reserva else 'N/A'
+        return f"Reembolso #{self.id} - Reserva #{reserva_id} - ${self.monto}"
+    
+    def save(self, *args, **kwargs):
+        # Asegurar que el DNI del cliente se guarde correctamente
+        if not self.dni_cliente and self.cliente:
+            self.dni_cliente = self.cliente.dni
+        super().save(*args, **kwargs)
+
+
 class Reserva(models.Model):
     ESTADO_CHOICES = [
         ('PENDIENTE_PAGO', 'Pendiente de Pago'),
@@ -475,11 +497,12 @@ class Reserva(models.Model):
         
     def reembolsar_reserva(self):
         """
-        Marca la reserva como cancelada por reembolso.
+        Marca la reserva como cancelada por el cliente.
         No modifica el stock de la maquinaria.
+        El reembolso efectivo solo se registra cuando un empleado finaliza la reserva cancelada.
         
         Returns:
-            bool: True si el reembolso se procesó correctamente, False en caso contrario.
+            bool: True si la cancelación se procesó correctamente, False en caso contrario.
         """
         if self.estado != 'CONFIRMADA':
             return False

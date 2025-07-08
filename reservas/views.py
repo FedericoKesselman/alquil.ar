@@ -377,45 +377,41 @@ def confirmar_reserva_cliente(request):
                     precio_total=precio_total
                 )
                 
-                # TODO: Proceso de pago online
-                # Por ahora, simplemente marcaremos la reserva como confirmada
+                # Verificar disponibilidad
                 try:
-                    if reserva.confirmar_reserva():
-                        messages.success(request, "¡Reserva confirmada exitosamente! Se ha enviado un correo con los detalles.")
-                    else:
-                        # Verificar disponibilidad
-                        try:
-                            maquinaria_stock = maquinaria.stocks.get(sucursal_id=reserva_data['sucursal_retiro_id'])
-                            stock_total = maquinaria_stock.stock_disponible
-                            
-                            # Obtener reservas superpuestas
-                            reservas_superpuestas = Reserva.objects.filter(
-                                maquinaria=maquinaria,
-                                sucursal_retiro_id=reserva_data['sucursal_retiro_id'],
-                                estado='CONFIRMADA',
-                                fecha_inicio__lte=fecha_fin,
-                                fecha_fin__gte=fecha_inicio
-                            )
-                            
-                            stock_reservado = sum(reserva.cantidad_solicitada for reserva in reservas_superpuestas)
-                            stock_disponible = stock_total - stock_reservado
-                            
-                            mensaje_error = f"Para las fechas seleccionadas solo hay {stock_disponible} unidad/es disponible/s. Por favor, seleccione una cantidad o fecha distinta."
-                        except Exception as e:
-                            mensaje_error = "No se pudo confirmar la reserva. Por favor, intente nuevamente."
-                            
+                    maquinaria_stock = maquinaria.stocks.get(sucursal_id=reserva_data['sucursal_retiro_id'])
+                    stock_total = maquinaria_stock.stock_disponible
+                    
+                    # Obtener reservas superpuestas
+                    reservas_superpuestas = Reserva.objects.filter(
+                        maquinaria=maquinaria,
+                        sucursal_retiro_id=reserva_data['sucursal_retiro_id'],
+                        estado='CONFIRMADA',
+                        fecha_inicio__lte=fecha_fin,
+                        fecha_fin__gte=fecha_inicio
+                    )
+                    
+                    stock_reservado = sum(reserva.cantidad_solicitada for reserva in reservas_superpuestas)
+                    stock_disponible = stock_total - stock_reservado
+                    
+                    if stock_disponible < int(reserva_data['cantidad_solicitada']):
+                        mensaje_error = f"Para las fechas seleccionadas solo hay {stock_disponible} unidad/es disponible/s. Por favor, seleccione una cantidad o fecha distinta."
                         messages.error(request, mensaje_error)
                         reserva.delete()
+                        return redirect('home')
+                        
                 except Exception as e:
-                    logger.error(f"Error al confirmar reserva: {str(e)}")
-                    messages.error(request, "Error al confirmar la reserva")
+                    logger.error(f"Error al verificar disponibilidad: {str(e)}")
+                    messages.error(request, "No se pudo verificar la disponibilidad. Por favor, intente nuevamente.")
                     reserva.delete()
-                
+                    return redirect('home')
+                    
                 # Limpiar datos de la sesión
                 if 'reserva_data' in request.session:
                     del request.session['reserva_data']
                 
-                return redirect('home')
+                # Redirigir al proceso de pago con MercadoPago
+                return redirect('reservas:procesar_pago', reserva_id=reserva.id)
             
             except Exception as e:
                 logger.error(f"Error general: {str(e)}")
@@ -761,8 +757,9 @@ def editar_reserva(request, reserva_id):
 @solo_cliente
 def reembolsar_reserva(request, reserva_id):
     """
-    Vista para mostrar la página de confirmación de reembolso de una reserva.
-    Calcula el monto de reembolso según la política establecida.
+    Vista para mostrar la página de confirmación de cancelación de una reserva.
+    Calcula el monto de reembolso según la política establecida, pero no registra el reembolso.
+    El reembolso solo se registrará cuando un empleado finalice la reserva cancelada.
     """
     reserva = get_object_or_404(Reserva, id=reserva_id)
     
@@ -785,21 +782,22 @@ def reembolsar_reserva(request, reserva_id):
     
     # Si es un POST, procesar la confirmación del reembolso
     if request.method == 'POST':
-        # Procesar el reembolso y restaurar stock
+        # Procesar la cancelación y restaurar stock, pero sin crear reembolso todavía
         if reserva.reembolsar_reserva():
             # Obtener el nombre de la sucursal
             nombre_sucursal = reserva.sucursal_retiro.nombre
             
-            # Mostrar mensaje según el tipo de reembolso
-            if porcentaje_reembolso > 0:  # Reembolso total o parcial
+            # Mostrar mensaje según el tipo de reembolso que se procesará cuando el empleado finalice la reserva
+            if porcentaje_reembolso > 0:
                 messages.success(
                     request, 
-                    f"Acércate a la sucursal {nombre_sucursal} para que te reintegremos el monto de ${monto_reembolso:.2f}"
+                    f"Tu reserva ha sido cancelada. Acércate a la sucursal {nombre_sucursal} para que "
+                    f"te reintegren el monto de ${monto_reembolso:.2f} cuando un empleado finalice tu reserva."
                 )
             else:  # Reembolso nulo
                 messages.success(
                     request, 
-                    f"Reembolso efectuado, acércate a {nombre_sucursal} para devolvernos la maquinaria"
+                    f"Tu reserva ha sido cancelada. Acércate a {nombre_sucursal} para finalizar el trámite."
                 )
         else:
             messages.error(request, "No se pudo procesar el reembolso. Por favor, intente nuevamente.")
@@ -987,8 +985,11 @@ def procesar_reservas(request):
 def finalizar_reserva_por_codigo(request):
     """
     Vista para procesar la finalización de una reserva mediante su código.
-    Comprueba que el código exista, que la reserva esté en estado CONFIRMADA o CANCELADA,
+    Comprueba que el código exista, que la reserva esté en estado CONFIRMADA, CANCELADA o NO_DEVUELTA,
     y que la sucursal de la reserva coincida con la del empleado.
+    
+    Si la reserva está en estado CANCELADA, se registra el reembolso correspondiente cuando
+    un empleado finaliza la reserva. Solo en este momento se considera efectuado el reembolso.
     """
     if request.method != 'POST':
         return redirect('reservas:procesar_reservas')
@@ -1060,11 +1061,22 @@ def finalizar_reserva_por_codigo(request):
             
             # Finalizar la reserva cancelada
             if reserva.finalizar_reserva():
+                # Registrar el reembolso en la base de datos cuando un empleado finaliza una reserva cancelada
+                from .models import Reembolso
+                
+                # Crear registro de reembolso
+                Reembolso.objects.create(
+                    cliente=reserva.cliente,
+                    reserva=reserva,
+                    monto=monto_reembolso,
+                    dni_cliente=reserva.cliente.dni
+                )
+                
                 if porcentaje > 0:
                     messages.success(
                         request, 
                         f"La reserva cancelada de {reserva.cliente.get_full_name()} ha sido finalizada. "
-                        f"Debes reembolsar ${monto_reembolso:.2f} ({porcentaje}% del total)."
+                        f"Se ha registrado un reembolso de ${monto_reembolso:.2f} ({porcentaje}% del total)."
                     )
                 else:
                     messages.success(
@@ -1197,6 +1209,9 @@ def confirmar_devolucion(request, reserva_id):
             calificacion.save()
         
         # Actualizar el promedio de calificaciones del cliente
+        # La calificación inicial de 5 estrellas ya no se incluye en el cálculo del promedio
+        # cuando hay calificaciones reales. El promedio se calcula únicamente con las calificaciones
+        # asignadas en cada reserva.
         cliente = reserva.cliente
         cliente.actualizar_calificacion_promedio()
           # Finalizar la reserva

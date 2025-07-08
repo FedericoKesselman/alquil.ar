@@ -120,10 +120,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Inicialización: por defecto, "Ingresos vs reembolsos" y último mes
-    tipoEstadistica.value = 'ingresos_reembolsos';
-    rangoRapido.value = 'mes';
-    setFechasByRango('mes');
+    // Inicialización: por defecto, "Máquinas más alquiladas" e histórico 
+    tipoEstadistica.value = 'maquinas_alquiladas';
+    rangoRapido.value = 'historico';
+    setFechasByRango('historico');
     togglePersonalizado(false);
 
     // Función para mostrar mensaje de error
@@ -155,19 +155,73 @@ document.addEventListener('DOMContentLoaded', function() {
         if (chartInstance) chartInstance.destroy();
         const ctx = canvas.getContext('2d');
         canvas.classList.remove('d-none');
-        // Limpiar mensaje destacado
+        
+        // Limpiar todos los elementos de información adicional
         let destacadoDiv = document.getElementById('usuarioDestacado');
+        let maquinaDestacadaDiv = document.getElementById('maquinaDestacada');
+        let infoUsuariosDiv = document.getElementById('informacionAdicionalUsuarios');
+        let infoReembolsosDiv = document.getElementById('informacionAdicionalReembolsos');
+        let infoMaquinasDiv = document.getElementById('informacionAdicionalMaquinas');
+        
         if (destacadoDiv) destacadoDiv.remove();
-        // Si es usuarios_reservas, destacar el usuario top
+        if (maquinaDestacadaDiv) maquinaDestacadaDiv.remove();
+        if (infoUsuariosDiv) infoUsuariosDiv.remove();
+        if (infoReembolsosDiv) infoReembolsosDiv.remove();
+        if (infoMaquinasDiv) infoMaquinasDiv.remove();
+        
+        const parent = canvas.parentElement;
+        
+        // Si es usuarios_reservas, destacar el usuario top y mostrar información detallada
         if (datos.tipo_estadistica === 'usuarios_reservas' && datos.datos_grafico.labels.length > 0) {
-            const topUser = datos.datos_grafico.labels[0];
+            const topUser = datos.datos_grafico.labels[0].split(' - ')[0]; // Solo el nombre y DNI, sin el monto
             const topValue = datos.datos_grafico.data[0];
-            const parent = canvas.parentElement;
+            
+            // Destacar el usuario top
             const div = document.createElement('div');
             div.id = 'usuarioDestacado';
             div.className = 'mb-2 fw-bold text-primary';
             div.innerHTML = `Usuario con más reservas: <span class='text-success'>${topUser}</span> (<span class='text-success'>${formatNumber(topValue)}</span> reservas)`;
             parent.insertBefore(div, canvas);
+            
+            // Mostrar información adicional si está disponible
+            if (datos.datos_grafico.informacion_adicional) {
+                const infoDiv = document.createElement('div');
+                infoDiv.id = 'informacionAdicionalUsuarios';
+                infoDiv.className = 'mt-3 alert alert-info';
+                infoDiv.innerHTML = `<strong>Ranking de usuarios por cantidad de reservas:</strong><br>${datos.datos_grafico.informacion_adicional}`;
+                parent.appendChild(infoDiv);
+            }
+        }
+        
+        // Si es maquinas_alquiladas, mostrar información detallada de las máquinas
+        if (datos.tipo_estadistica === 'maquinas_alquiladas' && datos.datos_grafico.labels.length > 0) {
+            const topMaquina = datos.datos_grafico.labels[0];
+            const topValue = datos.datos_grafico.data[0];
+            
+            // Destacar la máquina top
+            const div = document.createElement('div');
+            div.id = 'maquinaDestacada';
+            div.className = 'mb-2 fw-bold text-primary';
+            div.innerHTML = `Máquina más alquilada: <span class='text-success'>${topMaquina}</span> (<span class='text-success'>${formatNumber(topValue)}</span> alquileres)`;
+            parent.insertBefore(div, canvas);
+            
+            // Mostrar información adicional si está disponible
+            if (datos.datos_grafico.informacion_adicional) {
+                const infoDiv = document.createElement('div');
+                infoDiv.id = 'informacionAdicionalMaquinas';
+                infoDiv.className = 'mt-3 alert alert-info';
+                infoDiv.innerHTML = `<strong>Ranking de máquinas por cantidad de alquileres:</strong><br>${datos.datos_grafico.informacion_adicional}`;
+                parent.appendChild(infoDiv);
+            }
+        }
+        
+        // Si es ingresos_reembolsos, mostrar información adicional
+        if (datos.tipo_estadistica === 'ingresos_reembolsos' && datos.datos_grafico.informacion_adicional) {
+            const div = document.createElement('div');
+            div.id = 'informacionAdicionalReembolsos';
+            div.className = 'mb-3 mt-3 alert alert-info';
+            div.innerHTML = `<strong>Resumen financiero:</strong> ${datos.datos_grafico.informacion_adicional}`;
+            parent.appendChild(div);
         }
         if (datos.datos_grafico.tipo === 'pie') {
             chartInstance = new Chart(ctx, {
@@ -233,9 +287,17 @@ document.addEventListener('DOMContentLoaded', function() {
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
-                                    return `${context.label}: ${formatNumber(context.raw)} reservas`;
+                                    const tipo = datos.tipo_estadistica;
+                                    if (tipo === 'maquinas_alquiladas') {
+                                        return `${context.label}: ${formatNumber(context.raw)} alquileres`;
+                                    } else {
+                                        return `${context.label}: ${formatNumber(context.raw)} reservas`;
+                                    }
                                 }
                             }
+                        },
+                        legend: {
+                            display: true
                         }
                     },
                     scales: {
@@ -251,27 +313,28 @@ document.addEventListener('DOMContentLoaded', function() {
                         padding: {
                             right: 50 // Espacio para los números
                         }
-                    },
-                    plugins: [{
-                        afterDatasetsDraw: function(chart) {
-                            const ctx = chart.ctx;
-                            ctx.font = 'bold 12px Arial';
-                            ctx.fillStyle = '#333';
-                            ctx.textAlign = 'left';
-                            ctx.textBaseline = 'middle';
-                            
-                            chart.data.datasets.forEach((dataset, i) => {
-                                const meta = chart.getDatasetMeta(i);
-                                meta.data.forEach((bar, index) => {
-                                    const data = dataset.data[index];
-                                    const x = bar.x + 5;
-                                    const y = bar.y;
-                                    ctx.fillText(formatNumber(data), x, y);
-                                });
+                    }
+                },
+                plugins: [{
+                    id: 'dataLabels',
+                    afterDatasetsDraw: function(chart) {
+                        const ctx = chart.ctx;
+                        ctx.font = 'bold 12px Arial';
+                        ctx.fillStyle = '#333';
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'middle';
+                        
+                        chart.data.datasets.forEach((dataset, i) => {
+                            const meta = chart.getDatasetMeta(i);
+                            meta.data.forEach((bar, index) => {
+                                const data = dataset.data[index];
+                                const x = bar.x + 5;
+                                const y = bar.y;
+                                ctx.fillText(formatNumber(data), x, y);
                             });
-                        }
-                    }]
-                }
+                        });
+                    }
+                }]
             });
         }
     }

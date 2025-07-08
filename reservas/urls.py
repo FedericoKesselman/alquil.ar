@@ -29,6 +29,7 @@ urlpatterns = [
     path('verificar-disponibilidad/', views.verificar_disponibilidad_ajax, name='verificar_disponibilidad_ajax'),
     
     # URLs para pagos
+    path('procesar-pago/<int:reserva_id>/', views.procesar_pago, name='procesar_pago'),
     path('payment/success/<int:reserva_id>/', views.payment_success, name='payment_success'),
     path('payment/failure/<int:reserva_id>/', views.payment_failure, name='payment_failure'),
     path('payment/pending/<int:reserva_id>/', views.payment_pending, name='payment_pending'),

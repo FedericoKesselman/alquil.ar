@@ -6,6 +6,13 @@ class CalificacionCliente(models.Model):
     """
     Modelo para almacenar el historial de calificaciones de los clientes.
     Cada calificación está asociada a una reserva específica.
+    
+    Nota sobre el cálculo de promedios:
+    - Todos los clientes comienzan con una calificación de 5 estrellas por defecto.
+    - Cuando se asignan calificaciones, estas reemplazan la calificación inicial, 
+      en lugar de promediarse con ella.
+    - Si un cliente tiene calificaciones, su promedio se calcula únicamente a partir 
+      de estas calificaciones, sin incluir la calificación inicial de 5 estrellas.
     """
     cliente = models.ForeignKey(
         Usuario,

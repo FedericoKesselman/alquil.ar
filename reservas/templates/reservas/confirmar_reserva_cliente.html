@@ -140,31 +140,19 @@
         margin: 1rem 0;
     }
     
-    .payment-methods {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 1rem;
+    .payment-method {
+        border: 2px solid #007bff;
+        border-radius: 8px;
+        padding: 1.5rem;
+        text-align: center;
+        background-color: #f8f9fa;
         margin-top: 1.5rem;
     }
     
-    .payment-method {
-        border: 2px solid #dee2e6;
-        border-radius: 8px;
-        padding: 1rem;
-        text-align: center;
-        flex: 1;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-    
-    .payment-method:hover, .payment-method.selected {
-        border-color: #007bff;
-        background-color: #f8f9fa;
-    }
-    
     .payment-method i {
-        font-size: 2rem;
+        font-size: 2.5rem;
         margin-bottom: 0.5rem;
+        color: #0056b3;
     }
 </style>
 {% endblock %}
@@ -284,22 +272,12 @@
                         </div>
                     </div>
 
-                    <!-- Métodos de pago (simulados) -->
+                    <!-- Información de pago con MercadoPago -->
                     <div class="mt-4">
-                        <h5 class="mb-3">Seleccione método de pago</h5>
-                        <div class="payment-methods">
-                            <div class="payment-method selected" data-method="credit-card">
-                                <i class="bi bi-credit-card text-primary"></i>
-                                <h6>Tarjeta de crédito</h6>
-                            </div>
-                            <div class="payment-method" data-method="paypal">
-                                <i class="bi bi-paypal text-primary"></i>
-                                <h6>PayPal</h6>
-                            </div>
-                            <div class="payment-method" data-method="transfer">
-                                <i class="bi bi-bank text-primary"></i>
-                                <h6>Transferencia</h6>
-                            </div>
+                        <div class="payment-method selected">
+                            <i class="bi bi-credit-card text-primary"></i>
+                            <h6>Pago seguro con MercadoPago</h6>
+                            <p class="small text-muted mt-2">Al confirmar, será redirigido a la plataforma de pago segura</p>
                         </div>
                     </div>
 
@@ -319,7 +297,7 @@
                                     <i class="bi bi-x-circle me-2"></i>Cancelar
                                 </button>
                                 <button type="button" class="btn btn-confirm" id="confirmButton" onclick="submitForm('confirmar')">
-                                    <i class="bi bi-check-circle me-2"></i>Confirmar y Pagar
+                                    <i class="bi bi-check-circle me-2"></i>Confirmar y Pagar con MercadoPago
                                 </button>
                             </div>
                         </form>
@@ -346,19 +324,7 @@ function submitForm(action) {
     form.submit();
 }
 
-// Selector de método de pago
 document.addEventListener('DOMContentLoaded', function() {
-    const paymentMethods = document.querySelectorAll('.payment-method');
-    
-    paymentMethods.forEach(method => {
-        method.addEventListener('click', function() {
-            // Quitar la clase "selected" de todos los métodos
-            paymentMethods.forEach(m => m.classList.remove('selected'));
-            // Añadir la clase "selected" al método seleccionado
-            this.classList.add('selected');
-        });
-    });
-    
     // Smooth scroll para errores si los hay
     if (document.querySelector('.alert-danger')) {
         document.querySelector('.alert-danger').scrollIntoView({ behavior: 'smooth' });

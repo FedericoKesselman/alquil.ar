@@ -8,45 +8,78 @@
     <div class="row">
         <div class="col-md-8 offset-md-2">
             <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">{{ titulo }}</h3>
+                <div class="card-header bg-primary text-white">
+                    <h3 class="card-title mb-0">{{ titulo }}</h3>
                 </div>
                 <div class="card-body">
-                    <h4>Detalles de la Reserva</h4>
-                    <p><strong>Maquinaria:</strong> {{ reserva.maquinaria.nombre }}</p>
-                    <p><strong>Fecha de inicio:</strong> {{ reserva.fecha_inicio }}</p>
-                    <p><strong>Fecha de fin:</strong> {{ reserva.fecha_fin }}</p>
-                    <p><strong>Cantidad:</strong> {{ reserva.cantidad_solicitada }}</p>
-                    <p><strong>Precio total:</strong> ${{ reserva.precio_total }}</p>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        Está a punto de realizar el pago de su reserva mediante MercadoPago. Por favor revise los detalles antes de continuar.
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header bg-light">
+                            <h4 class="mb-0"><i class="bi bi-receipt me-2"></i>Detalles de la Reserva</h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>Maquinaria:</strong> {{ reserva.maquinaria.nombre }}</p>
+                                    <p><strong>Fecha de inicio:</strong> {{ reserva.fecha_inicio }}</p>
+                                    <p><strong>Fecha de fin:</strong> {{ reserva.fecha_fin }}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>Cantidad:</strong> {{ reserva.cantidad_solicitada }}</p>
+                                    <p><strong>Sucursal:</strong> {{ reserva.sucursal_retiro.nombre }}</p>
+                                    <p><strong>Precio total:</strong> <span class="text-success fw-bold">${{ reserva.precio_total }}</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                     <div class="mt-4">
-                        <h4>Proceder al pago</h4>
-                        <p>Haga clic en el botón de abajo para proceder con el pago seguro a través de Mercado Pago.</p>
+                        <h4><i class="bi bi-credit-card me-2"></i>Proceder al pago</h4>
+                        <p class="mb-4">Haga clic en el botón de abajo para proceder con el pago seguro a través de Mercado Pago.</p>
                         
                         <!-- Mercado Pago Checkout Button -->
                         <script src="https://sdk.mercadopago.com/js/v2"></script>
                         <script>
-                        // Configure sua chave pública do Mercado Pago
-                        const publicKey = '{{ MP_PUBLIC_KEY }}'
-                        // Configure o ID de preferência que você deve receber do seu backend
+                        // Configuración de MercadoPago
+                        const publicKey = '{{ MP_PUBLIC_KEY }}';
                         const preferenceId = '{{ preference_id }}';
 
-                        // Inicializa o SDK do Mercado Pago
+                        // Inicializar SDK de MercadoPago
                         const mp = new MercadoPago(publicKey);
 
-                        // Cria o botão de pagamento
+                        // Crear botón de pago
                         const bricksBuilder = mp.bricks();
                         const renderWalletBrick = async (bricksBuilder) => {
                             await bricksBuilder.create("wallet", "walletBrick_container", {
-                            initialization: {
-                                preferenceId: preferenceId,
-                            }
-                        });
+                                initialization: {
+                                    preferenceId: preferenceId,
+                                },
+                                callbacks: {
+                                    onError: (error) => console.error("Error al cargar el botón de pago:", error),
+                                    onReady: () => console.log("Botón de MercadoPago listo")
+                                },
+                                customization: {
+                                    texts: {
+                                        action: 'Pagar',
+                                        valueProp: 'Pago seguro'
+                                    }
+                                }
+                            });
                         };
 
                         renderWalletBrick(bricksBuilder);
                         </script>
-                        <div id="walletBrick_container"></div>
+                        <div id="walletBrick_container" class="d-flex justify-content-center my-4"></div>
+                        
+                        <div class="text-center mt-4">
+                            <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left me-2"></i>Volver al inicio
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
