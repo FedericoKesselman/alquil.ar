@@ -1555,3 +1555,48 @@ def mostrar_qr_pago(request, reserva_id):
         'qr_data': qr_data
     }
     return render(request, 'reservas/mostrar_qr_pago.html', context)
+
+@login_required
+@solo_empleado
+def check_payment_status(request, reserva_id):
+    """
+    Vista AJAX para verificar si una reserva ha sido pagada.
+    Retorna JSON con estado de la reserva.
+    """
+    reserva = get_object_or_404(Reserva, id=reserva_id)
+    
+    # Verificar que el usuario puede acceder a esta reserva
+    if reserva.sucursal_retiro != request.user.sucursal:
+        return JsonResponse({
+            'success': False,
+            'error': 'No tiene permisos para acceder a esta reserva'
+        }, status=403)
+    
+    # Verificar si la reserva ya está confirmada o si sigue pendiente
+    estado_anterior = request.GET.get('estado_anterior')
+    
+    # Si el estado cambió desde la última consulta, considerar que hubo un cambio
+    estado_cambio = estado_anterior != reserva.estado if estado_anterior else False
+    
+    # Si la reserva ya está confirmada, retornar éxito
+    if reserva.estado == 'CONFIRMADA':
+        return JsonResponse({
+            'success': True,
+            'status': 'confirmed',
+            'message': '¡Pago realizado con éxito!',
+            'estado_cambio': estado_cambio
+        })
+    elif reserva.estado == 'PENDIENTE_PAGO':
+        return JsonResponse({
+            'success': True,
+            'status': 'pending',
+            'message': 'Esperando pago...',
+            'estado_cambio': estado_cambio
+        })
+    else:
+        return JsonResponse({
+            'success': True,
+            'status': reserva.estado.lower(),
+            'message': f'Estado de la reserva: {reserva.get_estado_display()}',
+            'estado_cambio': estado_cambio
+        })
