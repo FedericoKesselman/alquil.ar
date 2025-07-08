@@ -27,6 +27,9 @@ def procesar_estadisticas(request):
         fecha_desde = datetime.strptime(fecha_desde, '%Y-%m-%d').date()
         fecha_hasta = datetime.strptime(fecha_hasta, '%Y-%m-%d').date()
         
+        # Debug: registrar las fechas para verificar el filtrado
+        logger.info(f"Procesando estadísticas: {tipo_estadistica}, desde: {fecha_desde}, hasta: {fecha_hasta}")
+        
         if fecha_desde > fecha_hasta:
             return JsonResponse({'error': 'La fecha inicial debe ser anterior a la fecha final'}, status=400)
             

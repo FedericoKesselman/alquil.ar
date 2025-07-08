@@ -4,6 +4,9 @@ from datetime import datetime
 from reservas.models import Reserva, Reembolso
 from maquinarias.models import Maquinaria
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 def generar_estadisticas(fecha_desde, fecha_hasta, tipo_estadistica):
     """
@@ -31,6 +34,11 @@ def generar_estadisticas(fecha_desde, fecha_hasta, tipo_estadistica):
             fecha_creacion__date__lte=fecha_hasta
         )
         
+        # Debug: contar reservas totales vs filtradas
+        total_reservas = Reserva.objects.count()
+        reservas_filtradas = reservas.count()
+        logger.info(f"Máquinas alquiladas - Total reservas: {total_reservas}, Filtradas ({fecha_desde} a {fecha_hasta}): {reservas_filtradas}")
+        
         if not reservas.exists():
             context['error'] = "No hay datos suficientes para computar la estadística solicitada."
             return context
@@ -49,15 +57,6 @@ def generar_estadisticas(fecha_desde, fecha_hasta, tipo_estadistica):
             context['error'] = "No hay datos suficientes para computar la estadística solicitada."
             return context
             
-        # Preparar información detallada para cada máquina
-        info_adicional = []
-        for i, item in enumerate(maquinas_stats, 1):
-            nombre = item['maquinaria__nombre']
-            cantidad = item['total_alquileres']
-            ingresos = float(item['total_ingresos'])
-            machine_id = item['maquinaria__id']
-            info_adicional.append(f"{i}. <strong>{nombre}</strong> - {cantidad} alquileres - ${ingresos:.2f}")
-        
         context['datos_grafico'] = {
             'tipo': 'bar',
             'titulo': 'Máquinas Más Alquiladas',
@@ -65,8 +64,7 @@ def generar_estadisticas(fecha_desde, fecha_hasta, tipo_estadistica):
             'data': [item['total_alquileres'] for item in maquinas_stats],
             'color': 'rgba(54, 162, 235, 0.6)',
             'borde': 'rgba(54, 162, 235, 1)',
-            'leyenda': 'Número de Alquileres',
-            'informacion_adicional': "<br>".join(info_adicional)
+            'leyenda': 'Número de Alquileres'
         }
         
     elif tipo_estadistica == 'usuarios_reservas':
@@ -77,6 +75,11 @@ def generar_estadisticas(fecha_desde, fecha_hasta, tipo_estadistica):
             fecha_creacion__date__lte=fecha_hasta,
             estado__in=['CONFIRMADA', 'FINALIZADA', 'NO_DEVUELTA']
         )
+        
+        # Debug: contar reservas totales vs filtradas
+        total_reservas = Reserva.objects.filter(estado__in=['CONFIRMADA', 'FINALIZADA', 'NO_DEVUELTA']).count()
+        reservas_filtradas = reservas.count()
+        logger.info(f"Usuarios reservas - Total reservas válidas: {total_reservas}, Filtradas ({fecha_desde} a {fecha_hasta}): {reservas_filtradas}")
         
         if not reservas.exists():
             context['error'] = "No hay datos suficientes para computar la estadística solicitada."
@@ -104,11 +107,6 @@ def generar_estadisticas(fecha_desde, fecha_hasta, tipo_estadistica):
         for item in usuarios_stats:
             labels.append(f"{item['cliente__nombre']} (DNI: {item['cliente__dni']}) - {item['monto_formateado']}")
         
-        # Información adicional para mostrar debajo del gráfico
-        info_adicional = []
-        for i, item in enumerate(usuarios_stats, 1):
-            info_adicional.append(f"{i}. {item['cliente__nombre']} - {item['total_reservas']} reservas - {item['monto_formateado']}")
-        
         context['datos_grafico'] = {
             'tipo': 'bar',
             'titulo': 'Usuarios con Más Reservas',
@@ -116,8 +114,7 @@ def generar_estadisticas(fecha_desde, fecha_hasta, tipo_estadistica):
             'data': [item['total_reservas'] for item in usuarios_stats],
             'color': 'rgba(75, 192, 192, 0.6)',
             'borde': 'rgba(75, 192, 192, 1)',
-            'leyenda': 'Número de Reservas',
-            'informacion_adicional': "<br>".join(info_adicional)
+            'leyenda': 'Número de Reservas'
         }
         
     elif tipo_estadistica == 'ingresos_reembolsos':
@@ -155,13 +152,6 @@ def generar_estadisticas(fecha_desde, fecha_hasta, tipo_estadistica):
         # Calcular el balance neto
         balance_neto = monto_ingresos - monto_reembolsos
         
-        # Crear información detallada
-        info_detallada = [
-            f"<strong>Ingresos:</strong> ${float(monto_ingresos):.2f} ({cantidad_reservas} reservas)",
-            f"<strong>Reembolsos:</strong> ${float(monto_reembolsos):.2f} ({cantidad_reembolsos} reembolsos)",
-            f"<strong>Balance neto:</strong> ${float(balance_neto):.2f}"
-        ]
-        
         context['datos_grafico'] = {
             'tipo': 'pie',
             'titulo': 'Ingresos vs Reembolsos',
@@ -169,7 +159,13 @@ def generar_estadisticas(fecha_desde, fecha_hasta, tipo_estadistica):
             'data': [float(monto_ingresos), float(monto_reembolsos)],
             'colores': ['rgba(75, 192, 192, 0.6)', 'rgba(255, 99, 132, 0.6)'],
             'bordes': ['rgba(75, 192, 192, 1)', 'rgba(255, 99, 132, 1)'],
-            'informacion_adicional': "<br>".join(info_detallada)
+            'metricas': {
+                'total_ingresos': float(monto_ingresos),
+                'total_reembolsos': float(monto_reembolsos),
+                'balance_neto': float(balance_neto),
+                'cantidad_reservas': cantidad_reservas,
+                'cantidad_reembolsos': cantidad_reembolsos
+            }
         }
     
     return context

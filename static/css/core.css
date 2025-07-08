@@ -215,3 +215,104 @@
 .password-field-container .form-control.is-invalid {
     padding-right: 40px !important;
 }
+
+/* Estilos para panel de estadísticas */
+#metricas-destacadas .card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+#metricas-destacadas .card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+#metricas-destacadas .card-body {
+    padding: 1.5rem;
+}
+
+#metricas-destacadas i {
+    opacity: 0.9;
+    margin-bottom: 0.5rem;
+}
+
+/* Animaciones para las alertas de usuarios/máquinas destacadas */
+.alert.d-flex {
+    animation: slideInFromLeft 0.5s ease-out;
+    border-left: 4px solid currentColor;
+}
+
+@keyframes slideInFromLeft {
+    0% {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Mejoras para los paneles de información adicional */
+.card.border-info,
+.card.border-warning,
+.card.border-primary {
+    border-width: 2px !important;
+    animation: fadeInUp 0.6s ease-out;
+}
+
+@keyframes fadeInUp {
+    0% {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Estilo para el indicador de carga mejorado */
+#loadingIndicator {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 12px;
+    border: 1px solid #dee2e6;
+}
+
+#loadingIndicator .spinner-border {
+    border-width: 3px;
+}
+
+/* Mejoras para el contenedor del canvas */
+#estadisticasChart {
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.3s ease;
+}
+
+/* Mejoras para los selectores de fecha */
+.form-select, .form-control {
+    border-radius: 8px;
+    border: 1px solid #ced4da;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.form-select:focus, .form-control:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 0.2rem rgba(66, 206, 227, 0.25);
+}
+
+/* Estilos responsivos para métricas destacadas */
+@media (max-width: 768px) {
+    #metricas-destacadas .card-body {
+        padding: 1rem;
+        text-align: center;
+    }
+    
+    #metricas-destacadas h3 {
+        font-size: 1.5rem;
+    }
+    
+    #metricas-destacadas i {
+        font-size: 2rem !important;
+    }
+}

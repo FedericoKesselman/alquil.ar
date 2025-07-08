@@ -1,57 +1,117 @@
 {% comment %}
 Template parcial para la sección de estadísticas del panel de administrador
 {% endcomment %}
+{% load static %}
 
-<div class="card">
-    <div class="card-header">
-        <h3>Estadísticas del Negocio</h3>
-    </div>
-    <div class="card-body">
-        <!-- Formulario de filtros -->
-        <form id="estadisticasForm" class="row g-3 mb-4">
-            {% csrf_token %}
-            <div class="col-md-4">
-                <label for="rango_rapido" class="form-label">Rango de Fechas</label>
-                <select class="form-select" id="rango_rapido" name="rango_rapido">
-                    <option value="mes">Último mes</option>
-                    <option value="semana">Última semana</option>
-                    <option value="24hs">Últimas 24hs</option>
-                    <option value="anio">Último año</option>
-                    <option value="historico">Histórico</option>
-                    <option value="personalizado">Personalizado</option>
-                </select>
-            </div>
-            <div class="col-md-3 d-none" id="fechaDesdeCol">
-                <label for="fecha_desde" class="form-label">Fecha Desde</label>
-                <input type="date" class="form-control" id="fecha_desde" name="fecha_desde">
-            </div>
-            <div class="col-md-3 d-none" id="fechaHastaCol">
-                <label for="fecha_hasta" class="form-label">Fecha Hasta</label>
-                <input type="date" class="form-control" id="fecha_hasta" name="fecha_hasta">
-            </div>
-            <div class="col-md-5">
-                <label for="tipo_estadistica" class="form-label">Tipo de Estadística</label>
-                <select class="form-select" id="tipo_estadistica" name="tipo_estadistica" required>
-                    <option value="maquinas_alquiladas">Máquinas más alquiladas</option>
-                    <option value="usuarios_reservas">Usuarios con más reservas</option>
-                    <option value="ingresos_reembolsos">Ingresos vs reembolsos</option>
-                </select>
-            </div>
-        </form>
+<!-- Token CSRF para las peticiones AJAX -->
+<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
 
-        <!-- Contenedor para mensajes de error -->
-        <div id="mensajeError" class="alert alert-warning d-none"></div>
-
-        <!-- Contenedor para gráficos -->
-        <div class="row">
-            <div class="col-12">
-                <div id="loadingIndicator" class="text-center d-none">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Cargando...</span>
+<!-- Panel de Estadísticas -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-bar-chart-line me-2"></i>Estadísticas del Sistema
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Controles de filtros -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <label for="tipo_estadistica" class="form-label fw-bold">Tipo de Estadística</label>
+                        <select class="form-select" id="tipo_estadistica" name="tipo_estadistica" required>
+                            <option value="ingresos_reembolsos">Ingresos vs reembolsos</option>
+                            <option value="maquinas_alquiladas">Máquinas más alquiladas</option>
+                            <option value="usuarios_reservas">Usuarios con más reservas</option>
+                        </select>
                     </div>
-                    <p>Generando estadísticas...</p>
+                    <div class="col-md-3">
+                        <label for="rango_rapido" class="form-label fw-bold">Rango de Fechas</label>
+                        <select class="form-select" id="rango_rapido" name="rango_rapido">
+                            <option value="historico">Histórico (Desde Siempre)</option>
+                            <option value="mes">Último mes</option>
+                            <option value="semana">Última semana</option>
+                            <option value="24hs">Últimas 24hs</option>
+                            <option value="anio">Último año</option>
+                            <option value="personalizado">Personalizado</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 d-none" id="fechasPersonalizadas">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="fecha_desde" class="form-label fw-bold">Desde</label>
+                                <input type="date" class="form-control" id="fecha_desde" name="fecha_desde">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="fecha_hasta" class="form-label fw-bold">Hasta</label>
+                                <input type="date" class="form-control" id="fecha_hasta" name="fecha_hasta">
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <canvas id="estadisticasChart" width="400" height="300" class="d-none" style="max-height: 400px;"></canvas>
+
+                <!-- Área de contenido principal -->
+                <div id="contenido-estadisticas">
+                    <!-- Métricas destacadas (se llenarán dinámicamente para ingresos vs reembolsos) -->
+                    <div id="metricas-destacadas" class="row mb-4 d-none">
+                        <div class="col-md-4">
+                            <div class="card shadow-sm border-0 h-100" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+                                <div class="card-body text-white text-center">
+                                    <i class="bi bi-cash-stack" style="font-size: 2.5rem;"></i>
+                                    <h3 class="mt-2 mb-1" id="total-ingresos">$0</h3>
+                                    <p class="mb-0">Total Ingresos</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card shadow-sm border-0 h-100" style="background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);">
+                                <div class="card-body text-white text-center">
+                                    <i class="bi bi-arrow-down-circle" style="font-size: 2.5rem;"></i>
+                                    <h3 class="mt-2 mb-1" id="total-reembolsos">$0</h3>
+                                    <p class="mb-0">Total Reembolsos</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card shadow-sm border-0 h-100" style="background: linear-gradient(135deg, #007bff 0%, #6f42c1 100%);">
+                                <div class="card-body text-white text-center">
+                                    <i class="bi bi-calculator" style="font-size: 2.5rem;"></i>
+                                    <h3 class="mt-2 mb-1" id="balance-neto">$0</h3>
+                                    <p class="mb-0">Balance Neto</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Contenedor del gráfico -->
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card shadow-sm border-0">
+                                <div class="card-body">
+                                    <!-- Indicador de carga -->
+                                    <div id="loadingIndicator" class="d-flex justify-content-center align-items-center" style="height: 400px;">
+                                        <div class="text-center">
+                                            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                                                <span class="visually-hidden">Cargando...</span>
+                                            </div>
+                                            <p class="mt-3 text-muted fw-bold">Generando estadísticas...</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Mensaje de error -->
+                                    <div id="mensajeError" class="alert alert-danger d-none" role="alert">
+                                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                        <span></span>
+                                    </div>
+                                    
+                                    <!-- Canvas del gráfico -->
+                                    <canvas id="estadisticasChart" width="400" height="300" class="d-none" style="max-height: 400px;"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -62,7 +122,6 @@ Template parcial para la sección de estadísticas del panel de administrador
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Referencias al DOM
-    const form = document.getElementById('estadisticasForm');
     const errorDiv = document.getElementById('mensajeError');
     const loadingIndicator = document.getElementById('loadingIndicator');
     const canvas = document.getElementById('estadisticasChart');
@@ -70,8 +129,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const rangoRapido = document.getElementById('rango_rapido');
     const fechaDesde = document.getElementById('fecha_desde');
     const fechaHasta = document.getElementById('fecha_hasta');
-    const fechaDesdeCol = document.getElementById('fechaDesdeCol');
-    const fechaHastaCol = document.getElementById('fechaHastaCol');
+    const fechasPersonalizadas = document.getElementById('fechasPersonalizadas');
     let chartInstance = null;
 
     // Helpers para fechas
@@ -112,35 +170,68 @@ document.addEventListener('DOMContentLoaded', function() {
     // Mostrar/ocultar inputs personalizados
     function togglePersonalizado(show) {
         if (show) {
-            fechaDesdeCol.classList.remove('d-none');
-            fechaHastaCol.classList.remove('d-none');
+            fechasPersonalizadas.classList.remove('d-none');
         } else {
-            fechaDesdeCol.classList.add('d-none');
-            fechaHastaCol.classList.add('d-none');
+            fechasPersonalizadas.classList.add('d-none');
         }
     }
 
-    // Inicialización: por defecto, "Máquinas más alquiladas" e histórico 
-    tipoEstadistica.value = 'maquinas_alquiladas';
+    // Inicialización: por defecto, "Ingresos vs reembolsos" e histórico 
+    tipoEstadistica.value = 'ingresos_reembolsos';
     rangoRapido.value = 'historico';
     setFechasByRango('historico');
     togglePersonalizado(false);
 
     // Función para mostrar mensaje de error
     function mostrarError(mensaje) {
-        errorDiv.textContent = mensaje;
+        const errorSpan = errorDiv.querySelector('span');
+        if (errorSpan) {
+            errorSpan.textContent = mensaje;
+        } else {
+            errorDiv.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i><span>${mensaje}</span>`;
+        }
         errorDiv.classList.remove('d-none');
         canvas.classList.add('d-none');
+        document.getElementById('metricas-destacadas').classList.add('d-none');
     }
     function ocultarError() {
         errorDiv.classList.add('d-none');
     }
     function toggleLoading(show) {
+        const metricasDestacadas = document.getElementById('metricas-destacadas');
         if (show) {
             loadingIndicator.classList.remove('d-none');
             canvas.classList.add('d-none');
+            metricasDestacadas.classList.add('d-none');
         } else {
             loadingIndicator.classList.add('d-none');
+        }
+    }
+    
+    // Función para actualizar métricas destacadas (solo para ingresos vs reembolsos)
+    function actualizarMetricasDestacadas(datos) {
+        const metricasDiv = document.getElementById('metricas-destacadas');
+        
+        if (datos.tipo_estadistica === 'ingresos_reembolsos' && datos.datos_grafico.metricas) {
+            const ingresos = datos.datos_grafico.metricas.total_ingresos || 0;
+            const reembolsos = datos.datos_grafico.metricas.total_reembolsos || 0;
+            const balance = ingresos - reembolsos;
+            
+            document.getElementById('total-ingresos').textContent = '$' + formatNumber(ingresos);
+            document.getElementById('total-reembolsos').textContent = '$' + formatNumber(reembolsos);
+            document.getElementById('balance-neto').textContent = '$' + formatNumber(balance);
+            
+            // Cambiar color del balance según si es positivo o negativo
+            const balanceElement = document.getElementById('balance-neto').parentElement.parentElement;
+            if (balance >= 0) {
+                balanceElement.style.background = 'linear-gradient(135deg, #007bff 0%, #6f42c1 100%)';
+            } else {
+                balanceElement.style.background = 'linear-gradient(135deg, #dc3545 0%, #fd7e14 100%)';
+            }
+            
+            metricasDiv.classList.remove('d-none');
+        } else {
+            metricasDiv.classList.add('d-none');
         }
     }
     // Formato de números claro
@@ -156,72 +247,21 @@ document.addEventListener('DOMContentLoaded', function() {
         const ctx = canvas.getContext('2d');
         canvas.classList.remove('d-none');
         
-        // Limpiar todos los elementos de información adicional
-        let destacadoDiv = document.getElementById('usuarioDestacado');
-        let maquinaDestacadaDiv = document.getElementById('maquinaDestacada');
-        let infoUsuariosDiv = document.getElementById('informacionAdicionalUsuarios');
-        let infoReembolsosDiv = document.getElementById('informacionAdicionalReembolsos');
-        let infoMaquinasDiv = document.getElementById('informacionAdicionalMaquinas');
+        // Actualizar métricas destacadas si corresponde
+        actualizarMetricasDestacadas(datos);
         
-        if (destacadoDiv) destacadoDiv.remove();
-        if (maquinaDestacadaDiv) maquinaDestacadaDiv.remove();
-        if (infoUsuariosDiv) infoUsuariosDiv.remove();
+        // Limpiar elementos de información adicional previos
+        let infoReembolsosDiv = document.getElementById('informacionAdicionalReembolsos');
         if (infoReembolsosDiv) infoReembolsosDiv.remove();
-        if (infoMaquinasDiv) infoMaquinasDiv.remove();
         
         const parent = canvas.parentElement;
         
-        // Si es usuarios_reservas, destacar el usuario top y mostrar información detallada
-        if (datos.tipo_estadistica === 'usuarios_reservas' && datos.datos_grafico.labels.length > 0) {
-            const topUser = datos.datos_grafico.labels[0].split(' - ')[0]; // Solo el nombre y DNI, sin el monto
-            const topValue = datos.datos_grafico.data[0];
-            
-            // Destacar el usuario top
-            const div = document.createElement('div');
-            div.id = 'usuarioDestacado';
-            div.className = 'mb-2 fw-bold text-primary';
-            div.innerHTML = `Usuario con más reservas: <span class='text-success'>${topUser}</span> (<span class='text-success'>${formatNumber(topValue)}</span> reservas)`;
-            parent.insertBefore(div, canvas);
-            
-            // Mostrar información adicional si está disponible
-            if (datos.datos_grafico.informacion_adicional) {
-                const infoDiv = document.createElement('div');
-                infoDiv.id = 'informacionAdicionalUsuarios';
-                infoDiv.className = 'mt-3 alert alert-info';
-                infoDiv.innerHTML = `<strong>Ranking de usuarios por cantidad de reservas:</strong><br>${datos.datos_grafico.informacion_adicional}`;
-                parent.appendChild(infoDiv);
-            }
-        }
+        // Solo mostrar información adicional para ingresos vs reembolsos (ya que es diferente del gráfico)
         
-        // Si es maquinas_alquiladas, mostrar información detallada de las máquinas
-        if (datos.tipo_estadistica === 'maquinas_alquiladas' && datos.datos_grafico.labels.length > 0) {
-            const topMaquina = datos.datos_grafico.labels[0];
-            const topValue = datos.datos_grafico.data[0];
-            
-            // Destacar la máquina top
-            const div = document.createElement('div');
-            div.id = 'maquinaDestacada';
-            div.className = 'mb-2 fw-bold text-primary';
-            div.innerHTML = `Máquina más alquilada: <span class='text-success'>${topMaquina}</span> (<span class='text-success'>${formatNumber(topValue)}</span> alquileres)`;
-            parent.insertBefore(div, canvas);
-            
-            // Mostrar información adicional si está disponible
-            if (datos.datos_grafico.informacion_adicional) {
-                const infoDiv = document.createElement('div');
-                infoDiv.id = 'informacionAdicionalMaquinas';
-                infoDiv.className = 'mt-3 alert alert-info';
-                infoDiv.innerHTML = `<strong>Ranking de máquinas por cantidad de alquileres:</strong><br>${datos.datos_grafico.informacion_adicional}`;
-                parent.appendChild(infoDiv);
-            }
-        }
-        
-        // Si es ingresos_reembolsos, mostrar información adicional
-        if (datos.tipo_estadistica === 'ingresos_reembolsos' && datos.datos_grafico.informacion_adicional) {
-            const div = document.createElement('div');
-            div.id = 'informacionAdicionalReembolsos';
-            div.className = 'mb-3 mt-3 alert alert-info';
-            div.innerHTML = `<strong>Resumen financiero:</strong> ${datos.datos_grafico.informacion_adicional}`;
-            parent.appendChild(div);
+        // Si es ingresos_reembolsos, solo mantener las métricas destacadas (no panel adicional)
+        if (datos.tipo_estadistica === 'ingresos_reembolsos') {
+            // Ya se manejan las métricas destacadas en actualizarMetricasDestacadas()
+            // No agregar panel adicional
         }
         if (datos.datos_grafico.tipo === 'pie') {
             chartInstance = new Chart(ctx, {
@@ -232,20 +272,39 @@ document.addEventListener('DOMContentLoaded', function() {
                         data: datos.datos_grafico.data,
                         backgroundColor: datos.datos_grafico.colores,
                         borderColor: datos.datos_grafico.bordes,
-                        borderWidth: 1
+                        borderWidth: 2,
+                        hoverBorderWidth: 3
                     }]
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false, // Permitir altura personalizada
+                    maintainAspectRatio: false,
                     plugins: {
                         title: {
                             display: true,
                             text: datos.datos_grafico.titulo,
-                            font: { size: 16 }
+                            font: { 
+                                size: 18,
+                                weight: 'bold'
+                            },
+                            padding: 20
                         },
-                        legend: { position: 'bottom' },
+                        legend: { 
+                            position: 'bottom',
+                            labels: {
+                                padding: 15,
+                                usePointStyle: true,
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
                         tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            titleColor: 'white',
+                            bodyColor: 'white',
+                            borderColor: 'rgba(255,255,255,0.2)',
+                            borderWidth: 1,
                             callbacks: {
                                 label: function(context) {
                                     let value = context.raw;
@@ -255,13 +314,30 @@ document.addEventListener('DOMContentLoaded', function() {
                                 }
                             }
                         }
+                    },
+                    animation: {
+                        animateRotate: true,
+                        duration: 1000
                     }
                 }
             });
         } else {
-            // Colores: el primero destacado
-            let colores = datos.datos_grafico.labels.map((_,i) => i===0 ? 'rgba(255, 193, 7, 0.8)' : datos.datos_grafico.color);
-            let bordes = datos.datos_grafico.labels.map((_,i) => i===0 ? 'rgba(255, 193, 7, 1)' : datos.datos_grafico.borde);
+            // Colores: el primero destacado con gradiente más moderno
+            let colores = datos.datos_grafico.labels.map((_,i) => {
+                if (i === 0) {
+                    return 'rgba(255, 193, 7, 0.9)'; // Dorado más vibrante para el top
+                } else {
+                    return `rgba(54, 162, 235, ${0.8 - (i * 0.1)})`; // Degradado azul
+                }
+            });
+            let bordes = datos.datos_grafico.labels.map((_,i) => {
+                if (i === 0) {
+                    return 'rgba(255, 193, 7, 1)';
+                } else {
+                    return 'rgba(54, 162, 235, 1)';
+                }
+            });
+            
             chartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
@@ -271,20 +347,31 @@ document.addEventListener('DOMContentLoaded', function() {
                         data: datos.datos_grafico.data,
                         backgroundColor: colores,
                         borderColor: bordes,
-                        borderWidth: 1
+                        borderWidth: 2,
+                        borderRadius: 6,
+                        borderSkipped: false,
                     }]
                 },
                 options: {
-                    indexAxis: 'y', // Barras horizontales
+                    indexAxis: 'y',
                     responsive: true,
-                    maintainAspectRatio: false, // Permitir altura personalizada
+                    maintainAspectRatio: false,
                     plugins: {
                         title: {
                             display: true,
                             text: datos.datos_grafico.titulo,
-                            font: { size: 16 }
+                            font: { 
+                                size: 18,
+                                weight: 'bold'
+                            },
+                            padding: 20
                         },
                         tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            titleColor: 'white',
+                            bodyColor: 'white',
+                            borderColor: 'rgba(255,255,255,0.2)',
+                            borderWidth: 1,
                             callbacks: {
                                 label: function(context) {
                                     const tipo = datos.tipo_estadistica;
@@ -297,22 +384,47 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                         },
                         legend: {
-                            display: true
+                            display: true,
+                            labels: {
+                                font: {
+                                    size: 12
+                                }
+                            }
                         }
                     },
                     scales: {
                         x: {
                             beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            },
                             ticks: {
                                 callback: function(value) { return formatNumber(value); },
-                                precision: 0
+                                precision: 0,
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        },
+                        y: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                font: {
+                                    size: 11
+                                }
                             }
                         }
                     },
                     layout: {
                         padding: {
-                            right: 50 // Espacio para los números
+                            right: 60
                         }
+                    },
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeOutQuart'
                     }
                 },
                 plugins: [{
@@ -328,7 +440,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             const meta = chart.getDatasetMeta(i);
                             meta.data.forEach((bar, index) => {
                                 const data = dataset.data[index];
-                                const x = bar.x + 5;
+                                const x = bar.x + 8;
                                 const y = bar.y;
                                 ctx.fillText(formatNumber(data), x, y);
                             });
@@ -342,13 +454,31 @@ document.addEventListener('DOMContentLoaded', function() {
     function solicitarEstadisticas() {
         ocultarError();
         toggleLoading(true);
+        
+        console.log('Solicitando estadísticas...');
+        console.log('Tipo:', tipoEstadistica.value);
+        console.log('Rango:', rangoRapido.value);
+        console.log('Desde:', fechaDesde.value);
+        console.log('Hasta:', fechaHasta.value);
+        
         const formData = new FormData();
         // Tomar el token CSRF actualizado del DOM
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (!csrfInput) {
+            console.error('No se encontró el token CSRF');
+            toggleLoading(false);
+            mostrarError('Error: Token CSRF no encontrado');
+            return;
+        }
+        
+        const csrfToken = csrfInput.value;
         formData.append('csrfmiddlewaretoken', csrfToken);
         formData.append('fecha_desde', fechaDesde.value);
         formData.append('fecha_hasta', fechaHasta.value);
         formData.append('tipo_estadistica', tipoEstadistica.value);
+        
+        console.log('Enviando petición a:', '/usuarios/admin/estadisticas/procesar/');
+        
         fetch('/usuarios/admin/estadisticas/procesar/', {
             method: 'POST',
             body: formData,
@@ -357,8 +487,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 'X-CSRFToken': csrfToken
             }
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log('Respuesta recibida:', response.status, response.statusText);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
         .then(data => {
+            console.log('Datos recibidos:', data);
             toggleLoading(false);
             if (data.error) {
                 mostrarError(data.error);
@@ -368,6 +505,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         })
         .catch(error => {
+            console.error('Error en la petición:', error);
             toggleLoading(false);
             mostrarError('Error al procesar la solicitud: ' + error.message);
         });
