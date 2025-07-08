@@ -49,16 +49,108 @@
 }
 
 /* Enlaces específicos por tipo de usuario */
-.admin-link {
-    background-color: #6c757d;
-    border-radius: 0.25rem;
+.admin-button {
+    background-color: #6c757d !important;
+    border-radius: 0.375rem;
     padding: 0.375rem 0.75rem;
+    color: white !important;
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
 }
 
-.empleado-link {
-    background-color: #0d6efd;
-    border-radius: 0.25rem;
+.admin-button:hover {
+    background-color: #5a6268 !important;
+    color: white !important;
+    transform: translateY(-1px);
+}
+
+.empleado-button {
+    background-color: #0d6efd !important;
+    border-radius: 0.375rem;
     padding: 0.375rem 0.75rem;
+    color: white !important;
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.empleado-button:hover {
+    background-color: #0b5ed7 !important;
+    color: white !important;
+    transform: translateY(-1px);
+}
+
+.login-button {
+    background-color: #198754 !important;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    color: white !important;
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.login-button:hover {
+    background-color: #157347 !important;
+    color: white !important;
+    transform: translateY(-1px);
+}
+
+.user-menu {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.user-menu:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+        color: white !important;
+}
+
+/* Mejoras en dropdowns */
+.dropdown-menu {
+    border: none;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    border-radius: 0.5rem;
+}
+
+.dropdown-header {
+    color: var(--color-primary);
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.dropdown-item {
+    padding: 0.5rem 1rem;
+    transition: all 0.2s ease;
+}
+
+.dropdown-item:hover {
+    background-color: var(--color-primary-light);
+    color: var(--color-dark);
+}
+
+.dropdown-item i {
+    width: 16px;
+    text-align: center;
+}
+
+/* Responsive improvements */
+@media (max-width: 991px) {
+    .user-type-badge {
+        margin-bottom: 0.5rem;
+        display: block;
+        text-align: center;
+    }
+    
+    .admin-button,
+    .empleado-button,
+    .login-button {
+        margin-bottom: 0.25rem;
+        display: block;
+        text-align: center;
+    }
 }
 
 /* Iconos en el navbar */

@@ -57,163 +57,98 @@
                 <i class="bi bi-house-door"></i> Inicio
               </a>
             </li>
-            {% if not user.is_authenticated %}
+            
+            <!-- Catálogo siempre visible -->
             <li class="nav-item">
               <a class="nav-link" href="{% url 'maquinaria_list_cliente' %}">
-                <i class="bi bi-tools"></i> Catálogo de Maquinarias
+                <i class="bi bi-tools"></i> Catálogo
               </a>
             </li>
-            {% endif %}
+            
+            <!-- Reservas solo si está autenticado -->
             {% if user.is_authenticated %}
-                {% if user.tipo == 'EMPLEADO' or user.tipo == 'CLIENTE' %}
-                    <li class="nav-item">
-                      <a class="nav-link" href="{% url 'maquinaria_list_cliente' %}">
-                        <i class="bi bi-tools"></i> Catálogo de Maquinarias
-                      </a>
-                    </li>
-                {% endif %}
-                <li class="nav-item">
-                  <a class="nav-link" href="{% url 'reservas:lista_reservas' %}">
-                    <i class="bi bi-calendar-check"></i> Reservas
-                  </a>
-                </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'reservas:lista_reservas' %}">
+                <i class="bi bi-calendar-check"></i> Reservas
+              </a>
+            </li>
             {% endif %}
           </ul>
+          
+          <!-- Panel derecho con funciones específicas por rol -->
           <ul class="navbar-nav">
             {% if user.is_authenticated %}
-              <h3 class="text-white me-3">{{ user.tipo }}</h3>
-            {% endif %}
-            {% if user.is_authenticated %} {% if user.tipo == 'ADMIN' %}
-            <li class="nav-item dropdown me-3">
-              <a
-                class="nav-link dropdown-toggle admin-link"
-                href="#"
-                role="button"
-                data-bs-toggle="dropdown"
-              >
-                <i class="bi bi-tools"></i> Maquinarias
-              </a>
-              <ul class="dropdown-menu">
-                <li>
-                  <a class="dropdown-item" href="{% url 'maquinaria_list' %}">
-                    <i class="bi bi-list-ul"></i> Listar Maquinarias
+              <!-- Funciones específicas por tipo de usuario -->
+              {% if user.tipo == 'ADMIN' %}
+                <!-- Panel de Administración -->
+                <li class="nav-item dropdown me-2">
+                  <a class="nav-link dropdown-toggle admin-button" href="#" role="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-gear-fill"></i> Administración
                   </a>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <li><h6 class="dropdown-header"><i class="bi bi-tools"></i> Maquinarias</h6></li>
+                    <li><a class="dropdown-item" href="{% url 'maquinaria_list' %}">
+                      <i class="bi bi-list-ul"></i> Gestionar Maquinarias</a></li>
+                    <li><a class="dropdown-item" href="{% url 'maquinaria_create' %}">
+                      <i class="bi bi-plus-circle"></i> Nueva Maquinaria</a></li>
+                    <li><a class="dropdown-item" href="{% url 'tipo_maquinaria_list' %}">
+                      <i class="bi bi-tags"></i> Tipos de Maquinaria</a></li>
+                    
+                    <li><hr class="dropdown-divider"></li>
+                    <li><h6 class="dropdown-header"><i class="bi bi-people"></i> Personal</h6></li>
+                    <li><a class="dropdown-item" href="{% url 'crear_empleado' %}">
+                      <i class="bi bi-person-plus"></i> Nuevo Empleado</a></li>
+                    <li><a class="dropdown-item" href="{% url 'listar_empleados' %}">
+                      <i class="bi bi-list-ul"></i> Ver Empleados</a></li>
+                    
+                    <li><hr class="dropdown-divider"></li>
+                    <li><h6 class="dropdown-header"><i class="bi bi-buildings"></i> Infraestructura</h6></li>
+                    <li><a class="dropdown-item" href="{% url 'admin_sucursales' %}">
+                      <i class="bi bi-shop"></i> Gestionar Sucursales</a></li>
+                  </ul>
                 </li>
-                <li>
-                  <a class="dropdown-item" href="{% url 'maquinaria_create' %}">
-                    <i class="bi bi-plus-circle"></i> Nueva Maquinaria
+                
+              {% elif user.tipo == 'EMPLEADO' %}
+                <!-- Panel de Empleado -->
+                <li class="nav-item dropdown me-2">
+                  <a class="nav-link dropdown-toggle empleado-button" href="#" role="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-briefcase-fill"></i> Gestión
                   </a>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <li><h6 class="dropdown-header"><i class="bi bi-clipboard-check"></i> Reservas</h6></li>
+                    <li><a class="dropdown-item" href="{% url 'reservas:procesar_reservas' %}">
+                      <i class="bi bi-clipboard-check"></i> Procesar Reservas</a></li>
+                    
+                    <li><hr class="dropdown-divider"></li>
+                    <li><h6 class="dropdown-header"><i class="bi bi-people"></i> Clientes</h6></li>
+                    <li><a class="dropdown-item" href="{% url 'crear_cliente' %}">
+                      <i class="bi bi-person-plus"></i> Nuevo Cliente</a></li>
+                    <li><a class="dropdown-item" href="{% url 'listar_clientes' %}">
+                      <i class="bi bi-list-ul"></i> Ver Clientes</a></li>
+                  </ul>
                 </li>
-                <li>
-                  <a
-                    class="dropdown-item"
-                    href="{% url 'tipo_maquinaria_list' %}"
-                  >
-                    <i class="bi bi-tags"></i> Tipos de Maquinaria
-                  </a>
-                </li>
-              </ul>
-            </li>
-            <li class="nav-item dropdown me-3">
-              <a
-                class="nav-link dropdown-toggle admin-link"
-                href="#"
-                role="button"
-                data-bs-toggle="dropdown"
-              >
-                <i class="bi bi-people"></i> Empleados
-              </a>
-              <ul class="dropdown-menu">
-                <li>
-                  <a class="dropdown-item" href="{% url 'crear_empleado' %}">
-                    <i class="bi bi-person-plus"></i> Nuevo Empleado
-                  </a>
-                </li>
-                <li>
-                  <a class="dropdown-item" href="{% url 'listar_empleados' %}">
-                    <i class="bi bi-list-ul"></i> Ver Empleados
-                  </a>
-                </li>
-              </ul>
-            </li>
-            <li class="nav-item me-3">
-              <a
-                href="{% url 'admin_sucursales' %}"
-                class="nav-link admin-link"
-              >
-                <i class="bi bi-building"></i> Sucursales
-              </a>
-            </li>            {% elif user.tipo == 'EMPLEADO' %}
-            <li class="nav-item">
-              <a class="nav-link empleado-link" href="{% url 'reservas:procesar_reservas' %}">
-                <i class="bi bi-clipboard-check"></i> Procesar Reservas
-              </a>
-            </li>
-            <li class="nav-item dropdown">
-              <a
-                class="nav-link dropdown-toggle empleado-link"
-                href="#"
-                role="button"
-                data-bs-toggle="dropdown"
-              >
-                <i class="bi bi-people"></i> Clientes
-              </a>
-              <ul class="dropdown-menu">
-                <li>
-                  <a class="dropdown-item" href="{% url 'crear_cliente' %}">
-                    <i class="bi bi-person-plus"></i> Nuevo Cliente
-                  </a>
-                </li>
-                <li>
-                  <a class="dropdown-item" href="{% url 'listar_clientes' %}">
-                    <i class="bi bi-list-ul"></i> Ver Clientes
-                  </a>
-                </li>
-              </ul>
-            </li>
-            {% elif user.tipo == 'CLIENTE' %}
-            <!-- Nav solo para CLIENTE -->
-
-            {% endif %}
-            <li class="nav-item dropdown">
-              <a
-                class="nav-link dropdown-toggle"
-                href="#"
-                role="button"
-                data-bs-toggle="dropdown"
-              >
-                <i class="bi bi-person-circle"></i> {{ user.get_short_name }}
-              </a>
-              <ul class="dropdown-menu dropdown-menu-end">
-                {% if user.tipo == 'ADMIN' %}
-                <li>
-                  <a
-                    class="dropdown-item"
-                    href="{% url 'redireccionar_por_rol' %}"
-                  >
-                    <i class="bi bi-speedometer2"></i> Mi Panel
-                  </a>
-                </li>
-                <li><hr class="dropdown-divider" /></li>
-                {% endif %}
-                <li>
-                  <a class="dropdown-item" href="{% url 'cambiar_password_perfil' %}">
-                    <i class="bi bi-key"></i> Cambiar Contraseña
-                  </a>
-                </li>
-                <li>
-                  <a class="dropdown-item" href="{% url 'logout' %}">
-                    <i class="bi bi-box-arrow-right"></i> Cerrar Sesión
-                  </a>
-                </li>
-              </ul>
-            </li>
+              {% endif %}
+              
+              <!-- Menú de usuario -->
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle user-menu" href="#" role="button" data-bs-toggle="dropdown">
+                  <i class="bi bi-person-circle"></i> {{ user.get_short_name }}
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  <li><a class="dropdown-item" href="{% url 'cambiar_password_perfil' %}">
+                    <i class="bi bi-key"></i> Cambiar Contraseña</a></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item" href="{% url 'logout' %}">
+                    <i class="bi bi-box-arrow-right"></i> Cerrar Sesión</a></li>
+                </ul>
+              </li>
             {% else %}
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'login' %}">
-                <i class="bi bi-box-arrow-in-right"></i> Iniciar Sesión
-              </a>
-            </li>
+              <!-- Usuario no autenticado -->
+              <li class="nav-item">
+                <a class="nav-link login-button" href="{% url 'login' %}">
+                  <i class="bi bi-box-arrow-in-right"></i> Iniciar Sesión
+                </a>
+              </li>
             {% endif %}
           </ul>
         </div>
