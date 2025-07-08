@@ -33,4 +33,5 @@ urlpatterns = [
     path('payment/failure/<int:reserva_id>/', views.payment_failure, name='payment_failure'),
     path('payment/pending/<int:reserva_id>/', views.payment_pending, name='payment_pending'),
     path('payment/webhook/', views.payment_webhook, name='payment_webhook'),
+    path('mostrar-qr/<int:reserva_id>/', views.mostrar_qr_pago, name='mostrar_qr_pago'),
 ]

@@ -1422,10 +1422,21 @@ def payment_webhook(request):
     return JsonResponse({'status': 'ok'})
 
 ###### QR
+import requests
+
 def generar_qr_orden_mp(reserva):
     try:
-        expiration_time = (datetime.now() + timedelta(minutes=15)).isoformat() + "Z"
+        import requests
+        import json
+        from datetime import datetime, timedelta
+        
+        # Fecha de expiración (15 minutos desde ahora)
+        expiration_time = (datetime.utcnow() + timedelta(minutes=15)).isoformat() + "Z"
 
+        # Obtener el access token para extraer el user_id
+        access_token = MP_ACCESS_TOKEN
+        
+        # Datos básicos para la orden
         order_data = {
             "external_reference": str(reserva.id),
             "title": f"Reserva de {reserva.maquinaria.nombre}",
@@ -1445,11 +1456,83 @@ def generar_qr_orden_mp(reserva):
             "expiration_date": expiration_time
         }
 
-        response = sdk.qr().create(order_data)
-        return response['response'].get('qr_data')
+        # Imprimir el payload para depuración
+        print(f"QR order payload: {json.dumps(order_data)}")
+
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+
+        # Primero hacemos una consulta para obtener información del usuario
+        user_me_url = "https://api.mercadopago.com/users/me"
+        user_response = requests.get(user_me_url, headers=headers)
+        
+        if user_response.status_code != 200:
+            print(f"Error al obtener información del usuario: {user_response.status_code} - {user_response.text}")
+            return None
+            
+        user_info = user_response.json()
+        user_id = user_info.get('id')
+        
+        if not user_id:
+            print("No se pudo obtener el ID del usuario de Mercado Pago")
+            return None
+            
+        print(f"ID de usuario de Mercado Pago: {user_id}")
+        
+        # URL correcta para la API de QR de Mercado Pago usando el ID obtenido
+        url = f"https://api.mercadopago.com/instore/orders/qr/seller/collectors/{user_id}/pos/ALQUILAR01/qrs"
+
+        response = requests.post(
+            url,
+            headers=headers,
+            json=order_data
+        )
+
+        # Imprimir respuesta para depuración
+        print(f"QR API Response status: {response.status_code}")
+        print(f"QR API Response body: {response.text}")
+
+        # Revisá status
+        if response.status_code not in [200, 201]:
+            print(f"Error al generar QR: {response.status_code} - {response.text}")
+            
+            # Como alternativa, generamos un QR con la URL de pago normal
+            try:
+                # Creamos una preferencia estándar
+                preference = gen_preference_mp(None, reserva)
+                if preference and 'init_point' in preference:
+                    print("Usando URL de preferencia estándar para el QR")
+                    return preference['init_point']
+            except Exception as e:
+                print(f"Error al generar preferencia alternativa: {str(e)}")
+            
+            return None
+
+        response_json = response.json()
+        
+        # El valor correcto para mostrar el QR
+        qr_data = response_json.get('qr_data')
+        if not qr_data:
+            print("No se encontró qr_data en la respuesta")
+            return None
+            
+        return qr_data
 
     except Exception as e:
         print(f"Error al generar QR dinámico: {str(e)}")
+        
+        # Como alternativa, intentamos generar un QR con la URL de pago normal
+        try:
+            # Creamos una preferencia estándar
+            preference = gen_preference_mp(None, reserva)
+            if preference and 'init_point' in preference:
+                print("Usando URL de preferencia estándar para el QR después de una excepción")
+                return preference['init_point']
+        except Exception as e2:
+            print(f"Error al generar preferencia alternativa: {str(e2)}")
+            
         return None
 
 @login_required
