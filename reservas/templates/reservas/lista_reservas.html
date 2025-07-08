@@ -209,13 +209,13 @@
                   <div class="mt-3 pt-3 border-top">                    {% if user.tipo == 'ADMIN' or user.tipo == 'EMPLEADO' %}
                     <div class="detail-row">
                         <span class="detail-label">Cliente:</span>
-                        <span class="detail-value">{{ reserva.cliente.dni }}</span>
+                        <span class="detail-value">{{ reserva.cliente.nombre }} (DNI: {{ reserva.cliente.dni }})</span>
                     </div>
                     {% endif %}
                     {% if reserva.empleado_procesador %}
                     <div class="detail-row">
                         <span class="detail-label">Procesado por:</span>
-                        <span class="detail-value">{{ reserva.empleado_procesador.dni }}</span>
+                        <span class="detail-value">{{ reserva.empleado_procesador.nombre }} (DNI: {{ reserva.empleado_procesador.dni }})</span>
                     </div>
                     {% endif %}
                 </div>                  <div class="mt-3">
