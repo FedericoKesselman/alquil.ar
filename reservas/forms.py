@@ -183,14 +183,21 @@ class SeleccionSucursalForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         sucursales_disponibles = kwargs.pop('sucursales_disponibles', [])
+        es_empleado = kwargs.pop('es_empleado', False)
         super().__init__(*args, **kwargs)
         
-        # Crear opciones con información de stock
+        # Crear opciones con información de stock solo para empleados
         choices = []
         for info_sucursal in sucursales_disponibles:
             sucursal = info_sucursal['sucursal']
             stock_disponible = info_sucursal['stock_disponible']
-            label = f"{sucursal.nombre} - {sucursal.direccion} (Disponible: {stock_disponible})"
+            
+            # Solo mostrar stock disponible si es empleado o admin
+            if es_empleado:
+                label = f"{sucursal.nombre} - {sucursal.direccion} (Disponible: {stock_disponible})"
+            else:
+                label = f"{sucursal.nombre} - {sucursal.direccion}"
+                
             choices.append((sucursal.id, label))
         
         self.fields['sucursal_retiro'].queryset = Sucursal.objects.filter(

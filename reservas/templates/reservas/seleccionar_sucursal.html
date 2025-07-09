@@ -79,11 +79,17 @@ endblock %} {% block extra_css %}
             <label class="form-check-label" for="sucursal_{{ forloop.counter }}">
               <h5 class="mb-2">{{ sucursal.choice_label }}</h5>
               <div class="text-muted small mb-2">
-                <i class="bi bi-geo-alt"></i> {{ sucursal.choice_label|cut:sucursal.choice_label|cut:"("|cut:")"|cut:"Disponible: " }}
+                <i class="bi bi-geo-alt"></i> {{ sucursal.choice_label }}
               </div>
+              {% if user.tipo == 'EMPLEADO' or user.tipo == 'ADMIN' %}
+              <!-- Solo mostrar información de stock a empleados y admin -->
+              {% if "Disponible:" in sucursal.choice_label %}
               <span class="stock-badge">
-                <i class="bi bi-box-seam"></i> Unidades disponibles: {{ sucursal.choice_label|cut:sucursal.choice_label|cut:"("|cut:")"|cut:"Disponible: " }}
+                <i class="bi bi-box-seam"></i> Unidades disponibles: 
+                {{ sucursal.choice_label|slice:"-1"|slice:"1:" }}
               </span>
+              {% endif %}
+              {% endif %}
             </label>
           </div>
         </div>

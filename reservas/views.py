@@ -477,8 +477,11 @@ def seleccionar_sucursal(request):
             'stock_disponible': suc_data['stock_disponible']
         })
     
+    # Determinar si el usuario es empleado o admin para mostrar stock
+    es_empleado = request.user.is_authenticated and request.user.tipo in ['EMPLEADO', 'ADMIN']
+    
     if request.method == 'POST':
-        form = SeleccionSucursalForm(request.POST, sucursales_disponibles=sucursales_info)
+        form = SeleccionSucursalForm(request.POST, sucursales_disponibles=sucursales_info, es_empleado=es_empleado)
         
         if form.is_valid():
             # Agregar la sucursal seleccionada a los datos de la sesión
@@ -487,7 +490,7 @@ def seleccionar_sucursal(request):
             
             return redirect('confirmar_reserva')
     else:
-        form = SeleccionSucursalForm(sucursales_disponibles=sucursales_info)
+        form = SeleccionSucursalForm(sucursales_disponibles=sucursales_info, es_empleado=es_empleado)
     
     maquinaria = get_object_or_404(Maquinaria, id=reserva_data['maquinaria_id'])
     
@@ -547,27 +550,47 @@ def procesar_pago(request, reserva_id):
         if request.user != reserva.cliente and not request.user.tipo in ['ADMIN', 'EMPLEADO']:
             return HttpResponseForbidden("No tiene permisos para acceder a esta reserva.")
         
+        # Obtener información de recargo según calificación del cliente
+        cliente = reserva.cliente
+        maquinaria = reserva.maquinaria
+        
+        # Obtener el precio con posible recargo según calificación
+        precio_por_dia, recargo_info = maquinaria.get_precio_para_cliente(cliente)
+        
         # Generar preferencia de Mercado Pago
         try:
             preference = gen_preference_mp(request, reserva)
             preference_id = preference.get('id')
             
             if not preference_id:
-                raise Exception("No se pudo obtener el ID de preferencia de Mercado Pago")
+                # Si no se puede obtener la preferencia, eliminar la reserva para evitar estados inválidos
+                reserva.delete()
+                logging.error("No se pudo obtener el ID de preferencia de Mercado Pago. Reserva eliminada.")
+                messages.error(request, "Error al procesar el pago. Por favor, intente nuevamente desde el catálogo.")
+                return redirect('maquinaria_list_cliente')
                 
             context = {
                 'reserva': reserva,
                 'MP_PUBLIC_KEY': MP_PUBLIC_KEY,
                 'preference_id': preference_id,
                 'titulo': 'Procesar Pago',
+                'recargo_info': recargo_info,  # Información sobre el recargo
+                'precio_base': maquinaria.precio_por_dia,  # Precio base sin recargo
+                'precio_con_recargo': precio_por_dia,  # Precio con recargo aplicado
             }
 
             return render(request, 'reservas/procesar_pago.html', context)
         
         except Exception as e:
-            logging.error(f"Error al generar preferencia de pago: {str(e)}")
-            messages.error(request, "Error al procesar el pago. Por favor, intente nuevamente más tarde.")
-            return redirect('reservas:detalle_reserva', reserva_id=reserva.id)
+            # En caso de error, eliminar la reserva para evitar registros incompletos
+            if reserva and reserva.estado == 'PENDIENTE_PAGO':
+                reserva.delete()
+                logging.error(f"Error al generar preferencia de pago: {str(e)}. Reserva eliminada.")
+            else:
+                logging.error(f"Error al generar preferencia de pago: {str(e)}")
+                
+            messages.error(request, "Error al procesar el pago. Por favor, intente nuevamente desde el catálogo.")
+            return redirect('maquinaria_list_cliente')
             
     except Exception as e:
         logging.error(f"Error en procesar_pago: {str(e)}")
@@ -582,6 +605,11 @@ def lista_reservas(request):
     reservas_actualizadas = Reserva.actualizar_reservas_vencidas()
     if reservas_actualizadas > 0 and (request.user.tipo == 'ADMIN' or request.user.tipo == 'EMPLEADO'):
         messages.info(request, f"Se actualizaron {reservas_actualizadas} reservas vencidas a estado 'No Devuelta'.")
+        
+    # Limpiar reservas abandonadas (PENDIENTE_PAGO por más de 30 minutos)
+    reservas_eliminadas = Reserva.limpiar_reservas_abandonadas()
+    if reservas_eliminadas > 0 and (request.user.tipo == 'ADMIN' or request.user.tipo == 'EMPLEADO'):
+        messages.info(request, f"Se eliminaron {reservas_eliminadas} reservas abandonadas en estado pendiente de pago.")
     
     # Obtener parámetros de filtrado
     estado = request.GET.get('estado')
@@ -1020,7 +1048,7 @@ def finalizar_reserva_por_codigo(request):
             messages.error(
                 request, 
                 f"Esta reserva pertenece a la sucursal {reserva.sucursal_retiro.nombre}. "
-                f"No puedes procesarla desde {request.user.sucursal.nombre}."
+                f"No se puede procesarla desde la sucursal {request.user.sucursal.nombre}."
             )
             return redirect('reservas:procesar_reservas')
             
@@ -1133,7 +1161,7 @@ def devolucion_reserva(request, reserva_id):
         messages.error(
             request, 
             f"Esta reserva pertenece a la sucursal {reserva.sucursal_retiro.nombre}. "
-            f"No puedes procesarla desde {request.user.sucursal.nombre}."
+            f"No se puede procesarla desde la sucursal {request.user.sucursal.nombre}."
         )
         return redirect('reservas:procesar_reservas')
     
@@ -1173,7 +1201,7 @@ def confirmar_devolucion(request, reserva_id):
         messages.error(
             request, 
             f"Esta reserva pertenece a la sucursal {reserva.sucursal_retiro.nombre}. "
-            f"No puedes procesarla desde {request.user.sucursal.nombre}."
+            f"No se puede procesarla desde la sucursal {request.user.sucursal.nombre}."
         )
         return redirect('reservas:procesar_reservas')
     form = DevolucionForm(request.POST)
@@ -1218,7 +1246,7 @@ def confirmar_devolucion(request, reserva_id):
         if reserva.finalizar_reserva():
             messages.success(
                 request, 
-                f"La devolución de {reserva.cliente.get_full_name()} ha sido procesada correctamente."
+                f"La devolución de la reserva ha sido procesada correctamente."
             )
             messages.info(
                 request, 
@@ -1323,35 +1351,74 @@ def payment_failure(request, reserva_id):
     try:
         reserva = get_object_or_404(Reserva, id=reserva_id)
         
-        if not request.user.is_authenticated:
-            messages.error(request, 'El pago no pudo ser procesado.')
-            return redirect('http://127.0.0.1:8000/reservas/historial/')  
-        
-        # Verificar que el usuario puede acceder a esta reserva
-        if request.user != reserva.cliente and not request.user.tipo in ['ADMIN', 'EMPLEADO']:
-            return HttpResponseForbidden("No tiene permisos para acceder a esta reserva.")
+        # Eliminar la reserva si el pago falló
+        if reserva.estado == 'PENDIENTE_PAGO':
+            # Guardar datos temporales para mensajes
+            cliente = reserva.cliente
+            maquinaria_nombre = reserva.maquinaria.nombre
             
-        messages.error(request, 'El pago no pudo ser procesado. Por favor, intenta nuevamente.')
+            # Eliminar la reserva fallida
+            reserva.delete()
+            
+            logging.info(f"Reserva {reserva_id} eliminada debido a pago fallido")
+            
+            if not request.user.is_authenticated:
+                messages.error(request, 'El pago no pudo ser procesado. La reserva ha sido cancelada.')
+                return redirect('http://127.0.0.1:8000/reservas/historial/')
+                
+            # Verificar que el usuario puede acceder a esta reserva
+            if request.user != cliente and not request.user.tipo in ['ADMIN', 'EMPLEADO']:
+                return HttpResponseForbidden("No tiene permisos para acceder a esta reserva.")
+                
+            messages.error(request, f'El pago para {maquinaria_nombre} no pudo ser procesado. La reserva ha sido cancelada. Puede intentar nuevamente desde el catálogo.')
+            return redirect('maquinaria_list_cliente')
+        else:
+            # Si la reserva no está en estado pendiente, simplemente notificar
+            if not request.user.is_authenticated:
+                messages.error(request, 'El pago no pudo ser procesado.')
+                return redirect('http://127.0.0.1:8000/reservas/historial/')
+                
+            # Verificar que el usuario puede acceder a esta reserva
+            if request.user != reserva.cliente and not request.user.tipo in ['ADMIN', 'EMPLEADO']:
+                return HttpResponseForbidden("No tiene permisos para acceder a esta reserva.")
+                
+            messages.error(request, 'El pago no pudo ser procesado. Por favor, intenta nuevamente.')
+            return redirect('reservas:detalle_reserva', reserva_id=reserva_id)
+            
+    except Reserva.DoesNotExist:
+        logging.error(f"Reserva {reserva_id} no encontrada al procesar pago fallido")
+        messages.error(request, 'No se encontró la reserva asociada al pago.')
+        return redirect('maquinaria_list_cliente')
     except Exception as e:
         logging.error(f"Error en payment_failure: {str(e)}")
         messages.error(request, 'Error al procesar la respuesta del pago.')
+        return redirect('home')
     
-    return redirect('reservas:detalle_reserva', reserva_id=reserva_id)
 
 def payment_pending(request, reserva_id):
     """Handle pending payment"""
     try:
         reserva = get_object_or_404(Reserva, id=reserva_id)
         
+        # Actualizar el estado de la reserva a PENDIENTE_CONFIRMACION
+        if reserva.estado == 'PENDIENTE_PAGO':
+            reserva.estado = 'PENDIENTE_CONFIRMACION'
+            reserva.save()
+            logging.info(f"Reserva {reserva_id} actualizada a estado PENDIENTE_CONFIRMACION")
+        
         if not request.user.is_authenticated:
-            messages.warning(request, 'Tu pago está pendiente de confirmación.')
+            messages.warning(request, 'Tu pago está pendiente de confirmación. Te notificaremos cuando se complete.')
             return redirect('http://127.0.0.1:8000/reservas/historial/')  
         
         # Verificar que el usuario puede acceder a esta reserva
         if request.user != reserva.cliente and not request.user.tipo in ['ADMIN', 'EMPLEADO']:
             return HttpResponseForbidden("No tiene permisos para acceder a esta reserva.")
             
-        messages.warning(request, 'Tu pago está pendiente de confirmación.')
+        messages.warning(request, 'Tu pago está pendiente de confirmación. Te notificaremos cuando se complete.')
+    except Reserva.DoesNotExist:
+        logging.error(f"Reserva {reserva_id} no encontrada al procesar pago pendiente")
+        messages.error(request, 'No se encontró la reserva asociada al pago.')
+        return redirect('home')
     except Exception as e:
         logging.error(f"Error en payment_pending: {str(e)}")
         messages.error(request, 'Error al procesar la respuesta del pago.')
@@ -1459,6 +1526,12 @@ def payment_webhook(request):
                                             print(f"Error al enviar código: {str(e)}")
                                     else:
                                         print("No se pudo confirmar el pago")
+                                elif status in ['rejected', 'cancelled']:
+                                    # Eliminar la reserva si el pago es rechazado o cancelado
+                                    if reserva.estado == 'PENDIENTE_PAGO' or reserva.estado == 'PENDIENTE_CONFIRMACION':
+                                        print(f"Eliminando reserva {reserva.id} por pago rechazado/cancelado")
+                                        reserva.delete()
+                                        logging.info(f"Reserva {reserva.id} eliminada por webhook debido a pago {status}")
                                         
                             except Reserva.DoesNotExist:
                                 print(f"Reserva no encontrada para: {external_reference}")

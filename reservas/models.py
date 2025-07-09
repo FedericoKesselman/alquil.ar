@@ -577,3 +577,35 @@ class Reserva(models.Model):
         ).update(estado='NO_DEVUELTA')
             
         return contador
+        
+    @classmethod
+    def limpiar_reservas_abandonadas(cls):
+        """
+        Elimina reservas que han permanecido en estado PENDIENTE_PAGO por más de 30 minutos.
+        Estas son consideradas abandonadas (el cliente comenzó el proceso de pago pero no lo completó).
+        
+        Returns:
+            int: Número de reservas eliminadas
+        """
+        # Definir el tiempo límite (30 minutos atrás)
+        tiempo_limite = timezone.now() - timedelta(minutes=30)
+        
+        # Identificar reservas abandonadas
+        reservas_abandonadas = cls.objects.filter(
+            estado='PENDIENTE_PAGO',
+            fecha_creacion__lt=tiempo_limite
+        )
+        
+        # Contar y eliminar reservas abandonadas
+        count = reservas_abandonadas.count()
+        if count > 0:
+            # Registrar en log antes de eliminar
+            for reserva in reservas_abandonadas:
+                logging.info(f"Eliminando reserva abandonada #{reserva.id} de {reserva.cliente} - "
+                            f"Maquinaria: {reserva.maquinaria.nombre}, "
+                            f"Creada: {reserva.fecha_creacion}")
+            
+            # Eliminar reservas
+            reservas_abandonadas.delete()
+            
+        return count

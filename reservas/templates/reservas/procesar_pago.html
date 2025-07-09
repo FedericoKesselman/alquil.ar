@@ -3,18 +3,72 @@
 
 {% block title %}{{ titulo }}{% endblock %}
 
+{% block extra_css %}
+<style>
+    .card {
+        border: none;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        border-radius: 0.5rem;
+    }
+    
+    .card-header {
+        border-radius: 0.5rem 0.5rem 0 0 !important;
+    }
+    
+    .price-summary {
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .surcharge-info {
+        border-left: 4px solid;
+    }
+    
+    .surcharge-info.warning {
+        border-left-color: #ffc107;
+    }
+    
+    .surcharge-info.danger {
+        border-left-color: #dc3545;
+    }
+    
+    #walletBrick_container {
+        min-height: 80px;
+    }
+    
+    .loading-overlay {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: rgba(255, 255, 255, 0.8);
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1000;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
+<div class="container my-5">
     <div class="row">
-        <div class="col-md-8 offset-md-2">
+        <div class="col-lg-8 offset-lg-2">
             <div class="card">
                 <div class="card-header bg-primary text-white">
-                    <h3 class="card-title mb-0">{{ titulo }}</h3>
+                    <h3 class="card-title mb-0"><i class="bi bi-credit-card me-2"></i>{{ titulo }}</h3>
                 </div>
                 <div class="card-body">
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle-fill me-2"></i>
                         Está a punto de realizar el pago de su reserva mediante MercadoPago. Por favor revise los detalles antes de continuar.
+                    </div>
+                    <div class="alert alert-warning">
+                        <i class="bi bi-clock-history me-2"></i>
+                        <strong>Importante:</strong> Esta reserva se cancelará automáticamente si el pago no se completa en los próximos 30 minutos.
                     </div>
 
                     <div class="card mb-4">
@@ -34,52 +88,110 @@
                                     <p><strong>Precio total:</strong> <span class="text-success fw-bold">${{ reserva.precio_total }}</span></p>
                                 </div>
                             </div>
+                            
+                            {% if recargo_info > 0 %}
+                            <div class="alert {% if recargo_info == 30 %}alert-danger{% else %}alert-warning{% endif %} mt-3">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                <strong>Recargo aplicado:</strong> Se ha aplicado un recargo del {{ recargo_info }}% debido a su calificación 
+                                {% if recargo_info == 30 %}
+                                de 1 estrella o menos.
+                                {% elif recargo_info == 20 %}
+                                de 2 estrellas o menos.
+                                {% endif %}
+                                <div class="mt-2">
+                                    <small>
+                                        <strong>Precio base por día:</strong> 
+                                        <span class="text-decoration-line-through text-muted">${{ precio_base }}</span>
+                                    </small>
+                                    <br>
+                                    <small>
+                                        <strong>Precio con recargo ({{ recargo_info }}%):</strong> 
+                                        ${{ precio_con_recargo }} por día
+                                    </small>
+                                </div>
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
 
                     <div class="mt-4">
-                        <h4><i class="bi bi-credit-card me-2"></i>Proceder al pago</h4>
-                        <p class="mb-4">Haga clic en el botón de abajo para proceder con el pago seguro a través de Mercado Pago.</p>
+                        <h4 class="d-flex align-items-center">
+                            <i class="bi bi-credit-card me-2 text-primary"></i>
+                            <span>Proceder al pago</span>
+                        </h4>
                         
-                        <!-- Mercado Pago Checkout Button -->
+                        <div class="card bg-light mb-4">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="me-3">
+                                        <img src="https://http2.mlstatic.com/frontend-assets/mp-web-navigation/palette/logos/large--t-plus-o.png" 
+                                             alt="MercadoPago Logo" height="30">
+                                    </div>
+                                    <div>
+                                        <h5 class="mb-0">MercadoPago</h5>
+                                        <small class="text-muted">Plataforma de pago segura</small>
+                                    </div>
+                                </div>
+                                
+                                <p>Haga clic en el botón de abajo para proceder con el pago seguro a través de MercadoPago.</p>
+                                
+                                <!-- Mercado Pago Checkout Button -->
+                                <div id="walletBrick_container" class="d-flex justify-content-center my-4 position-relative">
+                                    <div class="loading-overlay">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Cargando...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <script src="https://sdk.mercadopago.com/js/v2"></script>
                         <script>
-                        // Configuración de MercadoPago
-                        const publicKey = '{{ MP_PUBLIC_KEY }}';
-                        const preferenceId = '{{ preference_id }}';
-
-                        // Inicializar SDK de MercadoPago
-                        const mp = new MercadoPago(publicKey);
-
-                        // Crear botón de pago
-                        const bricksBuilder = mp.bricks();
-                        const renderWalletBrick = async (bricksBuilder) => {
-                            await bricksBuilder.create("wallet", "walletBrick_container", {
-                                initialization: {
-                                    preferenceId: preferenceId,
-                                },
-                                callbacks: {
-                                    onError: (error) => console.error("Error al cargar el botón de pago:", error),
-                                    onReady: () => console.log("Botón de MercadoPago listo")
-                                },
-                                customization: {
-                                    texts: {
-                                        action: 'Pagar',
-                                        valueProp: 'Pago seguro'
+                        document.addEventListener('DOMContentLoaded', function() {
+                            // Configuración de MercadoPago
+                            const publicKey = '{{ MP_PUBLIC_KEY }}';
+                            const preferenceId = '{{ preference_id }}';
+                            
+                            // Inicializar SDK de MercadoPago
+                            const mp = new MercadoPago(publicKey);
+                            
+                            // Crear botón de pago
+                            const bricksBuilder = mp.bricks();
+                            const renderWalletBrick = async (bricksBuilder) => {
+                                await bricksBuilder.create("wallet", "walletBrick_container", {
+                                    initialization: {
+                                        preferenceId: preferenceId,
+                                    },
+                                    callbacks: {
+                                        onError: (error) => {
+                                            console.error("Error al cargar el botón de pago:", error);
+                                            document.querySelector('.loading-overlay').style.display = 'none';
+                                        },
+                                        onReady: () => {
+                                            console.log("Botón de MercadoPago listo");
+                                            document.querySelector('.loading-overlay').style.display = 'none';
+                                        }
+                                    },
+                                    customization: {
+                                        texts: {
+                                            action: 'Pagar',
+                                            valueProp: 'Pago seguro'
+                                        }
                                     }
-                                }
-                            });
-                        };
-
-                        renderWalletBrick(bricksBuilder);
+                                });
+                            };
+                            
+                            renderWalletBrick(bricksBuilder);
+                        });
                         </script>
-                        <div id="walletBrick_container" class="d-flex justify-content-center my-4"></div>
                         
-                        <div class="text-center mt-4">
+                        <div class="d-flex justify-content-center mt-4">
                             <a href="{% url 'home' %}" class="btn btn-outline-secondary">
                                 <i class="bi bi-arrow-left me-2"></i>Volver al inicio
                             </a>
                         </div>
+                    </div>
                     </div>
                 </div>
             </div>
