@@ -19,6 +19,9 @@ urlpatterns = [
     path('cancelar/<int:reserva_id>/', views.cancelar_reserva, name='cancelar_reserva'),
     path('reembolsar/<int:reserva_id>/', views.reembolsar_reserva, name='reembolsar_reserva'),
     
+    # Nueva URL para cancelar reserva desde página QR
+    path('cancelar-qr/<int:reserva_id>/', views.cancelar_qr_reserva, name='cancelar_qr_reserva'),
+    
     # URLs para empleados
     path('procesar-reservas/', views.procesar_reservas, name='procesar_reservas'),
     path('finalizar-por-codigo/', views.finalizar_reserva_por_codigo, name='finalizar_reserva_por_codigo'),

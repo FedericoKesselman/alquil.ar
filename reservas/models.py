@@ -231,14 +231,17 @@ class Reserva(models.Model):
         return False
         
     def cancelar(self):
-        """Cancela la reserva"""
-        # For NULL estado (incomplete reservations), just return True but don't delete here
-        # The view will handle the deletion for these
-        if self.estado is None:
+        """
+        Cancela la reserva. Si está en estado PENDIENTE_PAGO o es None, 
+        retorna True para indicar que debe ser eliminada.
+        Si está en CONFIRMADA, la marca como CANCELADA.
+        """
+        # Para reservas incompletas o pendientes de pago, indicar que debe eliminarse
+        if self.estado is None or self.estado == 'PENDIENTE_PAGO':
             return True
             
-        # For regular reservations with valid estado
-        if self.estado in ['PENDIENTE_PAGO', 'CONFIRMADA']:
+        # Para reservas ya confirmadas, marcarlas como canceladas
+        if self.estado == 'CONFIRMADA':
             self.estado = 'CANCELADA'
             self.save()
             return True

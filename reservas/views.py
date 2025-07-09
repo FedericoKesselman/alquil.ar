@@ -357,7 +357,7 @@ def confirmar_reserva_cliente(request):
                             # Obtener reservas superpuestas
                             reservas_superpuestas = Reserva.objects.filter(
                                 maquinaria=maquinaria,
-                                sucursal_retiro_id=reserva_data['sucursal_retiro_id'],
+                                sucursal_retiro_id=reserva_data['sucursal_retiro'],
                                 estado='CONFIRMADA',
                                 fecha_inicio__lte=fecha_fin,
                                 fecha_fin__gte=fecha_inicio
@@ -1274,20 +1274,27 @@ def payment_failure(request, reserva_id):
     try:
         reserva = get_object_or_404(Reserva, id=reserva_id)
         
+        # Obtener ID para el mensaje
+        reserva_id_mensaje = reserva.id
+        
         if not request.user.is_authenticated:
+            # Eliminar la reserva si el pago falló
+            reserva.delete()
             messages.error(request, 'El pago no pudo ser procesado.')
             return redirect('http://127.0.0.1:8000/reservas/historial/')  
         
         # Verificar que el usuario puede acceder a esta reserva
         if request.user != reserva.cliente and not request.user.tipo in ['ADMIN', 'EMPLEADO']:
             return HttpResponseForbidden("No tiene permisos para acceder a esta reserva.")
-            
-        messages.error(request, 'El pago no pudo ser procesado. Por favor, intenta nuevamente.')
+        
+        # Eliminar la reserva si el pago falló
+        reserva.delete()
+        messages.error(request, f'El pago no pudo ser procesado. La reserva #{reserva_id_mensaje} ha sido eliminada.')
     except Exception as e:
         logging.error(f"Error en payment_failure: {str(e)}")
         messages.error(request, 'Error al procesar la respuesta del pago.')
     
-    return redirect('reservas:detalle_reserva', reserva_id=reserva_id)
+    return redirect('home')
 
 def payment_pending(request, reserva_id):
     """Handle pending payment"""
@@ -1600,3 +1607,39 @@ def check_payment_status(request, reserva_id):
             'message': f'Estado de la reserva: {reserva.get_estado_display()}',
             'estado_cambio': estado_cambio
         })
+
+@login_required
+@solo_empleado
+def cancelar_qr_reserva(request, reserva_id):
+    """
+    Vista para cancelar y eliminar una reserva desde la página QR.
+    Solo accesible por empleados.
+    """
+    if request.method != 'POST':
+        messages.error(request, "Método no permitido")
+        return redirect('home')
+    
+    reserva = get_object_or_404(Reserva, id=reserva_id)
+    
+    # Verificar que la reserva esté en estado PENDIENTE_PAGO
+    if reserva.estado != 'PENDIENTE_PAGO':
+        messages.error(request, "Solo se pueden cancelar reservas en estado PENDIENTE DE PAGO")
+        return redirect('home')
+    
+    # Verificar que la sucursal de la reserva coincida con la del empleado
+    if reserva.sucursal_retiro != request.user.sucursal:
+        messages.error(request, f"Esta reserva pertenece a la sucursal {reserva.sucursal_retiro.nombre}. No puedes procesarla.")
+        return redirect('home')
+    
+    # Obtener ID para el mensaje
+    reserva_id_mensaje = reserva.id
+    
+    try:
+        # Eliminar la reserva en lugar de cancelarla
+        reserva.delete()
+        messages.success(request, f"La reserva #{reserva_id_mensaje} ha sido eliminada exitosamente")
+    except Exception as e:
+        messages.error(request, f"No se pudo eliminar la reserva. Error: {str(e)}")
+    
+    # Redirigir a la página principal
+    return redirect('home')
