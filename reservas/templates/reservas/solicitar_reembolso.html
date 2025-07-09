@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Solicitar Reembolso{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Solicitar Reembolso</h3>
+                </div>
+                <div class="card-body">
+                    {% if messages %}
+                    <div class="messages mb-4">
+                        {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    
+                    <div class="alert alert-info">
+                        <h5><i class="bi bi-info-circle-fill me-2"></i>Política de Reembolsos:</h5>
+                        <ul class="mb-0">
+                            <li>Reembolso total (100%): si cancelas con más de {{ reserva.maquinaria.cantDias_total }} días de anticipación.</li>
+                            <li>Reembolso parcial (50%): si cancelas con más de {{ reserva.maquinaria.cantDias_parcial }} días de anticipación.</li>
+                            <li>Sin reembolso: si cancelas con {{ reserva.maquinaria.cantDias_parcial }} días o menos de anticipación.</li>
+                            <li><strong>No se pueden reembolsar reservas que ya están dentro de su período de alquiler activo.</strong></li>
+                        </ul>
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">Detalles de la Reserva</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Maquinaria:</strong> {{ reserva.maquinaria.nombre }}</p>
+                            <p><strong>Fechas:</strong> {{ reserva.fecha_inicio }} a {{ reserva.fecha_fin }}</p>
+                            <p><strong>Precio Total:</strong> ${{ reserva.precio_total }}</p>
+                            <p><strong>Estado:</strong> {{ reserva.get_estado_display }}</p>
+                            <p><strong>Sucursal:</strong> {{ reserva.sucursal_retiro.nombre }}</p>
+                            
+                            <div class="alert {% if porcentaje_reembolso == 100 %}alert-success{% elif porcentaje_reembolso == 50 %}alert-warning{% else %}alert-danger{% endif %}">
+                                <strong>Monto a reembolsar:</strong> ${{ monto_reembolso }} ({{ porcentaje_reembolso }}% del total)
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'reservas:lista_reservas' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left me-2"></i>Volver
+                            </a>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-x-circle me-2"></i>Confirmar Cancelación
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -723,6 +723,11 @@ def cancelar_reserva(request, reserva_id):
         return HttpResponseForbidden("No puede cancelar esta reserva.")
     elif request.user.tipo not in ['CLIENTE', 'EMPLEADO', 'ADMIN']:
         return HttpResponseForbidden("No tiene permisos para cancelar reservas.")
+        
+    # Si es cliente y la reserva está activa (dentro del período de alquiler), no permitir cancelación
+    if request.user.tipo == 'CLIENTE' and reserva.is_active():
+        messages.error(request, "No se pueden cancelar reservas que están dentro de su período de alquiler activo. Por favor, contacte con un empleado si necesita asistencia.")
+        return redirect('reservas:detalle_reserva', reserva_id=reserva_id)
     
     if request.method == 'POST':
         if reserva.estado is None:
@@ -801,6 +806,11 @@ def reembolsar_reserva(request, reserva_id):
         messages.error(request, "Solo se pueden reembolsar reservas confirmadas.")
         return redirect('reservas:lista_reservas')
     
+    # Verificar si la reserva está activa (dentro del plazo de los días de la reserva)
+    if reserva.is_active():
+        messages.error(request, "No se pueden reembolsar reservas activas que están dentro de su periodo de alquiler. Por favor, contacte con un empleado si necesita asistencia.")
+        return redirect('reservas:lista_reservas')
+    
     # Obtener la fecha actual
     fecha_actual = timezone.now().date()
     dias_hasta_inicio = (reserva.fecha_inicio - fecha_actual).days
@@ -825,7 +835,7 @@ def reembolsar_reserva(request, reserva_id):
             else:  # Reembolso nulo
                 messages.success(
                     request, 
-                    f"Tu reserva ha sido cancelada. Acércate a {nombre_sucursal} para finalizar el trámite."
+                    f"Tu reserva ha sido cancelada. Acercate a la sucursal {nombre_sucursal} para finalizar el trámite."
                 )
         else:
             messages.error(request, "No se pudo procesar el reembolso. Por favor, intente nuevamente.")

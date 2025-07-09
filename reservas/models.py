@@ -300,10 +300,13 @@ class Reserva(models.Model):
     def cancelar_reserva(self):
         """
         Cancela una reserva. No modifica el stock de la maquinaria.
+        No permite cancelar reservas activas (dentro del período de alquiler)
+        para clientes, pero sí para empleados y administradores.
         
         Returns:
             bool: True si se canceló exitosamente
         """
+        # Verificar que la reserva esté en estado válido para cancelación
         if self.estado not in ['PENDIENTE_PAGO', 'CONFIRMADA']:
             return False
         
@@ -501,10 +504,19 @@ class Reserva(models.Model):
         No modifica el stock de la maquinaria.
         El reembolso efectivo solo se registra cuando un empleado finaliza la reserva cancelada.
         
+        No permite reembolsar reservas activas (dentro del período de alquiler).
+        
         Returns:
             bool: True si la cancelación se procesó correctamente, False en caso contrario.
         """
+        # Verificar que la reserva esté confirmada
         if self.estado != 'CONFIRMADA':
+            return False
+        
+        # Verificar si la reserva está dentro de su período activo
+        today = timezone.now().date()
+        if self.fecha_inicio <= today <= self.fecha_fin:
+            # No permitir reembolso para reservas activas
             return False
             
         # Cambiar estado a cancelada
