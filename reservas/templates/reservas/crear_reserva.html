@@ -323,7 +323,7 @@
         if (fechaInicioInput.value && fechaFinInput.value && cantidadInput.value) {
             const inicio = new Date(fechaInicioInput.value);
             const fin = new Date(fechaFinInput.value);
-            const diffTime = Math.abs(fin - inicio);
+            const diffTime = Math.abs(fin - inicio) + 1;
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             const cantidad = parseInt(cantidadInput.value);
 
