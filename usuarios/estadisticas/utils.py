@@ -27,12 +27,12 @@ def generar_estadisticas(fecha_desde, fecha_hasta, tipo_estadistica):
     }
     
     if tipo_estadistica == 'maquinas_alquiladas':
-        # Obtener todas las reservas en el rango de fechas sin filtrar por estado
+        # Obtener todas las reservas en el rango de fechas, excluyendo las PENDIENTE_PAGO
         # Usamos fecha_creacion para tener un filtro más preciso
         reservas = Reserva.objects.filter(
             fecha_creacion__date__gte=fecha_desde,
             fecha_creacion__date__lte=fecha_hasta
-        )
+        ).exclude(estado='PENDIENTE_PAGO')
         
         # Debug: contar reservas totales vs filtradas
         total_reservas = Reserva.objects.count()

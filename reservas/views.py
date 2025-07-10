@@ -330,7 +330,31 @@ def confirmar_reserva_cliente(request):
                 # Redondear a 2 decimales para evitar errores de validación
                 precio_total = decimal.Decimal(str(precio_total)).quantize(decimal.Decimal('0.01'), rounding=decimal.ROUND_HALF_UP)
                 
-                # Crear la reserva
+                # Esta es una vista antigua para clientes que crea reservas en PENDIENTE_PAGO
+                # Para evitar errores, redirigiremos al flujo temporal
+                
+                # Preparar datos para la sesión
+                request.session['reserva_temporal'] = {
+                    'cliente_id': cliente.id,
+                    'maquinaria_id': reserva_data['maquinaria_id'],
+                    'fecha_inicio': reserva_data['fecha_inicio'],
+                    'fecha_fin': reserva_data['fecha_fin'],
+                    'cantidad_solicitada': int(reserva_data['cantidad_solicitada']),
+                    'sucursal_retiro_id': reserva_data['sucursal_retiro_id'],
+                    'precio_total': str(precio_total)
+                }
+                
+                # Redirigir al flujo temporal
+                messages.info(request, "Redirigiendo al flujo de reserva temporal...")
+                
+                # Devolver la redirección aquí para evitar la creación de la reserva
+                if 'reserva_data' in request.session:
+                    del request.session['reserva_data']
+                return redirect('reservas:procesar_pago_temporal')
+                
+                # NOTA: El código siguiente nunca se ejecutará debido al return anterior
+                # Lo dejamos comentado como referencia
+                """
                 reserva = Reserva.objects.create(
                     cliente=cliente,
                     maquinaria_id=reserva_data['maquinaria_id'],
@@ -342,6 +366,7 @@ def confirmar_reserva_cliente(request):
                     estado='PENDIENTE_PAGO',
                     precio_total=precio_total
                 )
+                """
                 
                 # Verificar disponibilidad
                 try:
@@ -510,6 +535,31 @@ def confirmar_reserva(request, reserva_id):
 def procesar_pago(request, reserva_id):
     """Vista para procesar el pago de una reserva usando Mercado Pago"""
     try:
+        # Si es cliente, redirigir al flujo temporal
+        if request.user.tipo == 'CLIENTE':
+            # Obtener datos de la reserva
+            reserva = get_object_or_404(Reserva, id=reserva_id)
+            
+            # Si la reserva está en estado PENDIENTE_PAGO, eliminarla y redirigir al flujo temporal
+            if reserva.estado == 'PENDIENTE_PAGO':
+                # Guardar datos en sesión para el flujo temporal
+                request.session['reserva_data'] = {
+                    'cliente_id': reserva.cliente.id,
+                    'maquinaria_id': reserva.maquinaria.id,
+                    'fecha_inicio': reserva.fecha_inicio.isoformat(),
+                    'fecha_fin': reserva.fecha_fin.isoformat(),
+                    'cantidad_solicitada': reserva.cantidad_solicitada,
+                    'sucursal_retiro_id': reserva.sucursal_retiro.id,
+                    'precio_total': str(reserva.precio_total)
+                }
+                
+                # Eliminar la reserva en estado PENDIENTE_PAGO
+                reserva.delete()
+                
+                # Redirigir al flujo temporal
+                messages.info(request, "Redirigiendo al flujo de reserva temporal...")
+                return redirect('reservas:confirmar_reserva_cliente')
+                
         reserva = get_object_or_404(Reserva, id=reserva_id)
         
         # Verificar que el usuario puede acceder a esta reserva
@@ -586,13 +636,13 @@ def lista_reservas(request):
     sucursal_id = request.GET.get('sucursal')
       # Iniciar el queryset base según el tipo de usuario
     if request.user.tipo == 'ADMIN' or request.user.tipo == 'EMPLEADO':
-        # Administradores y empleados ven todas las reservas
-        reservas = Reserva.objects.all()
+        # Administradores y empleados ven todas las reservas excepto las pendientes de pago
+        reservas = Reserva.objects.exclude(estado='PENDIENTE_PAGO')
         # Obtener lista de sucursales para el filtro
         sucursales = Sucursal.objects.filter(activa=True).order_by('nombre')
     else:
-        # Clientes ven sus propias reservas
-        reservas = Reserva.objects.filter(cliente=request.user)
+        # Clientes ven sus propias reservas excepto las pendientes de pago
+        reservas = Reserva.objects.filter(cliente=request.user).exclude(estado='PENDIENTE_PAGO')
         sucursales = None
       # Aplicar filtros si existen
     if estado:
@@ -647,9 +697,11 @@ def lista_reservas(request):
 def detalle_reserva(request, reserva_id):
     """Vista para ver los detalles de una reserva"""
     if request.user.is_staff:
-        reserva = get_object_or_404(Reserva, id=reserva_id)
+        # Admin y empleados pueden ver todas las reservas excepto PENDIENTE_PAGO
+        reserva = get_object_or_404(Reserva.objects.exclude(estado='PENDIENTE_PAGO'), id=reserva_id)
     else:
-        reserva = get_object_or_404(Reserva, id=reserva_id, cliente=request.user)
+        # Clientes solo pueden ver sus propias reservas y nunca las PENDIENTE_PAGO
+        reserva = get_object_or_404(Reserva.objects.exclude(estado='PENDIENTE_PAGO'), id=reserva_id, cliente=request.user)
     
     context = {
         'reserva': reserva
@@ -1025,6 +1077,15 @@ def finalizar_reserva_por_codigo(request):
                 request, 
                 f"Esta reserva pertenece a la sucursal {reserva.sucursal_retiro.nombre}. "
                 f"No se puede procesarla desde la sucursal {request.user.sucursal.nombre}."
+            )
+            return redirect('reservas:procesar_reservas')
+            
+        # No permitir procesar reservas en estado PENDIENTE_PAGO
+        if reserva.estado == 'PENDIENTE_PAGO':
+            messages.error(
+                request,
+                f"No se pueden procesar reservas en estado 'Pendiente de Pago'. "
+                f"Espere a que el pago se confirme o use el flujo de reserva temporal."
             )
             return redirect('reservas:procesar_reservas')
             
@@ -1636,6 +1697,31 @@ def generar_qr_orden_mp(reserva):
 @login_required
 @solo_empleado
 def mostrar_qr_pago(request, reserva_id):
+    # Si es cliente, redirigir al flujo temporal
+    if request.user.tipo == 'CLIENTE':
+        # Obtener datos de la reserva
+        reserva = get_object_or_404(Reserva, id=reserva_id)
+        
+        # Si la reserva está en estado PENDIENTE_PAGO, eliminarla y redirigir al flujo temporal
+        if reserva.estado == 'PENDIENTE_PAGO':
+            # Guardar datos en sesión para el flujo temporal
+            request.session['reserva_data'] = {
+                'cliente_id': reserva.cliente.id,
+                'maquinaria_id': reserva.maquinaria.id,
+                'fecha_inicio': reserva.fecha_inicio.isoformat(),
+                'fecha_fin': reserva.fecha_fin.isoformat(),
+                'cantidad_solicitada': reserva.cantidad_solicitada,
+                'sucursal_retiro_id': reserva.sucursal_retiro.id,
+                'precio_total': str(reserva.precio_total)
+            }
+            
+            # Eliminar la reserva en estado PENDIENTE_PAGO
+            reserva.delete()
+            
+            # Redirigir al flujo temporal
+            messages.info(request, "Redirigiendo al flujo de reserva temporal...")
+            return redirect('reservas:confirmar_reserva_cliente')
+    
     reserva = get_object_or_404(Reserva, id=reserva_id)
 
     if reserva.estado != 'PENDIENTE_PAGO' or reserva.tipo_pago != 'PRESENCIAL':
