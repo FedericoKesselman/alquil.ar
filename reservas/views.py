@@ -55,8 +55,18 @@ def crear_reserva(request, maquinaria_id):
         
         # Verificar si el formulario es válido
         if form.is_valid():
-            # Si es cliente, verificar que no tenga una reserva activa o cancelada
+            # Si es cliente, limpiar reservas pendientes y verificar que no tenga una reserva activa o cancelada
             if request.user.tipo == 'CLIENTE':
+                # Eliminar reservas pendientes de pago si existen
+                reservas_pendientes = Reserva.objects.filter(
+                    cliente=request.user,
+                    estado='PENDIENTE_PAGO'
+                )
+                if reservas_pendientes.exists():
+                    cantidad_eliminadas = reservas_pendientes.count()
+                    reservas_pendientes.delete()
+                
+                # Verificar reserva activa o cancelada
                 reserva_existente = Reserva.objects.filter(
                     cliente=request.user,
                     estado__in=['CONFIRMADA', 'CANCELADA']
@@ -104,11 +114,20 @@ def crear_reserva(request, maquinaria_id):
             reserva = form.save(commit=False)
             reserva.maquinaria = maquinaria
             
-            # Si es empleado, obtener el cliente del DNI
+            # Si es empleado, obtener el cliente del DNI y limpiar sus reservas pendientes
             if request.user.tipo == 'EMPLEADO':
                 # El cliente se encontró a partir del DNI en el clean() del formulario
                 cliente = form.cleaned_data['cliente']
                 reserva.cliente = cliente
+                
+                # Eliminar reservas pendientes de pago del cliente si existen
+                reservas_pendientes = Reserva.objects.filter(
+                    cliente=cliente,
+                    estado='PENDIENTE_PAGO'
+                )
+                if reservas_pendientes.exists():
+                    cantidad_eliminadas = reservas_pendientes.count()
+                    reservas_pendientes.delete()
                 
             # Calcular precio total con posible recargo para clientes con baja calificación
             dias = (reserva.fecha_fin - reserva.fecha_inicio).days
@@ -195,6 +214,18 @@ def confirmar_reservas(request):
 
                 # Verificar si el cliente ya tiene una reserva confirmada o cancelada
                 cliente = Usuario.objects.get(id=reserva_data['cliente_id'])
+                
+                # Eliminar reservas en PENDIENTE_PAGO del cliente si existen
+                reservas_pendientes = Reserva.objects.filter(
+                    cliente=cliente,
+                    estado='PENDIENTE_PAGO'
+                )
+                
+                if reservas_pendientes.exists():
+                    cantidad_eliminadas = reservas_pendientes.count()
+                    reservas_pendientes.delete()
+                
+                # Verificar si tiene reservas activas o canceladas
                 reserva_existente = Reserva.objects.filter(
                     cliente=cliente,
                     estado__in=['CONFIRMADA', 'CANCELADA']
@@ -309,6 +340,19 @@ def confirmar_reserva_cliente(request):
                 
                 # Verificar si el cliente ya tiene una reserva confirmada o cancelada
                 cliente = request.user
+                
+                # Eliminar reservas en PENDIENTE_PAGO del cliente si existen
+                reservas_pendientes = Reserva.objects.filter(
+                    cliente=cliente,
+                    estado='PENDIENTE_PAGO'
+                )
+                
+                if reservas_pendientes.exists():
+                    cantidad_eliminadas = reservas_pendientes.count()
+                    reservas_pendientes.delete()
+            
+                
+                # Verificar si tiene reservas activas o canceladas
                 reserva_existente = Reserva.objects.filter(
                     cliente=cliente,
                     estado__in=['CONFIRMADA', 'CANCELADA']
@@ -581,7 +625,6 @@ def procesar_pago(request, reserva_id):
             if not preference_id:
                 # Si no se puede obtener la preferencia, eliminar la reserva para evitar estados inválidos
                 reserva.delete()
-                logging.error("No se pudo obtener el ID de preferencia de Mercado Pago. Reserva eliminada.")
                 messages.error(request, "Error al procesar el pago. Por favor, intente nuevamente desde el catálogo.")
                 return redirect('maquinaria_list_cliente')
                 
@@ -601,15 +644,11 @@ def procesar_pago(request, reserva_id):
             # En caso de error, eliminar la reserva para evitar registros incompletos
             if reserva and reserva.estado == 'PENDIENTE_PAGO':
                 reserva.delete()
-                logging.error(f"Error al generar preferencia de pago: {str(e)}. Reserva eliminada.")
-            else:
-                logging.error(f"Error al generar preferencia de pago: {str(e)}")
-                
+            
             messages.error(request, "Error al procesar el pago. Por favor, intente nuevamente desde el catálogo.")
             return redirect('maquinaria_list_cliente')
             
     except Exception as e:
-        logging.error(f"Error en procesar_pago: {str(e)}")
         messages.error(request, "Error al procesar la solicitud. Por favor, intente nuevamente.")
         return redirect('home')
 
@@ -624,8 +663,6 @@ def lista_reservas(request):
         
     # Limpiar reservas abandonadas (PENDIENTE_PAGO por más de 30 minutos)
     reservas_eliminadas = Reserva.limpiar_reservas_abandonadas()
-    if reservas_eliminadas > 0 and (request.user.tipo == 'ADMIN' or request.user.tipo == 'EMPLEADO'):
-        messages.info(request, f"Se eliminaron {reservas_eliminadas} reservas abandonadas en estado pendiente de pago.")
     
     # Obtener parámetros de filtrado
     estado = request.GET.get('estado')
@@ -713,7 +750,6 @@ def detalle_reserva(request, reserva_id):
             # Verificar credenciales
             if not MP_ACCESS_TOKEN or not MP_PUBLIC_KEY:
                 messages.error(request, "Error de configuración del sistema de pagos. Por favor, contacte a soporte.")
-                logging.error("Mercado Pago credentials not configured")
             else:
                 preference = gen_preference_mp(request, reserva)
                 if preference and 'id' in preference:
@@ -723,9 +759,7 @@ def detalle_reserva(request, reserva_id):
                     })
                 else:
                     messages.error(request, "Error al generar el pago. Por favor, intente nuevamente más tarde.")
-                    logging.error(f"Invalid preference response: {preference}")
         except Exception as e:
-            logging.error(f"Error al generar preferencia de pago: {str(e)}")
             messages.error(request, "Error al cargar el pago. Por favor, intente nuevamente más tarde.")
     
     return render(request, 'reservas/detalle_reserva.html', context)
@@ -983,11 +1017,6 @@ def get_sucursales_disponibles(request):
         # Obtener las sucursales activas con stock disponible
         sucursales_disponibles = []
         
-        # Agregar logging para debug
-        print(f"Buscando sucursales para maquinaria {maquinaria_id}")
-        print(f"Fechas: {fecha_inicio} - {fecha_fin}")
-        print(f"Cantidad solicitada: {cantidad_solicitada}")
-        
         # Solo buscar en sucursales activas
         for sucursal in Sucursal.objects.filter(activa=True):
             try:
@@ -997,7 +1026,6 @@ def get_sucursales_disponibles(request):
                     fecha_fin,
                     cantidad_solicitada
                 )
-                print(f"Sucursal {sucursal.nombre}: stock disponible = {stock_disponible}")
                 
                 if stock_disponible >= cantidad_solicitada:
                     sucursales_disponibles.append({
@@ -1005,17 +1033,17 @@ def get_sucursales_disponibles(request):
                         'nombre': sucursal.nombre,
                         'direccion': sucursal.direccion,
                     })
-            except Exception as e:
-                print(f"Error al verificar stock en sucursal {sucursal.nombre}: {str(e)}")
+            except Exception:
+                # Simplemente ignoramos la sucursal si hay un error
+                pass
 
         return JsonResponse({
             'sucursales': sucursales_disponibles
         })
 
     except Exception as e:
-        print(f"Error general: {str(e)}")
         return JsonResponse({
-            'error': str(e)
+            'error': 'Error al buscar sucursales disponibles'
         }, status=400)
 
 
@@ -1058,8 +1086,6 @@ def finalizar_reserva_por_codigo(request):
         action = request.POST.get('action', 'finalizar')
         
         # Debug información sobre la acción
-        print(f"Acción solicitada: {action}")
-        
         # Buscar la reserva con ese código
         try:
             reserva = Reserva.objects.get(codigo_reserva=codigo)
@@ -1095,14 +1121,12 @@ def finalizar_reserva_por_codigo(request):
         # Si se presionó el botón de devolución, redirigir al formulario de devolución
         print(f"Action check: '{action}' == 'devolucion'? {action == 'devolucion'}")
         if action == 'devolucion':
-            print(f"Entrando en caso de devolución")
             if reserva.estado in ['CONFIRMADA', 'NO_DEVUELTA']:
                 # Add debug message
                 messages.info(request, f"Redirigiendo a formulario de devolución para la reserva")
                 # Ensure using the correct URL name and parameter name
                 return redirect('reservas:devolucion_reserva', reserva_id=reserva.id)
             else:
-                print(f"Reserva no está en estado CONFIRMADA o NO_DEVUELTA: {reserva.estado}")
                 messages.warning(
                     request,
                     f"Solo se pueden procesar devoluciones para reservas en estado CONFIRMADA o NO DEVUELTA."
@@ -1181,9 +1205,6 @@ def devolucion_reserva(request, reserva_id):
     
     # Obtener la reserva
     reserva = get_object_or_404(Reserva, id=reserva_id)
-    
-    # Log información de la reserva
-    print(f"Reserva encontrada: {reserva.id}, Estado: {reserva.estado}")
     
     # Verificar si la reserva ha vencido y actualizarla si es necesario
     reserva.verificar_vencimiento()
@@ -1330,9 +1351,6 @@ def gen_preference_mp(request, reserva):
         # Crear la preferencia
         preference_response = sdk.preference().create(preference_data)
         
-        # Log the complete response
-        print(f"Complete Mercado Pago response: {preference_response}")
-        
         if not preference_response:
             raise Exception("No response from Mercado Pago")
             
@@ -1347,7 +1365,6 @@ def gen_preference_mp(request, reserva):
         return response_data
         
     except Exception as e:
-        print(f"Error generating payment: {str(e)}")
         raise
 
 # Elimina el @login_required de estas tres funciones
@@ -1477,27 +1494,21 @@ def payment_webhook(request):
             # Intentar parsear los datos
             try:
                 data = json.loads(body)
-                print(f"Datos parseados: {data}")
             except json.JSONDecodeError:
-                print("Error al decodificar JSON")
                 data = {}
             
             # Extraer información del tipo de evento
             topic = data.get('topic', '')
             resource = data.get('resource', '')
             
-            print(f"Topic: {topic}, Resource: {resource}")
-            
             # Procesar notificaciones de merchant_order
             if topic == 'merchant_order' and resource:
                 try:
                     # Obtener ID del merchant_order desde la URL del recurso
                     merchant_order_id = resource.split('/')[-1]
-                    print(f"Merchant Order ID: {merchant_order_id}")
                     
                     # Obtener información del merchant_order
                     merchant_info = sdk.merchant_order().get(merchant_order_id)
-                    print(f"Merchant order info: {merchant_info}")
                     
                     if merchant_info.get('status') == 200:
                         merchant_data = merchant_info.get('response', {})
@@ -1514,26 +1525,22 @@ def payment_webhook(request):
                                 approved_payment = any(p.get('status') == 'approved' for p in payments)
                                 
                                 if approved_payment:
-                                    print("Pago aprobado encontrado, confirmando...")
                                     if reserva.confirmar_pago():
-                                        print("Pago confirmado")
                                         try:
                                             reserva.enviar_codigo_reserva()
-                                            print("Código de reserva enviado")
-                                        except Exception as e:
-                                            print(f"Error al enviar código: {str(e)}")
+                                        except Exception:
+                                            pass
                                 
                             except Reserva.DoesNotExist:
-                                print(f"Reserva no encontrada para: {external_reference}")
-                            except Exception as e:
-                                print(f"Error procesando reserva: {str(e)}")
-                except Exception as e:
-                    print(f"Error procesando merchant_order: {str(e)}")
+                                pass
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
                     
             # Seguir procesando notificaciones de payment para mantener compatibilidad
             if data.get('type') == 'payment':
                 payment_id = data.get('data', {}).get('id')
-                print(f"ID de pago recibido: {payment_id}")
                 
                 if payment_id:
                     payment_info = sdk.payment().get(payment_id)
@@ -1615,9 +1622,6 @@ def generar_qr_orden_mp(reserva):
             "expiration_date": expiration_time
         }
 
-        # Imprimir el payload para depuración
-        print(f"QR order payload: {json.dumps(order_data)}")
-
         headers = {
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json"
@@ -1628,17 +1632,13 @@ def generar_qr_orden_mp(reserva):
         user_response = requests.get(user_me_url, headers=headers)
         
         if user_response.status_code != 200:
-            print(f"Error al obtener información del usuario: {user_response.status_code} - {user_response.text}")
             return None
             
         user_info = user_response.json()
         user_id = user_info.get('id')
         
         if not user_id:
-            print("No se pudo obtener el ID del usuario de Mercado Pago")
             return None
-            
-        print(f"ID de usuario de Mercado Pago: {user_id}")
         
         # URL correcta para la API de QR de Mercado Pago usando el ID obtenido
         url = f"https://api.mercadopago.com/instore/orders/qr/seller/collectors/{user_id}/pos/ALQUILAR01/qrs"
@@ -1649,23 +1649,16 @@ def generar_qr_orden_mp(reserva):
             json=order_data
         )
 
-        # Imprimir respuesta para depuración
-        print(f"QR API Response status: {response.status_code}")
-        print(f"QR API Response body: {response.text}")
-
         # Revisá status
         if response.status_code not in [200, 201]:
-            print(f"Error al generar QR: {response.status_code} - {response.text}")
-            
             # Como alternativa, generamos un QR con la URL de pago normal
             try:
                 # Creamos una preferencia estándar
                 preference = gen_preference_mp(None, reserva)
                 if preference and 'init_point' in preference:
-                    print("Usando URL de preferencia estándar para el QR")
                     return preference['init_point']
-            except Exception as e:
-                print(f"Error al generar preferencia alternativa: {str(e)}")
+            except Exception:
+                pass
             
             return None
 
@@ -1674,23 +1667,19 @@ def generar_qr_orden_mp(reserva):
         # El valor correcto para mostrar el QR
         qr_data = response_json.get('qr_data')
         if not qr_data:
-            print("No se encontró qr_data en la respuesta")
             return None
             
         return qr_data
 
-    except Exception as e:
-        print(f"Error al generar QR dinámico: {str(e)}")
-        
+    except Exception:
         # Como alternativa, intentamos generar un QR con la URL de pago normal
         try:
             # Creamos una preferencia estándar
             preference = gen_preference_mp(None, reserva)
             if preference and 'init_point' in preference:
-                print("Usando URL de preferencia estándar para el QR después de una excepción")
                 return preference['init_point']
-        except Exception as e2:
-            print(f"Error al generar preferencia alternativa: {str(e2)}")
+        except Exception:
+            pass
             
         return None
 

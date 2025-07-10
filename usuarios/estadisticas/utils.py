@@ -34,10 +34,8 @@ def generar_estadisticas(fecha_desde, fecha_hasta, tipo_estadistica):
             fecha_creacion__date__lte=fecha_hasta
         ).exclude(estado='PENDIENTE_PAGO')
         
-        # Debug: contar reservas totales vs filtradas
-        total_reservas = Reserva.objects.count()
+        # Contar reservas filtradas
         reservas_filtradas = reservas.count()
-        logger.info(f"Máquinas alquiladas - Total reservas: {total_reservas}, Filtradas ({fecha_desde} a {fecha_hasta}): {reservas_filtradas}")
         
         if not reservas.exists():
             context['error'] = "No hay datos suficientes para computar la estadística solicitada."
