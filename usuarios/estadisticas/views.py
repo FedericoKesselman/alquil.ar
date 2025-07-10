@@ -31,7 +31,7 @@ def procesar_estadisticas(request):
         logger.info(f"Procesando estadísticas: {tipo_estadistica}, desde: {fecha_desde}, hasta: {fecha_hasta}")
         
         if fecha_desde > fecha_hasta:
-            return JsonResponse({'error': 'La fecha inicial debe ser anterior a la fecha final'}, status=400)
+            return JsonResponse({'error': 'La fecha inicial no puede ser posterior a la fecha final. Por favor, seleccione un rango de fechas válido.'}, status=400)
             
         resultado = generar_estadisticas(fecha_desde, fecha_hasta, tipo_estadistica)
         

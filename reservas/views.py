@@ -671,6 +671,16 @@ def lista_reservas(request):
     cliente_dni = request.GET.get('cliente_dni', '').strip()
     empleado_dni = request.GET.get('empleado_dni', '').strip()
     sucursal_id = request.GET.get('sucursal')
+    
+    # Determinar si realmente se aplicaron filtros
+    filtros_aplicados = bool(
+        estado or 
+        fecha_desde or 
+        fecha_hasta or 
+        cliente_dni or 
+        empleado_dni or 
+        (sucursal_id and sucursal_id != '')
+    )
       # Iniciar el queryset base según el tipo de usuario
     if request.user.tipo == 'ADMIN' or request.user.tipo == 'EMPLEADO':
         # Administradores y empleados ven todas las reservas excepto las pendientes de pago
@@ -725,6 +735,7 @@ def lista_reservas(request):
         'sucursales': sucursales,  # Lista de sucursales para el filtro
         'cliente_dni': cliente_dni,  # DNI del cliente para mantener el filtro
         'empleado_dni': empleado_dni,  # DNI del empleado para mantener el filtro
+        'filtros_aplicados': filtros_aplicados  # Indica si realmente se aplicaron filtros
     }
     
     return render(request, 'reservas/lista_reservas.html', context)

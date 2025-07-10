@@ -42,10 +42,16 @@ Template parcial para la sección de estadísticas del panel de administrador
                             <div class="col-md-6">
                                 <label for="fecha_desde" class="form-label fw-bold">Desde</label>
                                 <input type="date" class="form-control" id="fecha_desde" name="fecha_desde">
+                                <div class="invalid-feedback">
+                                    La fecha inicial debe ser anterior o igual a la fecha final
+                                </div>
                             </div>
                             <div class="col-md-6">
                                 <label for="fecha_hasta" class="form-label fw-bold">Hasta</label>
                                 <input type="date" class="form-control" id="fecha_hasta" name="fecha_hasta">
+                                <div class="invalid-feedback">
+                                    La fecha final debe ser posterior o igual a la fecha inicial
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -450,10 +456,32 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     }
+    // Validar fechas antes de enviar
+    function validarFechas() {
+        if (!fechaDesde.value || !fechaHasta.value) {
+            return true; // No validamos si alguna fecha está vacía
+        }
+        
+        const desde = new Date(fechaDesde.value);
+        const hasta = new Date(fechaHasta.value);
+        
+        if (desde > hasta) {
+            mostrarError('La fecha inicial debe ser anterior o igual a la fecha final');
+            toggleLoading(false);
+            return false;
+        }
+        return true;
+    }
+    
     // Enviar solicitud AJAX
     function solicitarEstadisticas() {
         ocultarError();
         toggleLoading(true);
+        
+        // Validación de fechas
+        if (!validarFechas()) {
+            return;
+        }
         
         console.log('Solicitando estadísticas...');
         console.log('Tipo:', tipoEstadistica.value);
@@ -489,9 +517,25 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => {
             console.log('Respuesta recibida:', response.status, response.statusText);
+            
+            // Gestión específica para error 400 - Bad Request
+            if (response.status === 400) {
+                return response.json().then(data => {
+                    toggleLoading(false);
+                    if (data.error && data.error.includes('fecha')) {
+                        mostrarError('Error en las fechas: ' + data.error);
+                    } else {
+                        mostrarError(data.error || 'Error en la solicitud');
+                    }
+                    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+                    throw new Error('Solicitud inválida');
+                });
+            }
+            
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
+            
             return response.json();
         })
         .then(data => {
@@ -507,9 +551,32 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             console.error('Error en la petición:', error);
             toggleLoading(false);
-            mostrarError('Error al procesar la solicitud: ' + error.message);
+            // No mostrar el error si ya se ha gestionado anteriormente (como en el caso 400)
+            if (error.message !== 'Solicitud inválida') {
+                mostrarError('Error al procesar la solicitud: ' + error.message);
+            }
         });
     }
+    // Función para validar fechas en tiempo real
+    function validarFechasEnTiempoReal() {
+        if (fechaDesde.value && fechaHasta.value) {
+            const desde = new Date(fechaDesde.value);
+            const hasta = new Date(fechaHasta.value);
+            
+            if (desde > hasta) {
+                fechaDesde.classList.add('is-invalid');
+                fechaHasta.classList.add('is-invalid');
+                mostrarError('La fecha inicial debe ser anterior o igual a la fecha final');
+                return false;
+            } else {
+                fechaDesde.classList.remove('is-invalid');
+                fechaHasta.classList.remove('is-invalid');
+                ocultarError();
+            }
+        }
+        return true;
+    }
+    
     // Listeners para filtros
     rangoRapido.addEventListener('change', function() {
         if (this.value === 'personalizado') {
@@ -524,10 +591,14 @@ document.addEventListener('DOMContentLoaded', function() {
         solicitarEstadisticas();
     });
     fechaDesde.addEventListener('change', function() {
-        if (rangoRapido.value === 'personalizado') solicitarEstadisticas();
+        if (validarFechasEnTiempoReal() && rangoRapido.value === 'personalizado') {
+            solicitarEstadisticas();
+        }
     });
     fechaHasta.addEventListener('change', function() {
-        if (rangoRapido.value === 'personalizado') solicitarEstadisticas();
+        if (validarFechasEnTiempoReal() && rangoRapido.value === 'personalizado') {
+            solicitarEstadisticas();
+        }
     });
     // Al cargar la página, mostrar la estadística por defecto
     solicitarEstadisticas();
