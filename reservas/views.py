@@ -184,7 +184,7 @@ def confirmar_reservas(request):
 
     if request.method == 'POST':
         action = request.POST.get('action')
-        
+
         if action == 'confirmar':
             try:
                 # Obtener datos de la reserva de la sesión
@@ -192,33 +192,33 @@ def confirmar_reservas(request):
                 if not reserva_data:
                     messages.error(request, "No hay datos de reserva para confirmar")
                     return redirect('home')
-                
+
                 # Verificar si el cliente ya tiene una reserva confirmada o cancelada
                 cliente = Usuario.objects.get(id=reserva_data['cliente_id'])
                 reserva_existente = Reserva.objects.filter(
                     cliente=cliente,
                     estado__in=['CONFIRMADA', 'CANCELADA']
                 ).exists()
-                
+
                 if reserva_existente:
                     messages.error(request, "El cliente ya tiene una reserva activa o cancelada. No puede tener más de una reserva.")
                     return redirect('home')
-                
+
                 # Obtener la maquinaria y cliente para calcular el precio total
                 maquinaria = Maquinaria.objects.get(id=reserva_data['maquinaria_id'])
                 cliente = Usuario.objects.get(id=reserva_data['cliente_id'])
                 fecha_inicio = datetime.strptime(reserva_data['fecha_inicio'], '%Y-%m-%d').date()
                 fecha_fin = datetime.strptime(reserva_data['fecha_fin'], '%Y-%m-%d').date()
                 dias = (fecha_fin - fecha_inicio).days + 1
-                
+
                 # Aplicar recargo según calificación del cliente
                 precio_por_dia, _ = maquinaria.get_precio_para_cliente(cliente)
                 precio_total = precio_por_dia * dias * reserva_data['cantidad_solicitada']
-                
+
                 # Round to 2 decimal places to ensure it fits the model constraint
                 precio_total = decimal.Decimal(str(precio_total)).quantize(decimal.Decimal('0.01'), rounding=decimal.ROUND_HALF_UP)
-                
-                # Crear la reserva
+
+                # Crear la reserva con estado PENDIENTE_PAGO
                 reserva = Reserva.objects.create(
                     cliente_id=reserva_data['cliente_id'],
                     maquinaria_id=reserva_data['maquinaria_id'],
@@ -229,84 +229,50 @@ def confirmar_reservas(request):
                     tipo_pago='PRESENCIAL',
                     estado='PENDIENTE_PAGO',
                     precio_total=precio_total,
-                    empleado_procesador=request.user  # Guardar el empleado que procesa la reserva
+                    empleado_procesador=request.user
                 )
-                
-                # Intentar confirmar la reserva
-                try:
-                    if reserva.confirmar_reserva():
-                        messages.success(request, "Reserva confirmada exitosamente")
-                    else:
-                        # Obtener información del stock disponible
-                        try:
-                            maquinaria_stock = maquinaria.stocks.get(sucursal_id=reserva_data['sucursal_retiro_id'])
-                            stock_total = maquinaria_stock.stock_disponible
-                            
-                            # Obtener reservas superpuestas
-                            reservas_superpuestas = Reserva.objects.filter(
-                                maquinaria=maquinaria,
-                                sucursal_retiro_id=reserva_data['sucursal_retiro_id'],
-                                estado='CONFIRMADA',
-                                fecha_inicio__lte=fecha_fin,
-                                fecha_fin__gte=fecha_inicio
-                            )
-                            
-                            stock_reservado = sum(reserva.cantidad_solicitada for reserva in reservas_superpuestas)
-                            stock_disponible = stock_total - stock_reservado
-                            
-                            mensaje_error = f"Para las fechas seleccionadas solo hay {stock_disponible} unidad/es disponible/s. Por favor, seleccione una cantidad o fecha distinta."
-                        except Exception as e:
-                            mensaje_error = "No se pudo confirmar la reserva. Por favor, intente nuevamente."
-                            
-                        messages.error(request, mensaje_error)
-                        reserva.delete()
-                except ValueError as e:
-                    messages.error(request, str(e))
-                    reserva.delete()
-                except Exception as e:
-                    logger.error(f"Error al confirmar reserva: {str(e)}")
-                    messages.error(request, "Error al confirmar la reserva")
-                    reserva.delete()
-                
+
                 # Limpiar datos de la sesión
                 del request.session['reserva_data']
-                
+
+                # Redirigir a la vista de QR
+                return redirect('reservas:mostrar_qr_pago', reserva_id=reserva.id)
+
             except Exception as e:
                 logger.error(f"Error al procesar la confirmación: {str(e)}")
                 messages.error(request, "Error al procesar la confirmación")
-            
-            return redirect('home')
-            
+                return redirect('home')
+
         elif action == 'cancelar':
             # Limpiar datos de la sesión
             if 'reserva_data' in request.session:
                 del request.session['reserva_data']
             messages.info(request, "Reserva cancelada")
             return redirect('home')
-    
+
     # GET request - mostrar página de confirmación
     reserva_data = request.session.get('reserva_data')
     if not reserva_data:
         messages.error(request, "No hay datos de reserva para confirmar")
         return redirect('home')
-    
+
     # Obtener datos necesarios para mostrar en la confirmación
     cliente = Usuario.objects.get(id=reserva_data['cliente_id'])
     maquinaria = Maquinaria.objects.get(id=reserva_data['maquinaria_id'])
     sucursal = Sucursal.objects.get(id=reserva_data['sucursal_retiro_id'])
-    
+
     # Calcular precio total para mostrar en la confirmación
     fecha_inicio = datetime.strptime(reserva_data['fecha_inicio'], '%Y-%m-%d').date()
     fecha_fin = datetime.strptime(reserva_data['fecha_fin'], '%Y-%m-%d').date()
     dias = (fecha_fin - fecha_inicio).days + 1
-    
+
     # Aplicar recargo según calificación del cliente
     precio_por_dia, porcentaje_recargo = maquinaria.get_precio_para_cliente(cliente)
     precio_total = precio_por_dia * dias * reserva_data['cantidad_solicitada']
-    
-    # Round to 2 decimal places to ensure it fits the model constraint
+
+    # Redondear a 2 decimales
     precio_total = decimal.Decimal(str(precio_total)).quantize(decimal.Decimal('0.01'), rounding=decimal.ROUND_HALF_UP)
-    
+
     context = {
         'cliente': cliente,
         'maquinaria': maquinaria,
@@ -317,7 +283,7 @@ def confirmar_reservas(request):
         'precio_total': precio_total,
         'titulo': 'Confirmar Reserva'
     }
-    
+
     return render(request, 'reservas/confirmar_reservas.html', context)
 
 
@@ -1552,3 +1518,183 @@ def payment_webhook(request):
     
     # Siempre devolver 200 OK para que Mercado Pago sepa que recibimos la notificación
     return JsonResponse({'status': 'ok'})
+
+###### QR
+import requests
+
+def generar_qr_orden_mp(reserva):
+    try:
+        import requests
+        import json
+        from datetime import datetime, timedelta
+        
+        # Fecha de expiración (15 minutos desde ahora)
+        expiration_time = (datetime.utcnow() + timedelta(minutes=15)).isoformat() + "Z"
+
+        # Obtener el access token para extraer el user_id
+        access_token = MP_ACCESS_TOKEN
+        
+        # Datos básicos para la orden
+        order_data = {
+            "external_reference": str(reserva.id),
+            "title": f"Reserva de {reserva.maquinaria.nombre}",
+            "description": f"Reserva desde {reserva.fecha_inicio} hasta {reserva.fecha_fin}",
+            "notification_url": f"{NGROK_URL}/reservas/payment/webhook/",
+            "total_amount": float(reserva.precio_total),
+            "items": [{
+                "sku_number": str(reserva.maquinaria.id),
+                "category": "alquiler",
+                "title": reserva.maquinaria.nombre,
+                "description": f"{reserva.cantidad_solicitada} unidad/es del {reserva.fecha_inicio} al {reserva.fecha_fin}",
+                "unit_price": float(reserva.precio_total),
+                "quantity": 1,
+                "unit_measure": "unit",
+                "total_amount": float(reserva.precio_total)
+            }],
+            "expiration_date": expiration_time
+        }
+
+        # Imprimir el payload para depuración
+        print(f"QR order payload: {json.dumps(order_data)}")
+
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+
+        # Primero hacemos una consulta para obtener información del usuario
+        user_me_url = "https://api.mercadopago.com/users/me"
+        user_response = requests.get(user_me_url, headers=headers)
+        
+        if user_response.status_code != 200:
+            print(f"Error al obtener información del usuario: {user_response.status_code} - {user_response.text}")
+            return None
+            
+        user_info = user_response.json()
+        user_id = user_info.get('id')
+        
+        if not user_id:
+            print("No se pudo obtener el ID del usuario de Mercado Pago")
+            return None
+            
+        print(f"ID de usuario de Mercado Pago: {user_id}")
+        
+        # URL correcta para la API de QR de Mercado Pago usando el ID obtenido
+        url = f"https://api.mercadopago.com/instore/orders/qr/seller/collectors/{user_id}/pos/ALQUILAR01/qrs"
+
+        response = requests.post(
+            url,
+            headers=headers,
+            json=order_data
+        )
+
+        # Imprimir respuesta para depuración
+        print(f"QR API Response status: {response.status_code}")
+        print(f"QR API Response body: {response.text}")
+
+        # Revisá status
+        if response.status_code not in [200, 201]:
+            print(f"Error al generar QR: {response.status_code} - {response.text}")
+            
+            # Como alternativa, generamos un QR con la URL de pago normal
+            try:
+                # Creamos una preferencia estándar
+                preference = gen_preference_mp(None, reserva)
+                if preference and 'init_point' in preference:
+                    print("Usando URL de preferencia estándar para el QR")
+                    return preference['init_point']
+            except Exception as e:
+                print(f"Error al generar preferencia alternativa: {str(e)}")
+            
+            return None
+
+        response_json = response.json()
+        
+        # El valor correcto para mostrar el QR
+        qr_data = response_json.get('qr_data')
+        if not qr_data:
+            print("No se encontró qr_data en la respuesta")
+            return None
+            
+        return qr_data
+
+    except Exception as e:
+        print(f"Error al generar QR dinámico: {str(e)}")
+        
+        # Como alternativa, intentamos generar un QR con la URL de pago normal
+        try:
+            # Creamos una preferencia estándar
+            preference = gen_preference_mp(None, reserva)
+            if preference and 'init_point' in preference:
+                print("Usando URL de preferencia estándar para el QR después de una excepción")
+                return preference['init_point']
+        except Exception as e2:
+            print(f"Error al generar preferencia alternativa: {str(e2)}")
+            
+        return None
+
+@login_required
+@solo_empleado
+def mostrar_qr_pago(request, reserva_id):
+    reserva = get_object_or_404(Reserva, id=reserva_id)
+
+    if reserva.estado != 'PENDIENTE_PAGO' or reserva.tipo_pago != 'PRESENCIAL':
+        messages.error(request, "Esta reserva no requiere pago presencial o ya fue pagada.")
+        return redirect('reservas:detalle_reserva', reserva_id=reserva.id)
+
+    qr_data = generar_qr_orden_mp(reserva)
+
+    if not qr_data:
+        messages.error(request, "No se pudo generar el QR de pago.")
+        return redirect('reservas:detalle_reserva', reserva_id=reserva.id)
+
+    context = {
+        'reserva': reserva,
+        'qr_data': qr_data
+    }
+    return render(request, 'reservas/mostrar_qr_pago.html', context)
+
+@login_required
+@solo_empleado
+def check_payment_status(request, reserva_id):
+    """
+    Vista AJAX para verificar si una reserva ha sido pagada.
+    Retorna JSON con estado de la reserva.
+    """
+    reserva = get_object_or_404(Reserva, id=reserva_id)
+    
+    # Verificar que el usuario puede acceder a esta reserva
+    if reserva.sucursal_retiro != request.user.sucursal:
+        return JsonResponse({
+            'success': False,
+            'error': 'No tiene permisos para acceder a esta reserva'
+        }, status=403)
+    
+    # Verificar si la reserva ya está confirmada o si sigue pendiente
+    estado_anterior = request.GET.get('estado_anterior')
+    
+    # Si el estado cambió desde la última consulta, considerar que hubo un cambio
+    estado_cambio = estado_anterior != reserva.estado if estado_anterior else False
+    
+    # Si la reserva ya está confirmada, retornar éxito
+    if reserva.estado == 'CONFIRMADA':
+        return JsonResponse({
+            'success': True,
+            'status': 'confirmed',
+            'message': '¡Pago realizado con éxito!',
+            'estado_cambio': estado_cambio
+        })
+    elif reserva.estado == 'PENDIENTE_PAGO':
+        return JsonResponse({
+            'success': True,
+            'status': 'pending',
+            'message': 'Esperando pago...',
+            'estado_cambio': estado_cambio
+        })
+    else:
+        return JsonResponse({
+            'success': True,
+            'status': reserva.estado.lower(),
+            'message': f'Estado de la reserva: {reserva.get_estado_display()}',
+            'estado_cambio': estado_cambio
+        })
