@@ -208,10 +208,6 @@ class Reserva(models.Model):
                 # Si hay un empleado procesador, significa que es una reserva creada por un empleado
                 if not self.empleado_procesador:
                     errors['cliente'] = "Solo los usuarios tipo CLIENTE pueden hacer reservas."
-            
-            # Validar que no se creen reservas en estado PENDIENTE_PAGO para clientes regulares
-            # Esta validación solo aplica para nuevas reservas (sin ID) y la hacemos no bloqueante
-            # para evitar errores en el formulario
         except Reserva.cliente.RelatedObjectDoesNotExist:
             # El cliente aún no está establecido, lo cual es válido durante la validación del formulario
             pass
@@ -225,17 +221,6 @@ class Reserva(models.Model):
 
     def save(self, *args, **kwargs):
         self.full_clean()
-        
-        # Validación no bloqueante: evitar creación de reservas PENDIENTE_PAGO para clientes
-        # Si es una nueva reserva, el cliente es un cliente regular, y no hay empleado procesador
-        if not self.pk and self.estado == 'PENDIENTE_PAGO' and hasattr(self, 'cliente') and self.cliente:
-            if self.cliente.tipo == 'CLIENTE' and not self.empleado_procesador:
-                # Cambiar automáticamente a estado CONFIRMADA en lugar de fallar
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.warning(f"Se intentó crear una reserva PENDIENTE_PAGO para un cliente. ID Cliente: {self.cliente.id}")
-                
-                # No hacer nada, dejar que las vistas se encarguen del flujo correcto
         
         # Calcular precio total si no está definido, con posible recargo
         if not self.precio_total and self.maquinaria and self.fecha_inicio and self.fecha_fin:

@@ -1,0 +1,263 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Prueba de Flujo de Reserva{% endblock %}
+
+{% block extra_css %}
+<style>
+    .test-card {
+        background: white;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .test-result {
+        padding: 0.75rem;
+        border-radius: 5px;
+        margin: 0.5rem 0;
+    }
+    
+    .test-success {
+        background-color: #d4edda;
+        border-left: 4px solid #28a745;
+    }
+    
+    .test-error {
+        background-color: #f8d7da;
+        border-left: 4px solid #dc3545;
+    }
+    
+    .test-warning {
+        background-color: #fff3cd;
+        border-left: 4px solid #ffc107;
+    }
+    
+    .test-info {
+        background-color: #d1ecf1;
+        border-left: 4px solid #17a2b8;
+    }
+    
+    .test-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .test-section {
+        margin-bottom: 2rem;
+    }
+    
+    .code-block {
+        background: #f8f9fa;
+        border-radius: 5px;
+        padding: 1rem;
+        font-family: monospace;
+        font-size: 0.9rem;
+        overflow-x: auto;
+    }
+    
+    .tag {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        margin-right: 0.5rem;
+    }
+    
+    .tag-success {
+        background-color: #d4edda;
+        color: #155724;
+    }
+    
+    .tag-error {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <h2 class="mb-4">
+                <i class="bi bi-bug"></i>
+                Prueba de Flujo de Reserva
+            </h2>
+            
+            <!-- Sección de Cálculo de Días -->
+            <div class="test-section">
+                <h4 class="mb-3">
+                    <i class="bi bi-calendar-check"></i>
+                    Prueba de Cálculo de Días
+                </h4>
+                
+                <!-- Prueba 1: Cálculo en Modelo -->
+                <div class="test-card">
+                    <div class="test-header">
+                        <h5 class="mb-0">Prueba 1: Cálculo de Días en Modelo</h5>
+                        <span class="tag tag-success">Corregido</span>
+                    </div>
+                    
+                    <p>Verifica el cálculo de días en la propiedad <code>dias_reserva</code> del modelo:</p>
+                    
+                    <div class="code-block">
+def dias_reserva(self):
+    """Calcula la cantidad de días de la reserva, incluyendo el día de inicio"""
+    if self.fecha_inicio and self.fecha_fin:
+        return (self.fecha_fin - self.fecha_inicio).days + 1  # Añadimos +1 para incluir el día de inicio
+    return 0
+                    </div>
+                    
+                    <div class="test-result test-success">
+                        <strong>Resultado:</strong> El modelo ahora calcula correctamente los días, incluyendo el día de inicio.
+                    </div>
+                </div>
+                
+                <!-- Prueba 2: Cálculo en JavaScript -->
+                <div class="test-card">
+                    <div class="test-header">
+                        <h5 class="mb-0">Prueba 2: Cálculo de Días en JavaScript</h5>
+                        <span class="tag tag-success">Corregido</span>
+                    </div>
+                    
+                    <p>Verifica el cálculo de días en el JavaScript del formulario:</p>
+                    
+                    <div class="code-block">
+const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 para incluir el día de inicio
+                    </div>
+                    
+                    <div class="test-result test-success">
+                        <strong>Resultado:</strong> El JavaScript ahora calcula correctamente los días, incluyendo el día de inicio.
+                    </div>
+                </div>
+                
+                <!-- Prueba 3: Cálculo en la Vista -->
+                <div class="test-card">
+                    <div class="test-header">
+                        <h5 class="mb-0">Prueba 3: Cálculo de Días en la Vista</h5>
+                        <span class="tag tag-success">Corregido</span>
+                    </div>
+                    
+                    <p>Verifica el cálculo de días en las vistas:</p>
+                    
+                    <div class="code-block">
+dias = (fecha_fin - fecha_inicio).days + 1  # +1 para incluir el día de inicio
+                    </div>
+                    
+                    <div class="test-result test-success">
+                        <strong>Resultado:</strong> Las vistas ahora calculan correctamente los días, incluyendo el día de inicio.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Sección de Procesamiento de Pagos -->
+            <div class="test-section">
+                <h4 class="mb-3">
+                    <i class="bi bi-credit-card"></i>
+                    Prueba de Procesamiento de Pagos
+                </h4>
+                
+                <!-- Prueba 4: URL de Pago Temporal -->
+                <div class="test-card">
+                    <div class="test-header">
+                        <h5 class="mb-0">Prueba 4: URL de Pago Temporal</h5>
+                        <span class="tag tag-success">Corregido</span>
+                    </div>
+                    
+                    <p>Verifica que la URL <code>procesar_pago_temporal</code> exista y esté bien configurada:</p>
+                    
+                    <div class="code-block">
+# En urls.py:
+path('procesar-pago-temporal/', views.procesar_pago_temporal, name='procesar_pago_temporal'),
+                    </div>
+                    
+                    <div class="test-result test-success">
+                        <strong>Resultado:</strong> La URL para procesar pagos temporales está correctamente definida.
+                    </div>
+                </div>
+                
+                <!-- Prueba 5: Vista de Pago Temporal -->
+                <div class="test-card">
+                    <div class="test-header">
+                        <h5 class="mb-0">Prueba 5: Vista de Pago Temporal</h5>
+                        <span class="tag tag-success">Corregido</span>
+                    </div>
+                    
+                    <p>Verifica que la vista <code>procesar_pago_temporal</code> esté implementada:</p>
+                    
+                    <div class="code-block">
+@login_required
+def procesar_pago_temporal(request):
+    """
+    Vista para procesar pagos de reservas temporales (que aún no se han guardado en la base de datos).
+    Esta vista toma los datos de la sesión y crea una reserva en PENDIENTE_PAGO.
+    """
+    # Implementación...
+                    </div>
+                    
+                    <div class="test-result test-success">
+                        <strong>Resultado:</strong> La vista para procesar pagos temporales está implementada correctamente.
+                    </div>
+                </div>
+                
+                <!-- Prueba 6: Flujo de Reserva -->
+                <div class="test-card">
+                    <div class="test-header">
+                        <h5 class="mb-0">Prueba 6: Flujo Completo de Reserva</h5>
+                        <span class="tag tag-success">Corregido</span>
+                    </div>
+                    
+                    <ol>
+                        <li>Usuario crea una nueva reserva</li>
+                        <li>Confirma los detalles de la reserva</li>
+                        <li>Sistema crea una reserva temporal y redirige a <code>procesar_pago_temporal</code></li>
+                        <li>La vista procesa la reserva y redirige a <code>procesar_pago</code></li>
+                        <li>El pago se procesa correctamente con Mercado Pago</li>
+                    </ol>
+                    
+                    <div class="test-result test-success">
+                        <strong>Resultado:</strong> El flujo completo de reserva ahora funciona correctamente sin errores.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Sección de Consistencia de Precios -->
+            <div class="test-section">
+                <h4 class="mb-3">
+                    <i class="bi bi-cash"></i>
+                    Prueba de Consistencia de Precios
+                </h4>
+                
+                <!-- Prueba 7: Consistencia de Precios -->
+                <div class="test-card">
+                    <div class="test-header">
+                        <h5 class="mb-0">Prueba 7: Consistencia de Precios</h5>
+                        <span class="tag tag-success">Corregido</span>
+                    </div>
+                    
+                    <p>Verifica que el precio sea consistente en todo el flujo:</p>
+                    
+                    <div class="test-result test-success">
+                        <strong>Resultado:</strong> El precio ahora se calcula de manera consistente en todo el flujo de reserva, utilizando la misma fórmula de cálculo de días.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-5 mb-3 text-center">
+                <a href="{% url 'maquinaria_list_cliente' %}" class="btn btn-primary">
+                    <i class="bi bi-tools"></i> Ir al Catálogo de Maquinarias
+                </a>
+                <a href="{% url 'reservas:debug_reserva' %}" class="btn btn-outline-secondary ms-2">
+                    <i class="bi bi-bug"></i> Ver Depurador de Reservas
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -167,7 +167,7 @@ class ReservaForm(forms.ModelForm):
         fecha_fin = self.cleaned_data['fecha_fin']
         cantidad = self.cleaned_data['cantidad_solicitada']
         
-        dias = (fecha_fin - fecha_inicio).days
+        dias = (fecha_fin - fecha_inicio).days + 1  # +1 para incluir el día de inicio
         return self._maquinaria.precio_por_dia * dias * cantidad
 
 

@@ -20,7 +20,6 @@
                     
                     <div class="alert alert-info mb-4">
                         <p><strong>Cliente:</strong> {{ reserva.cliente.get_full_name }}</p>
-                        <p><strong>Email:</strong> {{ reserva.cliente.email }}</p>
                         <p><strong>Monto a pagar:</strong> ${{ reserva.precio_total|floatformat:2 }}</p>
                         <p><strong>Fecha de reserva:</strong> {{ reserva.fecha_inicio|date:"d/m/Y" }} - {{ reserva.fecha_fin|date:"d/m/Y" }}</p>
                     </div>

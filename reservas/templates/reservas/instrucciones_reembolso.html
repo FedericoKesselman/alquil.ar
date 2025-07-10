@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Instrucciones para recibir tu reembolso{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-cash-coin me-2"></i>Instrucciones para recibir tu reembolso
+                    </h4>
+                </div>
+                <div class="card-body p-4">
+                    {% if reserva %}
+                    <div class="alert alert-success mb-4">
+                        <div class="d-flex">
+                            <div class="me-3">
+                                <i class="bi bi-check-circle-fill" style="font-size: 2.5rem;"></i>
+                            </div>
+                            <div>
+                                <h5 class="alert-heading">¡Solicitud de reembolso registrada!</h5>
+                                <p class="mb-0">Tu solicitud para la reserva #{{ reserva.id }} ha sido procesada correctamente.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4 bg-light">
+                        <div class="card-body">
+                            <h5 class="card-title">Detalles de tu reembolso</h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>Máquina:</strong> {{ reserva.maquinaria.nombre }}</p>
+                                    <p><strong>Sucursal de retiro:</strong> {{ reserva.sucursal_retiro.nombre }}</p>
+                                    <p><strong>Fecha cancelación:</strong> {{ fecha_actual|date:"d/m/Y" }}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>Monto pagado:</strong> ${{ reserva.precio_total|floatformat:2 }}</p>
+                                    <p><strong>Monto a reembolsar:</strong> ${{ monto_reembolso|floatformat:2 }} ({{ porcentaje_reembolso }}%)</p>
+                                    <p><strong>Estado:</strong> <span class="badge bg-warning">Pendiente</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <h5 class="border-bottom pb-2 mb-3">Cómo obtener tu reembolso</h5>
+                    
+                    <div class="steps-container">
+                        <div class="step d-flex mb-4">
+                            <div class="step-icon me-3">
+                                <div class="rounded-circle bg-primary text-white d-flex justify-content-center align-items-center" style="width: 45px; height: 45px;">
+                                    <i class="bi bi-1-circle-fill" style="font-size: 1.5rem;"></i>
+                                </div>
+                            </div>
+                            <div class="step-content">
+                                <h5>Acércate a la sucursal</h5>
+                                <p>Debes acudir a la sucursal <strong>{{ reserva.sucursal_retiro.nombre }}</strong> donde ibas a retirar la máquina. Recuerda llevar tu DNI para identificarte.</p>
+                            </div>
+                        </div>
+                        
+                        <div class="step d-flex mb-4">
+                            <div class="step-icon me-3">
+                                <div class="rounded-circle bg-primary text-white d-flex justify-content-center align-items-center" style="width: 45px; height: 45px;">
+                                    <i class="bi bi-2-circle-fill" style="font-size: 1.5rem;"></i>
+                                </div>
+                            </div>
+                            <div class="step-content">
+                                <h5>Solicita la finalización de tu reserva cancelada</h5>
+                                <p>Informa al empleado que tienes una reserva cancelada con reembolso pendiente. Menciona el número de reserva <strong>#{{ reserva.id }}</strong> y tu nombre completo.</p>
+                            </div>
+                        </div>
+                        
+                        <div class="step d-flex mb-4">
+                            <div class="step-icon me-3">
+                                <div class="rounded-circle bg-primary text-white d-flex justify-content-center align-items-center" style="width: 45px; height: 45px;">
+                                    <i class="bi bi-3-circle-fill" style="font-size: 1.5rem;"></i>
+                                </div>
+                            </div>
+                            <div class="step-content">
+                                <h5>Recibe tu reembolso</h5>
+                                <p>El empleado procesará tu reembolso por un valor de <strong>${{ monto_reembolso|floatformat:2 }}</strong>. El método de reembolso dependerá de cómo realizaste el pago original:</p>
+                                <ul>
+                                    <li><strong>Pagos con tarjeta:</strong> Se acreditará en la misma tarjeta utilizada para el pago.</li>
+                                    <li><strong>Pagos en efectivo:</strong> Se te entregará el monto en efectivo.</li>
+                                    <li><strong>Pagos online:</strong> Se procesará la devolución a través del mismo medio de pago.</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="step d-flex">
+                            <div class="step-icon me-3">
+                                <div class="rounded-circle bg-primary text-white d-flex justify-content-center align-items-center" style="width: 45px; height: 45px;">
+                                    <i class="bi bi-4-circle-fill" style="font-size: 1.5rem;"></i>
+                                </div>
+                            </div>
+                            <div class="step-content">
+                                <h5>Confirma el recibo del reembolso</h5>
+                                <p>El empleado te pedirá que firmes un comprobante como constancia de que has recibido el reembolso. Guarda una copia como respaldo.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info mt-4">
+                        <div class="d-flex">
+                            <div class="me-3">
+                                <i class="bi bi-info-circle-fill" style="font-size: 1.5rem;"></i>
+                            </div>
+                            <div>
+                                <h5 class="alert-heading">Información importante</h5>
+                                <p>Los reembolsos pueden tardar hasta 48 horas hábiles en procesarse, dependiendo de tu método de pago.</p>
+                                <p class="mb-0">Si tienes problemas para recibir tu reembolso o han pasado más de 48 horas y aún no lo has recibido, puedes contactarnos a <strong>soporte@alquilar.com</strong> o llamar al <strong>(011) 4567-8900</strong>.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-center mt-4">
+                        <a href="{% url 'reservas:lista_reservas' %}" class="btn btn-primary">
+                            <i class="bi bi-arrow-left me-2"></i>Volver a mis reservas
+                        </a>
+                        
+                        <a href="{% url 'home' %}" class="btn btn-outline-secondary ms-2">
+                            <i class="bi bi-house me-2"></i>Ir al inicio
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

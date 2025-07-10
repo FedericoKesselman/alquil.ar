@@ -30,10 +30,10 @@ Template parcial para la sección de estadísticas del panel de administrador
                         <label for="rango_rapido" class="form-label fw-bold">Rango de Fechas</label>
                         <select class="form-select" id="rango_rapido" name="rango_rapido">
                             <option value="historico">Histórico (Desde Siempre)</option>
+                            <option value="anio">Último año</option>
                             <option value="mes">Último mes</option>
                             <option value="semana">Última semana</option>
                             <option value="24hs">Últimas 24hs</option>
-                            <option value="anio">Último año</option>
                             <option value="personalizado">Personalizado</option>
                         </select>
                     </div>
@@ -262,13 +262,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const parent = canvas.parentElement;
         
-        // Solo mostrar información adicional para ingresos vs reembolsos (ya que es diferente del gráfico)
-        
-        // Si es ingresos_reembolsos, solo mantener las métricas destacadas (no panel adicional)
-        if (datos.tipo_estadistica === 'ingresos_reembolsos') {
-            // Ya se manejan las métricas destacadas en actualizarMetricasDestacadas()
-            // No agregar panel adicional
-        }
+        // Solo mostrar las métricas destacadas para ingresos vs reembolsos
+        // No mostrar información adicional en paneles
         if (datos.datos_grafico.tipo === 'pie') {
             chartInstance = new Chart(ctx, {
                 type: 'pie',
