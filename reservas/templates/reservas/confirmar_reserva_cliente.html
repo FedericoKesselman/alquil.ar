@@ -154,6 +154,38 @@
         margin-bottom: 0.5rem;
         color: #0056b3;
     }
+    
+    /* Estilos para el contenedor del logo */
+    .logo-container {
+        display: inline-block !important;
+        vertical-align: middle !important;
+    }
+    
+    /* Estilos para la imagen del logo */
+    .logo-img {
+        width: auto !important;
+        height: 30px !important;
+        display: block !important;
+    }
+    
+    /* Logo de MercadoPago más ancho */
+    .mp-logo {
+        width: 160px !important;
+        height: auto !important;
+    }
+    
+    /* SVG inline como respaldo */
+    .logo-fallback {
+        height: 30px;
+        width: 160px;
+        background-color: #fff;
+        color: #009ee3;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+    }
 </style>
 {% endblock %}
 
@@ -282,7 +314,16 @@
                     <!-- Información de pago con MercadoPago -->
                     <div class="mt-4">
                         <div class="payment-method selected">
-                            <i class="bi bi-credit-card text-primary"></i>
+                            <div class="d-flex justify-content-center align-items-center mb-3">
+                                <div class="logo-container">
+                                    <!-- Logo de MercadoPago con respaldo adecuado -->
+                                    <img src="{% static 'img/mercadopago-logo.svg' %}" 
+                                         alt="MercadoPago Logo" class="logo-img mp-logo"
+                                         onload="this.style.display='block'; this.nextElementSibling.style.display='none'; this.nextElementSibling.nextElementSibling.style.display='none';"
+                                         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                    <div class="logo-fallback" style="display: none;">MercadoPago</div>
+                                </div>
+                            </div>
                             <h6>Pago seguro con MercadoPago</h6>
                             <p class="small text-muted mt-2">Al confirmar, será redirigido a la plataforma de pago segura</p>
                         </div>

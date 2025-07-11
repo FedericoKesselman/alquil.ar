@@ -88,10 +88,12 @@
                                 <div class="card-body">
                                     <div class="d-flex align-items-center mb-3">
                                         <div class="logo-container">
-                                            <!-- Imagen con respaldo de texto -->
-                                            <img src="/static/img/mercadopago-logo.png" 
+                                            <!-- Respaldo SVG si está disponible -->
+                                            <img src="{% static 'img/mercadopago-logo.svg' %}" 
                                                  alt="MercadoPago Logo" class="logo-img"
-                                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                                 style="display:none"
+                                                 onerror="this.style.display='none';"
+                                                 onload="this.previousElementSibling.style.display='none'; this.style.display='block';">
                                             <div class="logo-fallback" style="display: none;">MercadoPago</div>
                                         </div>
                                         <div>
