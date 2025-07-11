@@ -392,8 +392,8 @@
             
             if (fin >= inicio) {
                 // Cálculo de días correctamente (incluye el día inicial y final)
-                const diffTime = Math.abs(fin - inicio);
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 para incluir ambos días
+                const diffTime = Math.abs(fin - inicio) + 1;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                 const cantidad = parseInt(cantidadInput.value) || 0;
     
                 // Actualizar la UI con los datos calculados
@@ -445,14 +445,7 @@
             alert('La fecha de inicio no puede ser anterior a hoy.');
             return;
         }
-
-        // Verificar si la fecha de fin es mayor o igual a la fecha de inicio
-        if (fin < inicio) {
-            deshabilitarSucursales();
-            alert('La fecha de finalización debe ser posterior a la fecha de inicio.');
-            return;
-        }
-
+        
         try {
             // Mostrar un indicador de carga o mensaje mientras se procesa
             sucursalSelect.innerHTML = '<option value="">Buscando sucursales disponibles...</option>';

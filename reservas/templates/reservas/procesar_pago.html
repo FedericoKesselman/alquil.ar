@@ -93,82 +93,8 @@
                 <div class="card-header bg-primary text-white">
                     <h3 class="card-title mb-0"><i class="bi bi-credit-card me-2"></i>{{ titulo }}</h3>
                 </div>
-                <div class="card-body">
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle-fill me-2"></i>
-                        Está a punto de realizar el pago de su reserva mediante MercadoPago. Por favor revise los detalles antes de continuar.
-                    </div>
-                    <div class="alert alert-warning">
-                        <i class="bi bi-clock-history me-2"></i>
-                        <strong>Importante:</strong> Esta reserva se cancelará automáticamente si el pago no se completa en los próximos 30 minutos.
-                    </div>
-
-                    <div class="card mb-4">
-                        <div class="card-header bg-light">
-                            <h4 class="mb-0"><i class="bi bi-receipt me-2"></i>Detalles de la Reserva</h4>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <p><strong>Maquinaria:</strong> {{ reserva.maquinaria.nombre }}</p>
-                                    <p><strong>Fecha de inicio:</strong> {{ reserva.fecha_inicio }}</p>
-                                    <p><strong>Fecha de fin:</strong> {{ reserva.fecha_fin }}</p>
-                                </div>
-                                <div class="col-md-6">
-                                    <p><strong>Cantidad:</strong> {{ reserva.cantidad_solicitada }}</p>
-                                    <p><strong>Sucursal:</strong> {{ reserva.sucursal_retiro.nombre }}</p>
-                                    <p><strong>Precio total:</strong> <span class="text-success fw-bold">${{ reserva.precio_total }}</span></p>
-                                </div>
-                            </div>
-                            
-                            {% if recargo_info > 0 %}
-                            <div class="alert {% if recargo_info == 30 %}alert-danger{% else %}alert-warning{% endif %} mt-3">
-                                <div class="d-flex">
-                                    <div class="me-3">
-                                        <i class="bi bi-exclamation-triangle-fill fa-2x"></i>
-                                    </div>
-                                    <div>
-                                        <h5 class="alert-heading">Recargo del {{ recargo_info }}% aplicado</h5>
-                                        <p>
-                                            Este recargo se aplica debido a su calificación actual 
-                                            {% if recargo_info == 30 %}
-                                            de 1 estrella o menos. Le invitamos a mejorar su calificación para evitar este recargo en futuros alquileres.
-                                            {% elif recargo_info == 20 %}
-                                            de 2 estrellas o menos. Con un historial de alquileres positivos, su calificación mejorará progresivamente.
-                                            {% endif %}
-                                        </p>
-                                        
-                                        <div class="mt-3">
-                                            <div class="row">
-                                                <div class="col-md-6">
-                                                    <strong>Precio base por día:</strong> 
-                                                    <span class="text-decoration-line-through text-muted">${{ precio_base }}</span>
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <strong>Precio con recargo:</strong> 
-                                                    ${{ precio_con_recargo }} por día
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        <hr>
-                                        <p class="mb-0">
-                                            <i class="bi bi-info-circle me-1"></i> 
-                                            Los clientes con calificación mayor a 2 estrellas no tienen recargos. Cada devolución exitosa mejora su calificación.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-
+                <div class="card-body">            
                     <div class="mt-4">
-                        <h4 class="d-flex align-items-center">
-                            <i class="bi bi-credit-card me-2 text-primary"></i>
-                            <span>Proceder al pago</span>
-                        </h4>
-                        
                         <div class="card bg-light mb-4">
                             <div class="card-body">
                                 <div class="d-flex align-items-center mb-3">

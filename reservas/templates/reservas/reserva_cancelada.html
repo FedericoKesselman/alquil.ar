@@ -16,18 +16,26 @@
     .detail-row {
         display: flex;
         justify-content: space-between;
+        align-items: flex-start;
         margin-bottom: 0.75rem;
-        align-items: center;
+        flex-wrap: wrap;
     }
     
     .detail-label {
         color: #6c757d;
         font-weight: 500;
+        font-size: 0.9rem;
+        margin-right: 0.5rem;
     }
     
     .detail-value {
         color: #212529;
         font-weight: 600;
+        font-size: 0.9rem;
+        text-align: right;
+        flex: 1;
+        min-width: 0;
+        word-wrap: break-word;
     }
     
     .refund-amount {
@@ -56,10 +64,11 @@
     
     .branch-info {
         padding: 1.25rem;
-        margin: 1.5rem 0;
+        margin: 0;
         border-radius: 8px;
-        background-color: #e9ecef;
-        border-left: 4px solid #007bff;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        height: fit-content;
     }
     
     .info-icon {
@@ -91,42 +100,10 @@
 
     <div class="cancelled-card">
         <div class="row">
-            <div class="col-md-12">
-                <h4 class="mb-4">Detalles de la Reserva Cancelada</h4>
+            <div class="col-md-8">
                 
-                <div class="detail-row">
-                    <span class="detail-label">Número de Reserva:</span>
-                    <span class="detail-value">{{ reserva.id }}</span>
-                </div>
-                
-                <div class="detail-row">
-                    <span class="detail-label">Maquinaria:</span>
-                    <span class="detail-value">{{ reserva.maquinaria.nombre }}</span>
-                </div>
-                
-                <div class="detail-row">
-                    <span class="detail-label">Cantidad:</span>
-                    <span class="detail-value">{{ reserva.cantidad_solicitada }}</span>
-                </div>
-                
-                <div class="detail-row">
-                    <span class="detail-label">Fecha de inicio:</span>
-                    <span class="detail-value">{{ reserva.fecha_inicio|date:"d/m/Y" }}</span>
-                </div>
-                
-                <div class="detail-row">
-                    <span class="detail-label">Fecha de fin:</span>
-                    <span class="detail-value">{{ reserva.fecha_fin|date:"d/m/Y" }}</span>
-                </div>
-                
-                <div class="detail-row">
-                    <span class="detail-label">Monto total de la reserva:</span>
-                    <span class="detail-value">${{ reserva.precio_total|floatformat:2 }}</span>
-                </div>
-                
-                <hr class="my-4">
-                
-                <h4 class="mb-4">Información del Reembolso</h4>
+                <!-- Información del Reembolso -->
+                <h4 class="mb-4"><i class="bi bi-cash-coin me-2"></i>Información del Reembolso</h4>
                 
                 <div class="refund-amount 
                     {% if porcentaje_reembolso == 100 %}refund-full
@@ -138,39 +115,61 @@
                         No corresponde reembolso
                     {% endif %}
                 </div>
-                
-                <div class="alert alert-danger mt-4 mb-4">
-                    <h5 class="alert-heading"><i class="bi bi-exclamation-triangle-fill me-2"></i>Importante:</h5>
-                    <p class="fw-bold">No podrás realizar nuevas reservas hasta que esta reserva cancelada se marque como finalizada.</p>
-                    <p>Para finalizar esta reserva, debes acudir personalmente a la sucursal {{ reserva.sucursal_retiro.nombre }} con tu identificación, donde un empleado completará el proceso de cancelación en el sistema.</p>
-                </div>
-                
-                <div class="branch-info">
-                    <h5 class="mb-3"><i class="bi bi-geo-alt-fill me-2"></i> Sucursal de Contacto</h5>
-                    <p><strong>Sucursal:</strong> {{ reserva.sucursal_retiro.nombre }}</p>
-                    <p><strong>Dirección:</strong> {{ reserva.sucursal_retiro.direccion }}</p>
-                    <p><strong>Teléfono:</strong> {{ reserva.sucursal_retiro.telefono }}</p>
-                </div>
-                
-                <div class="alert {% if porcentaje_reembolso > 0 %}alert-success{% else %}alert-warning{% endif %}">
-                    <i class="bi bi-info-circle-fill me-2"></i>
+
+                <div class="mb-4">
                     {% if porcentaje_reembolso == 100 %}
-                        <strong>Reembolso del 100%:</strong> Para recibir tu reembolso total de ${{ monto_reembolso|floatformat:2 }}, debes acercarte a la sucursal {{ reserva.sucursal_retiro.nombre }} con tu documento de identidad y el número de reserva.
+                        <p><strong><i class="bi bi-check-circle-fill text-success me-2"></i>Reembolso del 100%</strong></p>
+                        <p>Para recibir tu reembolso total de ${{ monto_reembolso|floatformat:2 }}, debes acercarte a la sucursal con tu documento de identidad y el número de reserva.</p>
                     {% elif porcentaje_reembolso == 50 %}
-                        <strong>Reembolso del 50%:</strong> Para recibir tu reembolso parcial de ${{ monto_reembolso|floatformat:2 }}, debes acercarte a la sucursal {{ reserva.sucursal_retiro.nombre }} con tu documento de identidad y el número de reserva.
+                        <p><strong><i class="bi bi-exclamation-circle-fill text-warning me-2"></i>Reembolso del 50%</strong></p>
+                        <p>Para recibir tu reembolso parcial de ${{ monto_reembolso|floatformat:2 }}, debes acercarte a la sucursal con tu documento de identidad y el número de reserva.</p>
                     {% else %}
-                        <strong>Sin Reembolso:</strong> Tu cancelación fue realizada con menos de {{ reserva.maquinaria.cantDias_parcial }} días de anticipación, por lo que no corresponde reembolso según nuestra política. Si tienes dudas o necesitas más información, acércate a la sucursal {{ reserva.sucursal_retiro.nombre }}.
+                        <p><strong><i class="bi bi-x-circle-fill text-danger me-2"></i>Sin Reembolso</strong></p>
+                        <p>Tu cancelación fue realizada con menos de {{ reserva.maquinaria.cantDias_parcial }} días de anticipación, por lo que no corresponde reembolso según nuestra política.</p>
                     {% endif %}
                 </div>
+
+                <!-- Restricción importante -->
+                <div class="alert alert-warning border border-warning">
+                    <h6 class="fw-bold mb-2"><i class="bi bi-exclamation-triangle-fill me-2"></i>Restricción Temporal</h6>
+                    <p class="mb-0">No podrás realizar nuevas reservas hasta que esta reserva cancelada se marque como finalizada en la sucursal.</p>
+                </div>
                 
-                <div class="alert alert-info mt-3">
-                    <p><i class="bi bi-exclamation-triangle me-2"></i><strong>Importante:</strong></p>
-                    <ul class="mb-0">
-                        <li>Si te arrepientes de la cancelación, debes acercarte a la sucursal lo antes posible.</li>
-                        <li>Los reembolsos se procesan únicamente en la sucursal a la que fue asignada la reserva.</li>
-                        <li>Debes presentar tu documento de identidad para cualquier trámite relacionado con la reserva.</li>
+            </div>
+            
+            <div class="col-md-4">
+                <!-- Información de la Sucursal -->
+                <div class="branch-info h-100">
+                    <h5 class="mb-3"><i class="bi bi-geo-alt-fill me-2"></i>Sucursal de Contacto</h5>
+                    <div class="detail-row">
+                        <span class="detail-label">Sucursal:</span>
+                        <span class="detail-value">{{ reserva.sucursal_retiro.nombre }}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Dirección:</span>
+                        <span class="detail-value">{{ reserva.sucursal_retiro.direccion }}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Teléfono:</span>
+                        <span class="detail-value">{{ reserva.sucursal_retiro.telefono }}</span>
+                    </div>
+                    
+                    <hr class="my-3">
+                    
+                    <h6 class="mb-2"><i class="bi bi-clipboard-check me-2"></i>Qué necesitas llevar:</h6>
+                    <ul class="small mb-3">
+                        <li>Documento de identidad</li>
+                        <li>Número de reserva</li>
+                    </ul>
+                    
+                    <h6 class="mb-2"><i class="bi bi-info-circle me-2"></i>Información adicional:</h6>
+                    <ul class="small mb-0">
+                        <li>Los reembolsos se procesan únicamente en esta sucursal</li>
+                        <li>Si te arrepientes, acércate lo antes posible</li>
                     </ul>
                 </div>
+            </div>
+        </div>
                 
                 <div class="d-flex justify-content-center action-buttons">
                     <a href="{% url 'reservas:lista_reservas' %}" class="btn btn-primary">

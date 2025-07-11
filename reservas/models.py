@@ -180,7 +180,7 @@ class Reserva(models.Model):
         
         # Validar que las fechas sean coherentes
         if self.fecha_inicio and self.fecha_fin:
-            if self.fecha_inicio >= self.fecha_fin:
+            if self.fecha_inicio > self.fecha_fin:
                 errors['fecha_fin'] = "La fecha de fin debe ser posterior a la fecha de inicio."
             
             # Solo validar que la fecha no sea pasada si es una reserva nueva
