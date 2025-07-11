@@ -7,12 +7,15 @@ class CalificacionCliente(models.Model):
     Modelo para almacenar el historial de calificaciones de los clientes.
     Cada calificación está asociada a una reserva específica.
     
-    Nota sobre el cálculo de promedios:
-    - Todos los clientes comienzan con una calificación de 5 estrellas por defecto.
-    - Cuando se asignan calificaciones, estas reemplazan la calificación inicial, 
-      en lugar de promediarse con ella.
-    - Si un cliente tiene calificaciones, su promedio se calcula únicamente a partir 
-      de estas calificaciones, sin incluir la calificación inicial de 5 estrellas.
+    Lógica del sistema de calificaciones:
+    - Todos los clientes comienzan con una calificación inicial de 5 estrellas.
+    - Cuando se asignan nuevas calificaciones, estas se promedian CON la calificación inicial de 5 estrellas.
+    - El promedio se calcula como: (calificación_inicial + suma_calificaciones_recibidas) / (1 + número_calificaciones_recibidas)
+    
+    Ejemplo:
+    - Cliente nuevo: 5 estrellas (por defecto)
+    - Recibe 1 estrella: (5 + 1) / 2 = 3 estrellas
+    - Recibe otra calificación de 3 estrellas: (5 + 1 + 3) / 3 = 3 estrellas
     """
     cliente = models.ForeignKey(
         Usuario,

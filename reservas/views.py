@@ -1273,9 +1273,8 @@ def confirmar_devolucion(request, reserva_id):
             calificacion.save()
         
         # Actualizar el promedio de calificaciones del cliente
-        # La calificación inicial de 5 estrellas ya no se incluye en el cálculo del promedio
-        # cuando hay calificaciones reales. El promedio se calcula únicamente con las calificaciones
-        # asignadas en cada reserva.
+        # La calificación inicial de 5 estrellas SÍ se incluye en el cálculo del promedio.
+        # El promedio se calcula como: (calificación_inicial + suma_calificaciones) / (1 + número_calificaciones)
         cliente = reserva.cliente
         cliente.actualizar_calificacion_promedio()
           # Finalizar la reserva

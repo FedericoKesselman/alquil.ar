@@ -160,27 +160,44 @@ class Usuario(AbstractUser):
     def __str__(self):
         return f"{self.nombre} ({self.email})"
         
+    def _redondear_a_medio(self, valor):
+        """
+        Redondea un valor al 0.5 más cercano de forma consistente.
+        Ejemplos: 1.2 -> 1.0, 1.25 -> 1.5, 1.7 -> 1.5, 1.75 -> 2.0
+        """
+        import math
+        # Multiplicamos por 2, redondeamos normalmente hacia arriba en caso de empate, y dividimos por 2
+        return math.floor(valor * 2 + 0.5) / 2
+
     def actualizar_calificacion_promedio(self):
         """
         Actualiza la calificación promedio del cliente basado en su historial de calificaciones.
-        Todos los clientes comienzan con una calificación de 5 estrellas.
-        Si no hay calificaciones adicionales, se mantiene en 5 estrellas.
-        Si hay calificaciones, se calcula el promedio sin considerar la calificación inicial.
+        Todos los clientes comienzan con una calificación inicial de 5 estrellas.
+        Las nuevas calificaciones se promedian CON la calificación inicial de 5 estrellas.
+        
+        Ejemplo: Cliente con calificación inicial de 5, recibe una calificación de 1
+        Promedio = (5 + 1) / 2 = 3.0 estrellas
         """
         from usuarios.calificaciones import CalificacionCliente
         
         # Obtener todas las calificaciones del cliente
         calificaciones = CalificacionCliente.objects.filter(cliente=self)
         
-        # Calcular el promedio de las calificaciones
+        # Calcular el promedio considerando la calificación inicial de 5
         if calificaciones.exists():
-            # Si hay calificaciones, calcular el promedio directamente de ellas
-            # sin añadir la calificación inicial de 5 estrellas
+            # Sumar todas las calificaciones registradas
             total_calificaciones = sum(c.calificacion for c in calificaciones)
-            promedio = total_calificaciones / calificaciones.count()
+            # Incluir la calificación inicial de 5 en el cálculo
+            total_calificaciones += 5.0
+            # Contar todas las calificaciones + la inicial
+            total_count = calificaciones.count() + 1
             
-            # Actualizar la calificación del cliente
-            self.calificacion = round(promedio * 2) / 2  # Redondear al 0.5 más cercano
+            # Calcular el promedio
+            promedio = total_calificaciones / total_count
+            
+            # Actualizar la calificación del cliente (redondear al 0.5 más cercano)
+            # Usamos una función de redondeo personalizada para evitar problemas con round half to even
+            self.calificacion = self._redondear_a_medio(promedio)
             self.save(update_fields=['calificacion'])
         else:
             # Si no hay calificaciones, mantener la calificación inicial de 5
