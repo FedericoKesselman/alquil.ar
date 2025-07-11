@@ -65,6 +65,16 @@ def crear_reserva(request, maquinaria_id):
                 if reserva_existente:
                     messages.error(request, "No puedes crear una nueva reserva porque tienes una reserva activa o cancelada.")
                     return redirect('home')
+                    
+                # Eliminar cualquier reserva previa en estado PENDIENTE_PAGO
+                reservas_pendientes = Reserva.objects.filter(
+                    cliente=request.user,
+                    estado='PENDIENTE_PAGO'
+                )
+                if reservas_pendientes.exists():
+                    count = reservas_pendientes.count()
+                    reservas_pendientes.delete()
+                    logging.info(f"Se eliminaron {count} reservas pendientes de pago del cliente {request.user.id}")
             # Si es empleado, la verificación del cliente se hace en el clean() del formulario
             
             # Verificar disponibilidad para las fechas y cantidad solicitadas
@@ -111,7 +121,7 @@ def crear_reserva(request, maquinaria_id):
                 reserva.cliente = cliente
                 
             # Calcular precio total con posible recargo para clientes con baja calificación
-            dias = (reserva.fecha_fin - reserva.fecha_inicio).days
+            dias = (reserva.fecha_fin - reserva.fecha_inicio).days + 1  # +1 para incluir el día de inicio
             precio_por_dia, _ = maquinaria.get_precio_para_cliente(reserva.cliente)
             # Redondear a 2 decimales para evitar errores de validación
             precio_total = precio_por_dia * dias * reserva.cantidad_solicitada
@@ -130,7 +140,6 @@ def crear_reserva(request, maquinaria_id):
                     'precio_total': str(precio_total_decimal),
                     'empleado_id': request.user.id
                 }
-                messages.info(request, "Por favor, confirme los detalles de la reserva.")
                 return redirect('reservas:confirmar_reservas')
             else:
                 # Para clientes, guardar datos en sesión y redirigir a la página de confirmación/pago
@@ -143,7 +152,6 @@ def crear_reserva(request, maquinaria_id):
                     'sucursal_retiro_id': form.cleaned_data['sucursal_retiro'].id,
                     'precio_total': str(precio_total_decimal)
                 }
-                messages.info(request, "Por favor, confirme los detalles de la reserva.")
                 return redirect('reservas:confirmar_reserva_cliente')
         else:
             messages.error(request, "Por favor, corrija los errores en el formulario.")
@@ -203,6 +211,16 @@ def confirmar_reservas(request):
                 if reserva_existente:
                     messages.error(request, "El cliente ya tiene una reserva activa o cancelada. No puede tener más de una reserva.")
                     return redirect('home')
+                    
+                # Eliminar cualquier reserva previa en estado PENDIENTE_PAGO
+                reservas_pendientes = Reserva.objects.filter(
+                    cliente=cliente,
+                    estado='PENDIENTE_PAGO'
+                )
+                if reservas_pendientes.exists():
+                    count = reservas_pendientes.count()
+                    reservas_pendientes.delete()
+                    logger.info(f"Se eliminaron {count} reservas pendientes de pago del cliente {cliente.id}")
 
                 # Obtener la maquinaria y cliente para calcular el precio total
                 maquinaria = Maquinaria.objects.get(id=reserva_data['maquinaria_id'])
@@ -318,11 +336,21 @@ def confirmar_reserva_cliente(request):
                     messages.error(request, "Ya tienes una reserva activa o cancelada. No puedes tener más de una reserva.")
                     return redirect('home')
                 
+                # Eliminar cualquier reserva previa en estado PENDIENTE_PAGO
+                reservas_pendientes = Reserva.objects.filter(
+                    cliente=cliente,
+                    estado='PENDIENTE_PAGO'
+                )
+                if reservas_pendientes.exists():
+                    count = reservas_pendientes.count()
+                    reservas_pendientes.delete()
+                    logger.info(f"Se eliminaron {count} reservas pendientes de pago del cliente {cliente.id}")
+                
                 # Obtener la maquinaria para calcular el precio total
                 maquinaria = Maquinaria.objects.get(id=reserva_data['maquinaria_id'])
                 fecha_inicio = datetime.strptime(reserva_data['fecha_inicio'], '%Y-%m-%d').date()
                 fecha_fin = datetime.strptime(reserva_data['fecha_fin'], '%Y-%m-%d').date()
-                dias = (fecha_fin - fecha_inicio).days
+                dias = (fecha_fin - fecha_inicio).days + 1  # +1 para incluir el día de inicio
                 
                 # Aplicar recargo según calificación del cliente
                 precio_por_dia, _ = maquinaria.get_precio_para_cliente(cliente)
@@ -405,7 +433,7 @@ def confirmar_reserva_cliente(request):
     # Calcular precio total con posible recargo
     fecha_inicio = datetime.strptime(reserva_data['fecha_inicio'], '%Y-%m-%d').date()
     fecha_fin = datetime.strptime(reserva_data['fecha_fin'], '%Y-%m-%d').date()
-    dias = (fecha_fin - fecha_inicio).days
+    dias = (fecha_fin - fecha_inicio).days + 1  # +1 para incluir el día de inicio
     precio_por_dia, porcentaje_recargo = maquinaria.get_precio_para_cliente(cliente)
     precio_total = precio_por_dia * dias * int(reserva_data['cantidad_solicitada'])
     
@@ -499,7 +527,7 @@ def confirmar_reserva(request, reserva_id):
         'reserva': reserva,
         'maquinaria': reserva.maquinaria,
         'sucursal': reserva.sucursal_retiro,
-        'dias': (reserva.fecha_fin - reserva.fecha_inicio).days,
+        'dias': (reserva.fecha_fin - reserva.fecha_inicio).days + 1,  # +1 para incluir el día de inicio
         'precio_por_dia': reserva.maquinaria.precio_por_dia,
         'precio_total': reserva.precio_total,
         'es_empleado': request.user.tipo == 'EMPLEADO'
@@ -586,16 +614,16 @@ def lista_reservas(request):
     sucursal_id = request.GET.get('sucursal')
       # Iniciar el queryset base según el tipo de usuario
     if request.user.tipo == 'ADMIN' or request.user.tipo == 'EMPLEADO':
-        # Administradores y empleados ven todas las reservas
-        reservas = Reserva.objects.all()
+        # Administradores y empleados ven todas las reservas excepto las pendientes de pago
+        reservas = Reserva.objects.exclude(estado='PENDIENTE_PAGO')
         # Obtener lista de sucursales para el filtro
         sucursales = Sucursal.objects.filter(activa=True).order_by('nombre')
     else:
-        # Clientes ven sus propias reservas
-        reservas = Reserva.objects.filter(cliente=request.user)
+        # Clientes ven sus propias reservas excepto las pendientes de pago
+        reservas = Reserva.objects.filter(cliente=request.user).exclude(estado='PENDIENTE_PAGO')
         sucursales = None
       # Aplicar filtros si existen
-    if estado:
+    if estado and estado != 'PENDIENTE_PAGO':
         reservas = reservas.filter(estado=estado)
         
     if fecha_desde:
@@ -788,25 +816,11 @@ def reembolsar_reserva(request, reserva_id):
     if request.method == 'POST':
         # Procesar la cancelación y restaurar stock, pero sin crear reembolso todavía
         if reserva.reembolsar_reserva():
-            # Obtener el nombre de la sucursal
-            nombre_sucursal = reserva.sucursal_retiro.nombre
-            
-            # Mostrar mensaje según el tipo de reembolso que se procesará cuando el empleado finalice la reserva
-            if porcentaje_reembolso > 0:
-                messages.success(
-                    request, 
-                    f"Tu reserva ha sido cancelada. Acércate a la sucursal {nombre_sucursal} para que "
-                    f"te reintegren el monto de ${monto_reembolso:.2f} cuando un empleado finalice tu reserva."
-                )
-            else:  # Reembolso nulo
-                messages.success(
-                    request, 
-                    f"Tu reserva ha sido cancelada. Acercate a la sucursal {nombre_sucursal} para finalizar el trámite."
-                )
+            # Redirigir a la página de confirmación con detalles del reembolso
+            return redirect('reservas:reserva_cancelada', reserva_id=reserva.id)
         else:
             messages.error(request, "No se pudo procesar el reembolso. Por favor, intente nuevamente.")
-        
-        return redirect('home')
+            return redirect('reservas:lista_reservas')
     
     context = {
         'reserva': reserva,
@@ -818,6 +832,42 @@ def reembolsar_reserva(request, reserva_id):
     
     return render(request, 'reservas/confirmar_reembolso.html', context)
 
+
+@login_required
+def reserva_cancelada(request, reserva_id):
+    """
+    Vista para mostrar la página de confirmación de reserva cancelada con instrucciones
+    para el reembolso si corresponde.
+    """
+    reserva = get_object_or_404(Reserva, id=reserva_id)
+    
+    # Verificar que el usuario sea el dueño de la reserva o un empleado/admin
+    if request.user != reserva.cliente and request.user.tipo not in ['EMPLEADO', 'ADMIN']:
+        messages.error(request, "No tiene permisos para ver esta reserva.")
+        return redirect('reservas:lista_reservas')
+    
+    # Verificar que la reserva esté en estado CANCELADA
+    if reserva.estado != 'CANCELADA':
+        messages.error(request, "Esta página solo aplica para reservas canceladas.")
+        return redirect('reservas:lista_reservas')
+    
+    # Obtener la fecha actual
+    fecha_actual = timezone.now().date()
+    dias_hasta_inicio = (reserva.fecha_inicio - fecha_actual).days
+    
+    # Calcular el monto de reembolso según la política
+    monto_reembolso, porcentaje_reembolso = reserva.calcular_monto_reembolso(fecha_actual)
+    
+    context = {
+        'reserva': reserva,
+        'fecha_actual': fecha_actual,
+        'dias_hasta_inicio': dias_hasta_inicio,
+        'monto_reembolso': monto_reembolso,
+        'porcentaje_reembolso': porcentaje_reembolso,
+        'titulo': 'Reserva Cancelada'
+    }
+    
+    return render(request, 'reservas/reserva_cancelada.html', context)
 
 # AJAX Views
 @login_required

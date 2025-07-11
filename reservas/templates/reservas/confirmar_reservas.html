@@ -150,7 +150,6 @@
                 <div class="confirmation-header">
                     <i class="bi bi-check-circle-fill" style="font-size: 3rem; margin-bottom: 1rem;"></i>
                     <h2 class="mb-0">{{ titulo }}</h2>
-                    <p class="mb-0 mt-2">Por favor, confirme los detalles de la reserva</p>
                 </div>
                 
                 <div class="confirmation-body">
@@ -234,8 +233,17 @@
                         </h5>
                         {% if cliente.calificacion <= 1.0 %}
                         <div class="alert alert-danger mb-3">
-                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                            <strong>Recargo aplicado:</strong> Se ha aplicado un recargo del 30% debido a que la calificación del cliente es de 1 estrella o menos.
+                            <div class="d-flex">
+                                <div class="me-3">
+                                    <i class="bi bi-exclamation-triangle-fill fa-2x"></i>
+                                </div>
+                                <div>
+                                    <h5 class="alert-heading">Recargo del 30% aplicado</h5>
+                                    <p>Este recargo se aplica automáticamente porque la calificación del cliente es de 1 estrella o menos.</p>
+                                    <hr>
+                                    <p class="mb-0"><strong>Nota para el empleado:</strong> Puede explicar al cliente que su calificación mejorará con cada alquiler completado satisfactoriamente y que después de alcanzar más de 2 estrellas, no se le aplicarán recargos.</p>
+                                </div>
+                            </div>
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">Precio base por día:</span>
@@ -247,8 +255,17 @@
                         </div>
                         {% elif cliente.calificacion <= 2.0 %}
                         <div class="alert alert-warning mb-3">
-                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                            <strong>Recargo aplicado:</strong> Se ha aplicado un recargo del 20% debido a que la calificación del cliente es de 2 estrellas o menos.
+                            <div class="d-flex">
+                                <div class="me-3">
+                                    <i class="bi bi-exclamation-triangle-fill fa-2x"></i>
+                                </div>
+                                <div>
+                                    <h5 class="alert-heading">Recargo del 20% aplicado</h5>
+                                    <p>Este recargo se aplica automáticamente porque la calificación del cliente está entre 1 y 2 estrellas.</p>
+                                    <hr>
+                                    <p class="mb-0"><strong>Nota para el empleado:</strong> Puede informar al cliente que este recargo es menor al del 30% (para calificaciones ≤ 1★) y que continuará mejorando su calificación con cada alquiler exitoso.</p>
+                                </div>
+                            </div>
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">Precio base por día:</span>

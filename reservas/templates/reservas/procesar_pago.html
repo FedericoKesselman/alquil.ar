@@ -91,23 +91,40 @@
                             
                             {% if recargo_info > 0 %}
                             <div class="alert {% if recargo_info == 30 %}alert-danger{% else %}alert-warning{% endif %} mt-3">
-                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                                <strong>Recargo aplicado:</strong> Se ha aplicado un recargo del {{ recargo_info }}% debido a su calificación 
-                                {% if recargo_info == 30 %}
-                                de 1 estrella o menos.
-                                {% elif recargo_info == 20 %}
-                                de 2 estrellas o menos.
-                                {% endif %}
-                                <div class="mt-2">
-                                    <small>
-                                        <strong>Precio base por día:</strong> 
-                                        <span class="text-decoration-line-through text-muted">${{ precio_base }}</span>
-                                    </small>
-                                    <br>
-                                    <small>
-                                        <strong>Precio con recargo ({{ recargo_info }}%):</strong> 
-                                        ${{ precio_con_recargo }} por día
-                                    </small>
+                                <div class="d-flex">
+                                    <div class="me-3">
+                                        <i class="bi bi-exclamation-triangle-fill fa-2x"></i>
+                                    </div>
+                                    <div>
+                                        <h5 class="alert-heading">Recargo del {{ recargo_info }}% aplicado</h5>
+                                        <p>
+                                            Este recargo se aplica debido a su calificación actual 
+                                            {% if recargo_info == 30 %}
+                                            de 1 estrella o menos. Le invitamos a mejorar su calificación para evitar este recargo en futuros alquileres.
+                                            {% elif recargo_info == 20 %}
+                                            de 2 estrellas o menos. Con un historial de alquileres positivos, su calificación mejorará progresivamente.
+                                            {% endif %}
+                                        </p>
+                                        
+                                        <div class="mt-3">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <strong>Precio base por día:</strong> 
+                                                    <span class="text-decoration-line-through text-muted">${{ precio_base }}</span>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <strong>Precio con recargo:</strong> 
+                                                    ${{ precio_con_recargo }} por día
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <hr>
+                                        <p class="mb-0">
+                                            <i class="bi bi-info-circle me-1"></i> 
+                                            Los clientes con calificación mayor a 2 estrellas no tienen recargos. Cada devolución exitosa mejora su calificación.
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                             {% endif %}

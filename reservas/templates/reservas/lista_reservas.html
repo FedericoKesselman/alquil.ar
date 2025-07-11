@@ -130,7 +130,6 @@
                 <label for="estado" class="form-label">Estado</label>
                 <select name="estado" id="estado" class="form-select">
                     <option value="">Todos</option>
-                    <option value="PENDIENTE_PAGO" {% if request.GET.estado == 'PENDIENTE_PAGO' %}selected{% endif %}>Pendiente de Pago</option>
                     <option value="CONFIRMADA" {% if request.GET.estado == 'CONFIRMADA' %}selected{% endif %}>Confirmada</option>
                     <option value="CANCELADA" {% if request.GET.estado == 'CANCELADA' %}selected{% endif %}>Cancelada</option>
                     <option value="FINALIZADA" {% if request.GET.estado == 'FINALIZADA' %}selected{% endif %}>Finalizada</option>

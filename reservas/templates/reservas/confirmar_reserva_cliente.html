@@ -165,7 +165,6 @@
                 <div class="confirmation-header">
                     <i class="bi bi-check-circle-fill" style="font-size: 3rem; margin-bottom: 1rem;"></i>
                     <h2 class="mb-0">{{ titulo }}</h2>
-                    <p class="mb-0 mt-2">Por favor, confirme los detalles de su reserva</p>
                 </div>
                 
                 <div class="confirmation-body">
@@ -242,7 +241,11 @@
                         {% if cliente.calificacion <= 1.0 %}
                         <div class="alert alert-danger mb-3">
                             <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                            <strong>Recargo aplicado:</strong> Se ha aplicado un recargo del 30% debido a que su calificación es de 1 estrella o menos.
+                            <strong>Recargo aplicado: 30%</strong>
+                            <div class="mt-2">
+                                <p>Este recargo se aplica debido a que su calificación actual es de 1 estrella o menos. En Alquil.ar utilizamos un sistema de calificaciones para garantizar el cuidado adecuado de nuestras máquinas.</p>
+                                <p class="mb-0"><strong>¿Cómo mejorar su calificación?</strong> Devolviendo las máquinas en buen estado y dentro del plazo establecido. Su calificación se actualiza automáticamente después de cada alquiler completado satisfactoriamente.</p>
+                            </div>
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">Precio base por día:</span>
@@ -255,7 +258,11 @@
                         {% elif cliente.calificacion <= 2.0 %}
                         <div class="alert alert-warning mb-3">
                             <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                            <strong>Recargo aplicado:</strong> Se ha aplicado un recargo del 20% debido a que su calificación es de 2 estrellas o menos.
+                            <strong>Recargo aplicado: 20%</strong>
+                            <div class="mt-2">
+                                <p>Este recargo se aplica debido a que su calificación actual es de 2 estrellas o menos. En Alquil.ar utilizamos un sistema de calificaciones para incentivar el buen uso de nuestra maquinaria.</p>
+                                <p class="mb-0"><strong>¿Cómo mejorar su calificación?</strong> Con cada alquiler completado satisfactoriamente (devolución en buen estado y a tiempo), su calificación mejorará progresivamente. Los clientes con más de 2 estrellas no tienen recargos.</p>
+                            </div>
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">Precio base por día:</span>

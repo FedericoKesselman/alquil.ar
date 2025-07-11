@@ -1,17 +1,7 @@
-{% extends 'base.html' %} {% load math_extras %}             {% if aplicar_recargo %}
-                    <!-- Mostrar precio con recargo para clientes con baja calificación -->
-                    <span class="text-decoration-line-through text-muted">${{ maquinaria.precio_por_dia|floatformat:2 }}</span>
-                    <strong class="text-primary">${{ precio_con_recargo|floatformat:2 }}</strong>
-                    <div class="mt-1">
-                      {% if porcentaje_recargo == 30 %}
-                        <span class="badge bg-danger text-white">Recargo del 30% por calificación de 1 estrella o menos</span>
-                      {% else %}
-                        <span class="badge bg-warning text-dark">Recargo del 20% por calificación de 2 estrellas o menos</span>
-                      {% endif %}
-                    </div>
-                  {% else %}
-                    ${{ maquinaria.precio_por_dia|floatformat:2 }}
-                  {% endif %}{% block content %}
+{% extends 'base.html' %}
+{% load math_extras %}
+
+{% block content %}
 <div class="container mt-4">
   <div class="row">
     <div class="col-md-8 offset-md-2">
@@ -52,17 +42,27 @@
                 <dd class="col-sm-8">
                   {% if aplicar_recargo %}
                     <!-- Mostrar precio con recargo para clientes con baja calificación -->
-                    <span class="text-decoration-line-through text-muted">${{ maquinaria.precio_por_dia|floatformat:2 }}</span>
-                    <strong class="text-primary">${{ precio_con_recargo|floatformat:2 }}</strong>
+                    <span class="text-decoration-line-through text-muted">\${{ maquinaria.precio_por_dia|floatformat:2 }}</span>
+                    <strong class="text-primary">\${{ precio_con_recargo|floatformat:2 }}</strong>
                     <div class="mt-1">
                       {% if porcentaje_recargo == 30 %}
-                        <span class="badge bg-danger text-white">Recargo del 30% por calificación de 1 estrella o menos</span>
+                        <div class="d-flex align-items-center">
+                          <span class="badge bg-danger text-white">Recargo del 30%</span>
+                          <button type="button" class="btn btn-link btn-sm text-danger p-0 ms-1" data-bs-toggle="modal" data-bs-target="#recargoInfoModal">
+                            <i class="bi bi-info-circle"></i> Más información
+                          </button>
+                        </div>
                       {% else %}
-                        <span class="badge bg-warning text-dark">Recargo del 20% por calificación de 2 estrellas o menos</span>
+                        <div class="d-flex align-items-center">
+                          <span class="badge bg-warning text-dark">Recargo del 20%</span>
+                          <button type="button" class="btn btn-link btn-sm text-warning p-0 ms-1" data-bs-toggle="modal" data-bs-target="#recargoInfoModal">
+                            <i class="bi bi-info-circle"></i> Más información
+                          </button>
+                        </div>
                       {% endif %}
                     </div>
                   {% else %}
-                    ${{ maquinaria.precio_por_dia|floatformat:2 }}
+                    \${{ maquinaria.precio_por_dia|floatformat:2 }}
                   {% endif %}
                 </dd>
               </dl>
@@ -174,7 +174,9 @@
             <a href="{% url 'maquinaria_list' %}" class="btn btn-secondary">
               <i class="fas fa-arrow-left"></i> Volver al Listado
             </a>
-            {% endif %} {% if user.tipo == 'ADMIN' %}
+            {% endif %}
+            
+            {% if user.tipo == 'ADMIN' %}
             <div>
               <a
                 href="{% url 'maquinaria_update' maquinaria.pk %}"
@@ -197,4 +199,79 @@
     </div>
   </div>
 </div>
+
+<!-- Modal de información sobre recargos -->
+{% if aplicar_recargo %}
+<div class="modal fade" id="recargoInfoModal" tabindex="-1" aria-labelledby="recargoInfoModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header {% if porcentaje_recargo == 30 %}bg-danger text-white{% else %}bg-warning{% endif %}">
+        <h5 class="modal-title" id="recargoInfoModalLabel">
+          <i class="bi bi-info-circle me-2"></i>
+          Información sobre el recargo aplicado
+        </h5>
+        <button type="button" class="btn-close {% if porcentaje_recargo == 30 %}btn-close-white{% endif %}" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        {% if porcentaje_recargo == 30 %}
+          <h5 class="mb-3">Recargo del 30% aplicado</h5>
+          <p>Este recargo se aplica debido a que su calificación actual es de <strong>1 estrella o menos</strong>.</p>
+          <p>En Alquil.ar aplicamos un sistema de calificaciones para garantizar el cuidado óptimo de nuestra maquinaria y premiar a los clientes responsables.</p>
+          <hr>
+          <h6><i class="bi bi-star-fill text-warning me-2"></i>¿Cómo funciona la calificación?</h6>
+          <p>Cada cliente comienza con 5 estrellas. Después de cada alquiler, nuestros empleados evalúan el estado de devolución y el cumplimiento de los plazos.</p>
+          <h6><i class="bi bi-arrow-up-circle-fill text-success me-2"></i>¿Cómo puedo mejorar mi calificación?</h6>
+          <ul>
+            <li>Devolviendo las máquinas en el mismo estado en que fueron entregadas</li>
+            <li>Cumpliendo con los plazos de devolución establecidos</li>
+            <li>Siguiendo las recomendaciones de uso de cada máquina</li>
+          </ul>
+          <p>Su calificación se actualiza automáticamente después de cada alquiler completado satisfactoriamente.</p>
+        {% else %}
+          <h5 class="mb-3">Recargo del 20% aplicado</h5>
+          <p>Este recargo se aplica debido a que su calificación actual está <strong>entre 1 y 2 estrellas</strong>.</p>
+          <p>En Alquil.ar aplicamos un sistema de calificaciones para incentivar el buen uso y cuidado de nuestra maquinaria.</p>
+          <hr>
+          <h6><i class="bi bi-star-fill text-warning me-2"></i>¿Cómo funciona la calificación?</h6>
+          <p>Todos los clientes comienzan con 5 estrellas. Su calificación puede disminuir si hay problemas con sus alquileres anteriores.</p>
+          <h6><i class="bi bi-arrow-up-circle-fill text-success me-2"></i>¿Cómo puedo mejorar mi calificación?</h6>
+          <p>Con cada alquiler completado satisfactoriamente, su calificación mejorará progresivamente. Cuando supere las 2 estrellas, los recargos dejarán de aplicarse.</p>
+          <ul>
+            <li>Devolviendo las máquinas en buen estado</li>
+            <li>Respetando los plazos acordados</li>
+            <li>Siguiendo las instrucciones de uso adecuadas</li>
+          </ul>
+        {% endif %}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Entendido</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Inicializar todos los modales
+  var modals = document.querySelectorAll('.modal');
+  modals.forEach(function(modal) {
+    new bootstrap.Modal(modal);
+  });
+  
+  // Agregar manejadores de eventos a los botones de "Más información"
+  var infoButtons = document.querySelectorAll('[data-bs-toggle="modal"][data-bs-target="#recargoInfoModal"]');
+  infoButtons.forEach(function(button) {
+    button.addEventListener('click', function(event) {
+      event.preventDefault();
+      var modalElement = document.getElementById('recargoInfoModal');
+      var modal = bootstrap.Modal.getInstance(modalElement) || new bootstrap.Modal(modalElement);
+      modal.show();
+    });
+  });
+});
+</script>
 {% endblock %}

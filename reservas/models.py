@@ -224,7 +224,7 @@ class Reserva(models.Model):
         
         # Calcular precio total si no está definido, con posible recargo
         if not self.precio_total and self.maquinaria and self.fecha_inicio and self.fecha_fin:
-            dias = (self.fecha_fin - self.fecha_inicio).days
+            dias = (self.fecha_fin - self.fecha_inicio).days + 1  # +1 para incluir el día de inicio
             precio_por_dia, _ = self.maquinaria.get_precio_para_cliente(self.cliente)
             self.precio_total = precio_por_dia * dias * self.cantidad_solicitada
         
@@ -234,7 +234,7 @@ class Reserva(models.Model):
     def dias_reserva(self):
         """Calcula la cantidad de días de la reserva"""
         if self.fecha_inicio and self.fecha_fin:
-            return (self.fecha_fin - self.fecha_inicio).days
+            return (self.fecha_fin - self.fecha_inicio).days + 1  # +1 para incluir el día de inicio
         return 0    @property
     def precio_por_dia_total(self):
         """Precio por día considerando la cantidad solicitada y posible recargo"""

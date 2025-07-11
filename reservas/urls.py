@@ -18,6 +18,7 @@ urlpatterns = [
     path('detalle/<int:reserva_id>/', views.detalle_reserva, name='detalle_reserva'),
     path('cancelar/<int:reserva_id>/', views.cancelar_reserva, name='cancelar_reserva'),
     path('reembolsar/<int:reserva_id>/', views.reembolsar_reserva, name='reembolsar_reserva'),
+    path('reserva-cancelada/<int:reserva_id>/', views.reserva_cancelada, name='reserva_cancelada'),
     
     # URLs para empleados
     path('procesar-reservas/', views.procesar_reservas, name='procesar_reservas'),
