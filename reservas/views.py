@@ -943,9 +943,19 @@ def get_sucursales_disponibles(request):
         cantidad_solicitada = request.GET.get('cantidad_solicitada')
 
         # Validar que todos los parámetros necesarios estén presentes
-        if not all([maquinaria_id, fecha_inicio, fecha_fin, cantidad_solicitada]):
+        parametros_faltantes = []
+        if not maquinaria_id:
+            parametros_faltantes.append("maquinaria")
+        if not fecha_inicio:
+            parametros_faltantes.append("fecha de inicio")
+        if not fecha_fin:
+            parametros_faltantes.append("fecha de finalización")
+        if not cantidad_solicitada:
+            parametros_faltantes.append("cantidad solicitada")
+            
+        if parametros_faltantes:
             return JsonResponse({
-                'error': 'Faltan parámetros requeridos'
+                'error': f'Faltan datos: {", ".join(parametros_faltantes)}'
             }, status=400)
 
         # Convertir parámetros a sus tipos correctos
@@ -956,7 +966,7 @@ def get_sucursales_disponibles(request):
             fecha_fin = datetime.strptime(fecha_fin, '%Y-%m-%d').date()
         except (ValueError, TypeError) as e:
             return JsonResponse({
-                'error': f'Formato de parámetros inválido: {str(e)}'
+                'error': 'Los datos ingresados no tienen el formato correcto. Por favor, verifique las fechas y la cantidad.'
             }, status=400)
 
         # Obtener la maquinaria
@@ -964,18 +974,18 @@ def get_sucursales_disponibles(request):
             maquinaria = Maquinaria.objects.get(id=maquinaria_id)
         except Maquinaria.DoesNotExist:
             return JsonResponse({
-                'error': 'Maquinaria no encontrada'
+                'error': 'La máquina seleccionada no se encuentra disponible'
             }, status=404)
 
         # Validar fechas
         if fecha_inicio > fecha_fin:
             return JsonResponse({
-                'error': 'La fecha de inicio debe ser anterior a la fecha de fin'
+                'error': 'La fecha de inicio debe ser anterior o igual a la fecha de finalización'
             }, status=400)
 
         if fecha_inicio < timezone.now().date():
             return JsonResponse({
-                'error': 'La fecha de inicio debe ser posterior a hoy'
+                'error': 'La fecha de inicio debe ser igual o posterior a hoy'
             }, status=400)
 
         # Obtener las sucursales activas con stock disponible

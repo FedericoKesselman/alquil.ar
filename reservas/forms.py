@@ -51,6 +51,25 @@ class ReservaForm(forms.ModelForm):
             'sucursal_retiro': 'Sucursal de Retiro',
             'cliente': 'Seleccionar Cliente'
         }
+        error_messages = {
+            'fecha_inicio': {
+                'required': 'Por favor seleccione una fecha de inicio',
+                'invalid': 'La fecha de inicio no es válida'
+            },
+            'fecha_fin': {
+                'required': 'Por favor seleccione una fecha de finalización',
+                'invalid': 'La fecha de finalización no es válida'
+            },
+            'cantidad_solicitada': {
+                'required': 'Por favor indique la cantidad de máquinas',
+                'invalid': 'La cantidad ingresada no es válida',
+                'min_value': 'La cantidad debe ser al menos 1'
+            },
+            'sucursal_retiro': {
+                'required': 'Por favor seleccione una sucursal de retiro',
+                'invalid_choice': 'La sucursal seleccionada no es válida'
+            }
+        }
 
     def __init__(self, *args, **kwargs):
         self._maquinaria = kwargs.pop('maquinaria', None)

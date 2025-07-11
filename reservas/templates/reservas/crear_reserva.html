@@ -158,10 +158,16 @@
                 </label>
                 {{ form.fecha_inicio }} {% if form.fecha_inicio.help_text %}
                 <div class="help-text">{{ form.fecha_inicio.help_text }}</div>
-                {% endif %} {% if form.fecha_inicio.errors %}
+                {% endif %}                {% if form.fecha_inicio.errors %}
                 <div class="text-danger">
                   {% for error in form.fecha_inicio.errors %}
-                  <small>{{ error }}</small>
+                  <small>
+                    {% if error == "This field is required." %}
+                      Por favor, seleccione una fecha de inicio
+                    {% else %}
+                      {{ error }}
+                    {% endif %}
+                  </small>
                   {% endfor %}
                 </div>
                 {% endif %}
@@ -178,10 +184,16 @@
                 </label>
                 {{ form.fecha_fin }} {% if form.fecha_fin.help_text %}
                 <div class="help-text">{{ form.fecha_fin.help_text }}</div>
-                {% endif %} {% if form.fecha_fin.errors %}
+                {% endif %}                {% if form.fecha_fin.errors %}
                 <div class="text-danger">
                   {% for error in form.fecha_fin.errors %}
-                  <small>{{ error }}</small>
+                  <small>
+                    {% if error == "This field is required." %}
+                      Por favor, seleccione una fecha de finalización
+                    {% else %}
+                      {{ error }}
+                    {% endif %}
+                  </small>
                   {% endfor %}
                 </div>
                 {% endif %}
@@ -205,7 +217,17 @@
                 {% if form.cantidad_solicitada.errors %}
                 <div class="text-danger">
                   {% for error in form.cantidad_solicitada.errors %}
-                  <small>{{ error }}</small>
+                  <small>
+                    {% if error == "This field is required." %}
+                      Por favor, indique la cantidad de máquinas
+                    {% elif "valid number" in error %}
+                      Por favor, ingrese un número válido
+                    {% elif "greater than or equal to" in error %}
+                      La cantidad debe ser al menos 1
+                    {% else %}
+                      {{ error }}
+                    {% endif %}
+                  </small>
                   {% endfor %}
                 </div>
                 {% endif %}
@@ -227,7 +249,13 @@
                 {% if form.sucursal_retiro.errors %}
                 <div class="text-danger">
                   {% for error in form.sucursal_retiro.errors %}
-                  <small>{{ error }}</small>
+                  <small>
+                    {% if error == "This field is required." %}
+                      Por favor, seleccione una sucursal
+                    {% else %}
+                      {{ error }}
+                    {% endif %}
+                  </small>
                   {% endfor %}
                 </div>
                 {% endif %}
@@ -285,6 +313,7 @@
             <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
               Continuar con la Reserva
             </button>
+            <div class="form-text text-muted mt-2" id="submitHelp" style="display: none;"></div>
           </div>
         </form>
       </div>
@@ -301,6 +330,7 @@
     const submitBtn = document.querySelector('button[type="submit"]');
     const diasSeleccionadosDiv = document.getElementById('dias_seleccionados');
     const precioTotalDiv = document.getElementById('precio_total');
+    const sucursalHelp = document.getElementById('sucursalHelp');
     {% if aplicar_recargo %}
     {% if porcentaje_recargo == 30 %}
     const precioPorDia = {{ maquinaria.precio_por_dia }} * 1.3; // Aplicar recargo del 30%
@@ -311,9 +341,19 @@
     const precioPorDia = {{ maquinaria.precio_por_dia }};
     {% endif %}
 
-    // Deshabilitar sucursal y submit inicialmente
-    sucursalSelect.disabled = true;
-    submitBtn.disabled = true;
+    // Configuración inicial del selector de sucursal
+    // Si el usuario ya seleccionó una sucursal previamente (por ejemplo, si hay errores de validación), 
+    // no deshabilitar el selector
+    if (!sucursalSelect.value) {
+        sucursalSelect.disabled = true;
+        submitBtn.disabled = true;
+        sucursalSelect.innerHTML = '<option value="">Seleccione fechas y cantidad primero</option>';
+    } else {
+        // Si ya hay un valor seleccionado, no deshabilitar
+        sucursalSelect.disabled = false;
+        submitBtn.disabled = false;
+        sucursalHelp.textContent = 'Sucursal seleccionada';
+    }
 
     function actualizarSucursales(sucursales) {
         sucursalSelect.innerHTML = '<option value="">Seleccione una sucursal</option>';
@@ -323,30 +363,59 @@
             option.textContent = `${sucursal.nombre} - ${sucursal.direccion}`;
             sucursalSelect.appendChild(option);
         });
+        // Asegurar que el selector de sucursal esté habilitado
         sucursalSelect.disabled = false;
         submitBtn.disabled = false;
+        
+        // Actualizar los textos de ayuda
+        document.getElementById('sucursalHelp').textContent = 'Seleccione una sucursal para realizar su reserva';
+        document.getElementById('submitHelp').textContent = '';
     }
 
     function deshabilitarSucursales() {
         sucursalSelect.innerHTML = '<option value="">Primero seleccione fechas y cantidad</option>';
         sucursalSelect.disabled = true;
         submitBtn.disabled = true;
+        
+        // Actualizar los textos de ayuda
+        document.getElementById('sucursalHelp').textContent = 'Seleccione fechas y cantidad para ver las sucursales disponibles';
+        document.getElementById('submitHelp').textContent = '';
     }
 
     function calcularDiasYPrecio() {
         if (fechaInicioInput.value && fechaFinInput.value && cantidadInput.value) {
             const inicio = new Date(fechaInicioInput.value);
             const fin = new Date(fechaFinInput.value);
-            const diffTime = Math.abs(fin - inicio) + 1;
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            const cantidad = parseInt(cantidadInput.value);
-
-            diasSeleccionadosDiv.textContent = diffDays;
-            const precioTotal = diffDays * precioPorDia * cantidad;
-            precioTotalDiv.textContent = `$${precioTotal.toFixed(2)}`;
-
-            verificarDisponibilidad();
+            
+            // Ajustamos para considerar toda la fecha (hasta las 23:59:59)
+            fin.setHours(23, 59, 59);
+            
+            if (fin >= inicio) {
+                // Cálculo de días correctamente (incluye el día inicial y final)
+                const diffTime = Math.abs(fin - inicio);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 para incluir ambos días
+                const cantidad = parseInt(cantidadInput.value) || 0;
+    
+                // Actualizar la UI con los datos calculados
+                diasSeleccionadosDiv.textContent = diffDays;
+                if (cantidad > 0) {
+                    const precioTotal = diffDays * precioPorDia * cantidad;
+                    precioTotalDiv.textContent = `$${precioTotal.toFixed(2)}`;
+                    
+                    // Verificar disponibilidad solo si todos los valores son válidos
+                    verificarDisponibilidad();
+                } else {
+                    precioTotalDiv.textContent = '$0.00';
+                    deshabilitarSucursales();
+                }
+            } else {
+                // La fecha fin es anterior a la fecha inicio
+                diasSeleccionadosDiv.textContent = '0';
+                precioTotalDiv.textContent = '$0.00';
+                deshabilitarSucursales();
+            }
         } else {
+            // Alguno de los campos requeridos está vacío
             diasSeleccionadosDiv.textContent = '0';
             precioTotalDiv.textContent = '$0.00';
             deshabilitarSucursales();
@@ -359,12 +428,35 @@
         const cantidad = cantidadInput.value;
         const maquinariaId = {{ maquinaria.id }};
 
-        if (!fechaInicio || !fechaFin || !cantidad) {
+        // Verificar si los campos obligatorios están completos
+        if (!fechaInicio || !fechaFin || !cantidad || cantidad <= 0) {
             deshabilitarSucursales();
             return;
         }
 
+        // Verificar si la fecha de inicio es mayor o igual a la fecha actual
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        const inicio = new Date(fechaInicio);
+        const fin = new Date(fechaFin);
+        
+        if (inicio < hoy) {
+            deshabilitarSucursales();
+            alert('La fecha de inicio no puede ser anterior a hoy.');
+            return;
+        }
+
+        // Verificar si la fecha de fin es mayor o igual a la fecha de inicio
+        if (fin < inicio) {
+            deshabilitarSucursales();
+            alert('La fecha de finalización debe ser posterior a la fecha de inicio.');
+            return;
+        }
+
         try {
+            // Mostrar un indicador de carga o mensaje mientras se procesa
+            sucursalSelect.innerHTML = '<option value="">Buscando sucursales disponibles...</option>';
+            
             const response = await fetch(`/reservas/get-sucursales-disponibles/?maquinaria_id=${maquinariaId}&fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}&cantidad_solicitada=${cantidad}`);
             const data = await response.json();
 
@@ -373,14 +465,15 @@
                     actualizarSucursales(data.sucursales);
                 } else {
                     deshabilitarSucursales();
-                    alert('No hay sucursales disponibles para las fechas y cantidad seleccionadas.');
+                    // Cambiar el mensaje por uno más amigable
+                    alert('No hay sucursales con stock disponible para las fechas y cantidad seleccionadas.');
                 }
             } else {
                 throw new Error(data.error || 'Error al verificar disponibilidad');
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Error al verificar disponibilidad. Por favor, intente nuevamente.');
+            alert('Hubo un problema al verificar la disponibilidad. Por favor, intente nuevamente.');
             deshabilitarSucursales();
         }
     }
@@ -389,6 +482,20 @@
     fechaInicioInput.addEventListener('change', calcularDiasYPrecio);
     fechaFinInput.addEventListener('change', calcularDiasYPrecio);
     cantidadInput.addEventListener('change', calcularDiasYPrecio);
+    cantidadInput.addEventListener('input', function() {
+        // Validar que la cantidad sea un número positivo
+        const valor = parseInt(this.value);
+        if (isNaN(valor) || valor <= 0) {
+            this.setCustomValidity('La cantidad debe ser un número mayor a 0');
+        } else {
+            this.setCustomValidity('');
+        }
+    });
+    
+    // Si hay valores preexistentes, calcular el precio al cargar
+    if (fechaInicioInput.value && fechaFinInput.value && cantidadInput.value) {
+        calcularDiasYPrecio();
+    }
   });
 
   // Inicializar modales de Bootstrap
