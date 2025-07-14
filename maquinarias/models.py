@@ -120,7 +120,7 @@ class Maquinaria(models.Model):
             # Get details of non-finalized reservations for better error message
             from django.db.models.deletion import ProtectedError
             raise ProtectedError(
-                f"No se puede eliminar la maquinaria '{self.nombre}' porque tiene reservas que no están finalizadas. Todas las reservas deben estar en estado 'FINALIZADA' antes de eliminar la maquinaria.",
+                f"No se puede eliminar la maquinaria '{self.nombre}' porque tiene reservas que no están finalizadas.",
                 self
             )
         

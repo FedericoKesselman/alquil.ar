@@ -335,13 +335,7 @@ def maquinaria_delete(request, pk):
         messages.success(request, f'Maquinaria "{nombre_maquinaria}" eliminada exitosamente.')
     except django.db.models.deletion.ProtectedError as e:
         # Mostrar el mensaje de error personalizado
-        error_msg = str(e)
-        messages.error(request, error_msg)
-        
-        # Registrar el error para debug
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Error al eliminar maquinaria {maquinaria.id}: {str(e)}")
+        messages.error(request, "No se puede eliminar la maquinaria porque tiene reservas que no están finalizadas.")
     except Exception as e:
         # Para otros tipos de errores
         messages.error(request, f'Error al eliminar la maquinaria: {str(e)}')
