@@ -175,6 +175,87 @@ class Reserva(models.Model):
             print(f"Error al enviar email: {str(e)}")
             return False
 
+    def enviar_confirmacion_reembolso(self, monto_reembolso, porcentaje_reembolso):
+        """Envía un correo electrónico al cliente con los detalles del reembolso"""
+        # Obtener la dirección de la sucursal
+        sucursal_direccion = self.sucursal_retiro.direccion if self.sucursal_retiro else "No especificada"
+        
+        # Mensaje adicional basado en el monto del reembolso
+        mensaje_reembolso = ""
+        if porcentaje_reembolso > 0:
+            mensaje_reembolso = f"""
+            <div style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                <p><strong>Detalles del Reembolso:</strong></p>
+                <p>Monto a reembolsar: ${monto_reembolso:.2f} ({porcentaje_reembolso}% del total)</p>
+                <p>Para recibir su reembolso, por favor acérquese a la sucursal {self.sucursal_retiro.nombre} 
+                con su documento de identidad y el código de reserva.</p>
+                <p>Dirección: {sucursal_direccion}</p>
+            </div>
+            """
+        else:
+            mensaje_reembolso = """
+            <div style="background-color: #f8d7da; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                <p><strong>Información sobre el Reembolso:</strong></p>
+                <p>De acuerdo a nuestra política de cancelación, su reserva no califica para un reembolso monetario
+                debido al tiempo transcurrido hasta la fecha de inicio del alquiler.</p>
+                <p>Si tiene alguna duda, puede contactarnos o acercarse a la sucursal para más información.</p>
+            </div>
+            """
+        
+        # Crear el mensaje con formato HTML
+        mensaje = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <h2 style="color: #2c3e50;">Confirmación de Cancelación de Reserva</h2>
+            <p>Estimado/a {self.cliente.get_full_name()},</p>
+            <p>Su solicitud de cancelación de reserva ha sido procesada correctamente. A continuación encontrará los detalles:</p>
+            
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                <p><strong>Detalles de la Reserva Cancelada:</strong></p>
+                <ul>
+                    <li>Código de Reserva: {self.codigo_reserva}</li>
+                    <li>Maquinaria: {self.maquinaria.nombre}</li>
+                    <li>Cantidad: {self.cantidad_solicitada} unidad/es</li>
+                    <li>Fecha de inicio (original): {self.fecha_inicio.strftime('%d/%m/%Y')}</li>
+                    <li>Fecha de fin (original): {self.fecha_fin.strftime('%d/%m/%Y')}</li>
+                    <li>Sucursal: {self.sucursal_retiro.nombre}</li>
+                </ul>
+            </div>
+            
+            {mensaje_reembolso}
+            
+            <p style="color: #666; font-size: 0.9em; margin-top: 30px;">
+                Si tiene alguna consulta, no dude en contactarnos.<br>
+                Saludos cordiales,<br>
+                El equipo de Alquil.ar
+            </p>
+        </body>
+        </html>
+        """
+        
+        # Configurar el email
+        subject = f'Confirmación de Cancelación - Reserva {self.codigo_reserva}'
+        from_email = settings.EMAIL_HOST_USER
+        to_email = self.cliente.email
+        
+        # Crear el mensaje
+        from django.core.mail import EmailMessage
+        email = EmailMessage(
+            subject=subject,
+            body=mensaje,
+            from_email=from_email,
+            to=[to_email]
+        )
+        email.content_subtype = "html"  # Indicar que el contenido es HTML
+        
+        # Enviar el email
+        try:
+            email.send()
+            return True
+        except Exception as e:
+            print(f"Error al enviar email de reembolso: {str(e)}")
+            return False
+
     def clean(self):
         """Validaciones del modelo"""
         errors = {}

@@ -812,10 +812,62 @@ def reembolsar_reserva(request, reserva_id):
     # Calcular el monto de reembolso según la política
     monto_reembolso, porcentaje_reembolso = reserva.calcular_monto_reembolso(fecha_actual)
     
+    # Si corresponde un reembolso del 0%, procesarlo directamente sin intervención del empleado
+    if porcentaje_reembolso == 0:
+        # Si es un GET, mostrar la confirmación
+        if request.method == 'GET':
+            context = {
+                'reserva': reserva,
+                'fecha_actual': fecha_actual,
+                'dias_hasta_inicio': dias_hasta_inicio,
+                'monto_reembolso': monto_reembolso,
+                'porcentaje_reembolso': porcentaje_reembolso,
+                'procesamiento_automatico': True
+            }
+            return render(request, 'reservas/confirmar_reembolso.html', context)
+    
     # Si es un POST, procesar la confirmación del reembolso
     if request.method == 'POST':
-        # Procesar la cancelación y restaurar stock, pero sin crear reembolso todavía
+        # Procesar la cancelación y restaurar stock
         if reserva.reembolsar_reserva():
+            try:
+                # Recalcular el monto de reembolso (por si acaso)
+                monto_reembolso, porcentaje_reembolso = reserva.calcular_monto_reembolso(fecha_actual)
+                
+                # Si es un reembolso del 0%, finalizar la reserva y registrar el reembolso
+                if porcentaje_reembolso == 0:
+                    # Cambiar estado a FINALIZADA
+                    if reserva.finalizar_reserva():
+                        # Registrar el reembolso en la base de datos
+                        from .models import Reembolso
+                        reembolso = Reembolso.objects.create(
+                            cliente=reserva.cliente,
+                            reserva=reserva,
+                            monto=0,
+                            dni_cliente=reserva.cliente.dni
+                        )
+                        
+                        # Enviar correo con confirmación
+                        envio_exitoso = reserva.enviar_confirmacion_reembolso(0, 0)
+                        if envio_exitoso:
+                            messages.success(request, "Su reserva ha sido cancelada y finalizada automáticamente. Se ha enviado un correo electrónico con los detalles.")
+                        else:
+                            messages.warning(request, "Su reserva ha sido cancelada y finalizada, pero hubo un problema al enviar el correo electrónico de confirmación.")
+                            
+                        messages.info(request, "Como la cancelación se realizó muy cerca de la fecha de inicio, no corresponde reembolso monetario según la política de cancelación.")
+                    else:
+                        messages.error(request, "La reserva fue cancelada, pero no se pudo finalizar automáticamente. Un empleado la procesará pronto.")
+                else:
+                    # Para reembolsos con valor > 0%, procesar normalmente
+                    # Enviar correo electrónico con detalles del reembolso
+                    envio_exitoso = reserva.enviar_confirmacion_reembolso(monto_reembolso, porcentaje_reembolso)
+                    if envio_exitoso:
+                        messages.success(request, "Se ha enviado un correo electrónico con los detalles del reembolso.")
+                    else:
+                        messages.warning(request, "La reserva fue cancelada, pero hubo un problema al enviar el correo electrónico de confirmación.")
+            except Exception as e:
+                messages.warning(request, f"La reserva fue cancelada, pero ocurrió un error al procesar el reembolso: {str(e)}")
+            
             # Redirigir a la página de confirmación con detalles del reembolso
             return redirect('reservas:reserva_cancelada', reserva_id=reserva.id)
         else:
@@ -1214,15 +1266,16 @@ def finalizar_reserva_por_codigo(request):
                     if porcentaje > 0:
                         messages.success(
                             request, 
-                            f"REEMBOLSO PROCESADO: La reserva cancelada de {reserva.cliente.get_full_name()} ha sido finalizada. "
-                            f"Se ha registrado un reembolso de ${monto_reembolso:.2f} ({porcentaje}% del total). "
-                            f"ID de reembolso: #{reembolso.id}"
+                            f"✅ REEMBOLSO PROCESADO: La reserva cancelada de {reserva.maquinaria.nombre} para {reserva.cliente.get_full_name()} "
+                            f"ha sido finalizada. Se ha registrado un reembolso de ${monto_reembolso:.2f} ({porcentaje}% del total). "
+                            f"ID de reembolso: #{reembolso.id}. La reserva ahora está en estado FINALIZADA."
                         )
                     else:
                         messages.success(
                             request, 
-                            f"La reserva cancelada de {reserva.cliente.get_full_name()} ha sido finalizada sin reembolso "
-                            f"ya que no correspondía según la política de cancelación."
+                            f"✅ RESERVA CANCELADA PROCESADA: La reserva de {reserva.maquinaria.nombre} para {reserva.cliente.get_full_name()} "
+                            f"ha sido finalizada sin reembolso ya que no correspondía según la política de cancelación. "
+                            f"La reserva ahora está en estado FINALIZADA."
                         )
                 else:
                     messages.error(request, "No se pudo finalizar la reserva cancelada. Contacte al administrador.")
@@ -1370,9 +1423,16 @@ def confirmar_devolucion(request, reserva_id):
         cliente.actualizar_calificacion_promedio()
           # Finalizar la reserva
         if reserva.finalizar_reserva():
+            # Verificar si hay recargo por atraso
+            recargo_mensaje = ""
+            if reserva.recargo_atraso and reserva.recargo_atraso > 0:
+                recargo_mensaje = f" Se ha aplicado un recargo por atraso de ${float(reserva.recargo_atraso):.2f}."
+            
             messages.success(
                 request, 
-                f"La devolución de la reserva ha sido procesada correctamente."
+                f"✅ DEVOLUCIÓN PROCESADA: La maquinaria {reserva.maquinaria.nombre} ({reserva.cantidad_solicitada} unidad/es) "
+                f"ha sido devuelta correctamente por {reserva.cliente.get_full_name()}.{recargo_mensaje} "
+                f"La reserva ahora está en estado FINALIZADA."
             )
             messages.info(
                 request, 
@@ -1955,7 +2015,10 @@ def entregar_reserva_por_codigo(request):
         if reserva.marcar_entregada():
             messages.success(
                 request, 
-                f"La reserva de {reserva.cliente.get_full_name()} ha sido marcada como ENTREGADA correctamente."
+                f"✅ ENTREGA PROCESADA: La maquinaria {reserva.maquinaria.nombre} ({reserva.cantidad_solicitada} unidad/es) "
+                f"ha sido entregada correctamente a {reserva.cliente.get_full_name()}. "
+                f"Período de alquiler: {reserva.fecha_inicio.strftime('%d/%m/%Y')} - {reserva.fecha_fin.strftime('%d/%m/%Y')}. "
+                f"La reserva ahora está en estado ENTREGADA."
             )
         else:
             messages.error(

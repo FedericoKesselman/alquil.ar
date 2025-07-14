@@ -129,20 +129,33 @@
                     Monto a reembolsar: ${{ monto_reembolso|floatformat:2 }} ({{ porcentaje_reembolso }}%)
                 </div>
                 
+                {% if porcentaje_reembolso == 0 %}
+                <div class="alert alert-warning mt-4">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>Procesamiento automático:</strong> Debido a que la cancelación se está realizando muy cerca de la fecha de inicio, 
+                    no corresponde reembolso monetario según nuestra política. Al confirmar, la reserva será cancelada y finalizada automáticamente.
+                </div>
+                {% else %}
                 <div class="alert alert-info mt-4">
                     <i class="bi bi-info-circle-fill me-2"></i>
                     Al confirmar el reembolso, se te mostrarán instrucciones detalladas sobre cómo y dónde recibir tu dinero.
                 </div>
+                {% endif %}
                 
                 <div class="d-flex justify-content-between mt-4">
                     <a href="{% url 'reservas:lista_reservas' %}" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-left"></i> Volver
                     </a>
                     
-                    <form method="post">
+                    <form method="post" id="reembolso-form">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-warning">
-                            <i class="bi bi-cash-coin"></i> Confirmar Reembolso
+                            <i class="bi bi-cash-coin"></i> 
+                            {% if porcentaje_reembolso == 0 %}
+                                Confirmar Cancelación
+                            {% else %}
+                                Confirmar Reembolso
+                            {% endif %}
                         </button>
                     </form>
                 </div>
@@ -150,4 +163,36 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const reembolsoForm = document.getElementById('reembolso-form');
+        
+        reembolsoForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const montoReembolso = '{{ monto_reembolso|floatformat:2 }}';
+            const porcentaje = '{{ porcentaje_reembolso }}';
+            
+            let mensaje;
+            
+            if (porcentaje > 0) {
+                mensaje = `¿Está seguro de que desea confirmar este reembolso?`;
+                mensaje += `\n\nSe procesará un reembolso de $${montoReembolso} (${porcentaje}% del valor total).`;
+                mensaje += `\n\nUna vez confirmado, recibirá un correo electrónico con los detalles del reembolso.`;
+            } else {
+                mensaje = `¿Está seguro de que desea confirmar la cancelación?`;
+                mensaje += `\n\nDe acuerdo a la política de cancelación, no corresponde reembolso monetario.`;
+                mensaje += `\n\nAl confirmar, la reserva será cancelada y finalizada automáticamente, y recibirá un correo electrónico con la confirmación.`;
+            }
+            
+            if (confirm(mensaje)) {
+                // Si el usuario confirma, enviar el formulario
+                this.submit();
+            }
+        });
+    });
+</script>
 {% endblock %}

@@ -89,10 +89,6 @@
                 <div class="card-footer bg-light">
                     <div class="text-center text-muted">
                         <small>
-                            <strong>Procesar Reembolso:</strong> Solo para reservas en estado "Cancelada" que pertenezcan a su sucursal actual.<br>
-                            <strong>Procesar Devolución:</strong> Solo para reservas en estado "Entregada" o en estado "No Devuelta" que pertenezcan a su sucursal actual.<br>
-                            <strong>Procesar Entrega:</strong> Solo para reservas en estado "Confirmada" con fecha de inicio actual o pasada que pertenezcan a su sucursal actual.<br>
-                            <strong>Nota:</strong> No se pueden procesar reservas en estado "Finalizada", "Entregada" o "Pendiente de Pago".<br>
                             <strong class="text-danger">Importante:</strong> Solo puede procesar reservas de la sucursal {{ user.sucursal.nombre }}.
                         </small>
                     </div>
@@ -108,23 +104,15 @@
                     <ul class="list-group list-group-flush">
                         <li class="list-group-item">
                             <i class="bi bi-box-arrow-right text-info"></i>
-                            <strong>Procesar Entrega:</strong> Para reservas en estado "Confirmada" con fecha de inicio actual o pasada, cuando el cliente retira la maquinaria. Solo se pueden procesar reservas que pertenezcan a su sucursal actual.
+                            <strong>Procesar Entrega:</strong> Para reservas en estado "Confirmada" con fecha de inicio actual o pasada, cuando el cliente retira la maquinaria.
                         </li>
                         <li class="list-group-item">
                             <i class="bi bi-arrow-return-left text-success"></i>
-                            <strong>Procesar Devolución:</strong> Para reservas en estado "Entregada" o en estado "No Devuelta" cuando el cliente devuelve la maquinaria. Solo se pueden procesar reservas que pertenezcan a su sucursal actual.
+                            <strong>Procesar Devolución:</strong> Sólo para reservas en estado "Entregada" o "No Devuelta" cuando el cliente devuelve la maquinaria.
                         </li>
                         <li class="list-group-item">
                             <i class="bi bi-currency-exchange text-primary"></i>
-                            <strong>Procesar Reembolso:</strong> Exclusivamente para reservas en estado "Cancelada" que requieran un reembolso. Solo se pueden procesar reservas que pertenezcan a su sucursal actual.
-                        </li>
-                        <li class="list-group-item">
-                            <i class="bi bi-x-circle text-danger"></i>
-                            <strong>Estados no procesables:</strong> Las reservas en estado "Finalizada", "Confirmada" o "Pendiente de Pago" no pueden ser procesadas para devolución. Las reservas en estado "Finalizada", "Entregada", "Confirmada", "No Devuelta" o "Pendiente de Pago" no pueden ser procesadas para reembolso.
-                        </li>
-                        <li class="list-group-item">
-                            <i class="bi bi-building-fill text-primary"></i>
-                            <strong>Sucursal:</strong> Solo podrá procesar reservas de su sucursal asignada ({{ user.sucursal.nombre }}). Si una reserva pertenece a otra sucursal, el sistema mostrará un mensaje de error y no permitirá procesarla.
+                            <strong>Procesar Reembolso:</strong> Exclusivamente para reservas en estado "Cancelada" que requieran un reembolso.
                         </li>
                     </ul>
                 </div>
