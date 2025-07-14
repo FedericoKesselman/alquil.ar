@@ -395,6 +395,7 @@
         mostrarMensaje(data.mensaje || "Sucursal eliminada exitosamente", 'success');
         cargarSucursales();
       } else {
+        // Mostrar el mensaje de error de manera más clara y amigable
         mostrarMensaje(data.error || "Error al eliminar sucursal", 'error');
       }
     })

@@ -24,6 +24,7 @@ from django.views.decorators.http import require_http_methods
 from django.db.models import Q
 from django.utils import timezone
 from datetime import timedelta
+import django.db.models.deletion  # Añadimos esta importación para ProtectedError
 
 User = get_user_model()  # Agregamos esta línea
 
@@ -381,8 +382,14 @@ def eliminar_sucursal(request, id):
         })
     except Sucursal.DoesNotExist:
         return JsonResponse({'error': 'Sucursal no encontrada'}, status=404)
+    except django.db.models.deletion.ProtectedError as e:
+        # Capturar específicamente el error de protección y mostrar un mensaje amigable
+        mensaje_error = str(e.args[0]) if e.args and len(e.args) > 0 else "No se puede eliminar la sucursal porque tiene elementos asociados"
+        return JsonResponse({'error': mensaje_error}, status=400)
     except Exception as e:
-        return JsonResponse({'error': f'Error interno: {str(e)}'}, status=500)
+        # Para otros errores, registrar el error completo pero mostrar un mensaje genérico
+        print(f"Error al eliminar sucursal: {str(e)}")
+        return JsonResponse({'error': 'No se pudo eliminar la sucursal. Verifique que no tenga maquinarias asociadas.'}, status=500)
 
 def recuperar_password_view(request):
     if request.method == 'POST':
