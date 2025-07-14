@@ -1,3 +1,4 @@
+import django
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -328,10 +329,28 @@ def maquinaria_update(request, pk):
 def maquinaria_delete(request, pk):
     maquinaria = get_object_or_404(Maquinaria, pk=pk)
     try:
+        # Intentar eliminar la maquinaria
+        nombre_maquinaria = maquinaria.nombre
         maquinaria.delete()
-        messages.success(request, 'Maquinaria eliminada exitosamente.')
+        messages.success(request, f'Maquinaria "{nombre_maquinaria}" eliminada exitosamente.')
+    except django.db.models.deletion.ProtectedError as e:
+        # Mostrar el mensaje de error personalizado
+        error_msg = str(e)
+        messages.error(request, error_msg)
+        
+        # Registrar el error para debug
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error al eliminar maquinaria {maquinaria.id}: {str(e)}")
     except Exception as e:
-        messages.error(request, 'No se puede eliminar esta maquinaria porque está siendo utilizada.')
+        # Para otros tipos de errores
+        messages.error(request, f'Error al eliminar la maquinaria: {str(e)}')
+        
+        # Registrar el error para debug
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error inesperado al eliminar maquinaria {maquinaria.id}: {str(e)}")
+        
     return redirect('maquinaria_list')
 
 @login_required

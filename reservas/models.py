@@ -18,8 +18,8 @@ class Reembolso(models.Model):
     Modelo para registrar los reembolsos realizados a clientes.
     Guarda información sobre el cliente, monto reembolsado y la reserva asociada.
     """
-    cliente = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name='reembolsos', null=True)
-    reserva = models.ForeignKey('Reserva', on_delete=models.PROTECT, related_name='reembolsos', null=True)
+    cliente = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='reembolsos', null=True)
+    reserva = models.ForeignKey('Reserva', on_delete=models.CASCADE, related_name='reembolsos', null=True)
     monto = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     fecha_reembolso = models.DateTimeField(auto_now_add=True)
     dni_cliente = models.CharField(max_length=20, blank=True, default='')
