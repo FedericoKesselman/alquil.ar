@@ -1066,11 +1066,16 @@ def finalizar_reserva_por_codigo(request):
         action = request.POST.get('action', 'finalizar')
         
         # Debug información sobre la acción
-        print(f"Acción solicitada: {action}")
+        print(f"*** Acción solicitada: {action}")
+        print(f"*** Código de reserva: {codigo}")
+        print(f"*** DNI cliente: {dni}")
         
         # Buscar la reserva con ese código
         try:
+            print(f"Buscando reserva con código: {codigo}")
             reserva = Reserva.objects.get(codigo_reserva=codigo)
+            print(f"Reserva encontrada - Estado: {reserva.estado}, Cliente DNI: {reserva.cliente.dni}")
+            
             # Verificar que el DNI coincida con el cliente de la reserva
             if reserva.cliente.dni != dni:
                 messages.error(request, "El DNI ingresado no corresponde al cliente de la reserva.")
@@ -1091,15 +1096,58 @@ def finalizar_reserva_por_codigo(request):
         # Verificar si la reserva ha vencido (pasó su fecha de fin) y actualizarla si es necesario
         reserva.verificar_vencimiento()
         
+        # Verificar inmediatamente si la reserva está en estado FINALIZADA
+        print(f"*** Estado actual de la reserva: {reserva.estado}")
+        if reserva.estado == 'FINALIZADA':
+            print(f"*** ALERTA: La reserva ya está en estado FINALIZADA y no puede ser procesada.")
+            messages.error(
+                request,
+                f"La reserva con código {codigo} ya está en estado FINALIZADA y no puede ser procesada nuevamente."
+            )
+            # Agregar información de depuración
+            print(f"*** Redirigiendo a procesar_reservas debido a estado FINALIZADA")
+            return redirect('reservas:procesar_reservas')
+            
         # Si se presionó el botón de devolución, redirigir al formulario de devolución
         print(f"Action check: '{action}' == 'devolucion'? {action == 'devolucion'}")
         if action == 'devolucion':
             print(f"Entrando en caso de devolución")
-            if reserva.estado in ['CONFIRMADA', 'NO_DEVUELTA']:
+            
+            # Importar datetime para comparar fechas
+            from datetime import date
+            today = date.today()
+                
+            # Verificar el estado de la reserva y la fecha
+            if reserva.estado == 'ENTREGADA':
                 # Add debug message
                 messages.info(request, f"Redirigiendo a formulario de devolución para la reserva")
                 # Ensure using the correct URL name and parameter name
                 return redirect('reservas:devolucion_reserva', reserva_id=reserva.id)
+            elif reserva.estado == 'NO_DEVUELTA':
+                # Las NO_DEVUELTA siempre pueden ser procesadas para devolución, independientemente de la fecha
+                messages.info(request, f"Redirigiendo a formulario de devolución para la reserva")
+                return redirect('reservas:devolucion_reserva', reserva_id=reserva.id)
+            elif reserva.estado == 'CONFIRMADA':
+                print(f"La reserva está en estado CONFIRMADA y no puede ser procesada para devolución. Debe estar en estado ENTREGADA.")
+                messages.warning(
+                    request,
+                    f"No se puede procesar la devolución. La reserva está en estado CONFIRMADA y debe estar en estado ENTREGADA para poder procesar la devolución."
+                )
+                return redirect('reservas:procesar_reservas')
+            elif reserva.estado == 'PENDIENTE_PAGO':
+                print(f"La reserva está en estado PENDIENTE_PAGO y no puede ser procesada para devolución.")
+                messages.error(
+                    request,
+                    f"La reserva está en estado PENDIENTE DE PAGO y no puede ser procesada para devolución."
+                )
+                return redirect('reservas:procesar_reservas')
+            elif reserva.estado == 'CANCELADA':
+                print(f"La reserva está en estado CANCELADA y no puede ser procesada para devolución.")
+                messages.error(
+                    request,
+                    f"La reserva está en estado CANCELADA y no puede ser procesada para devolución."
+                )
+                return redirect('reservas:procesar_reservas')
             else:
                 print(f"Reserva no está en estado CONFIRMADA o NO_DEVUELTA: {reserva.estado}")
                 messages.warning(
@@ -1107,10 +1155,35 @@ def finalizar_reserva_por_codigo(request):
                     f"Solo se pueden procesar devoluciones para reservas en estado CONFIRMADA o NO DEVUELTA."
                 )
                 return redirect('reservas:procesar_reservas')
+                
+        # Si se presionó el botón de reembolso, verificar que la reserva esté en estado CANCELADA
+        if action == 'reembolso':
+            print(f"Entrando en caso de reembolso")
+            
+            if reserva.estado != 'CANCELADA':
+                print(f"Reserva no está en estado CANCELADA: {reserva.estado}")
+                messages.error(
+                    request,
+                    f"Solo se pueden procesar reembolsos para reservas en estado CANCELADA. "
+                    f"Esta reserva está en estado {reserva.get_estado_display()}."
+                )
+                return redirect('reservas:procesar_reservas')
         
         # Procesar según el estado
+        print(f"*** Preparando para procesar según el estado: {reserva.estado}")
+        
+        # Verificar nuevamente el estado FINALIZADA por seguridad
+        if reserva.estado == 'FINALIZADA':
+            print(f"*** ALERTA CRÍTICA: Intentando procesar una reserva FINALIZADA que no fue detectada anteriormente")
+            messages.error(
+                request,
+                f"La reserva con código {codigo} ya está en estado FINALIZADA y no puede ser procesada nuevamente."
+            )
+            return redirect('reservas:procesar_reservas')
+            
         if reserva.estado in ['CONFIRMADA', 'NO_DEVUELTA']:
             # Finalizar la reserva
+            print(f"*** Finalizando reserva en estado: {reserva.estado}")
             if reserva.finalizar_reserva():
                 messages.success(
                     request, 
@@ -1120,38 +1193,56 @@ def finalizar_reserva_por_codigo(request):
                 messages.error(request, "No se pudo finalizar la reserva. Contacte al administrador.")
                 
         elif reserva.estado == 'CANCELADA':
-            # Para reservas canceladas, calcular si aplica reembolso
-            monto_reembolso, porcentaje = reserva.calcular_monto_reembolso()
-            
-            # Finalizar la reserva cancelada
-            if reserva.finalizar_reserva():
-                # Registrar el reembolso en la base de datos cuando un empleado finaliza una reserva cancelada
-                from .models import Reembolso
+            # Solo proceder si la acción es explícitamente reembolso
+            if action == 'reembolso':
+                # Para reservas canceladas, calcular si aplica reembolso
+                monto_reembolso, porcentaje = reserva.calcular_monto_reembolso()
                 
-                # Crear registro de reembolso
-                Reembolso.objects.create(
-                    cliente=reserva.cliente,
-                    reserva=reserva,
-                    monto=monto_reembolso,
-                    dni_cliente=reserva.cliente.dni
+                # Finalizar la reserva cancelada
+                if reserva.finalizar_reserva():
+                    # Registrar el reembolso en la base de datos cuando un empleado finaliza una reserva cancelada
+                    from .models import Reembolso
+                    
+                    # Crear registro de reembolso
+                    reembolso = Reembolso.objects.create(
+                        cliente=reserva.cliente,
+                        reserva=reserva,
+                        monto=monto_reembolso,
+                        dni_cliente=reserva.cliente.dni
+                    )
+                    
+                    if porcentaje > 0:
+                        messages.success(
+                            request, 
+                            f"REEMBOLSO PROCESADO: La reserva cancelada de {reserva.cliente.get_full_name()} ha sido finalizada. "
+                            f"Se ha registrado un reembolso de ${monto_reembolso:.2f} ({porcentaje}% del total). "
+                            f"ID de reembolso: #{reembolso.id}"
+                        )
+                    else:
+                        messages.success(
+                            request, 
+                            f"La reserva cancelada de {reserva.cliente.get_full_name()} ha sido finalizada sin reembolso "
+                            f"ya que no correspondía según la política de cancelación."
+                        )
+                else:
+                    messages.error(request, "No se pudo finalizar la reserva cancelada. Contacte al administrador.")
+            else:
+                # Si la acción no es reembolso pero la reserva está cancelada
+                messages.error(
+                    request,
+                    "Las reservas canceladas solo pueden procesarse con el botón 'Procesar Reembolso'."
                 )
                 
-                if porcentaje > 0:
-                    messages.success(
-                        request, 
-                        f"La reserva cancelada de {reserva.cliente.get_full_name()} ha sido finalizada. "
-                        f"Se ha registrado un reembolso de ${monto_reembolso:.2f} ({porcentaje}% del total)."
-                    )
-                else:
-                    messages.success(
-                        request, 
-                        f"La reserva cancelada de {reserva.cliente.get_full_name()} ha sido finalizada sin reembolso."
-                    )
-            else:
-                messages.error(request, "No se pudo finalizar la reserva cancelada. Contacte al administrador.")
-                
+        elif reserva.estado == 'FINALIZADA':
+            # Estado finalizada - mensaje específico
+            print(f"*** Detectada reserva finalizada en el catch-all final")
+            messages.error(
+                request,
+                f"La reserva con código {codigo} ya está en estado FINALIZADA y no puede ser procesada nuevamente."
+            )
         else:
-            # Estado no procesable
+            # Otro estado no procesable
+            print(f"*** Estado no procesable detectado: {reserva.estado}")
             messages.warning(
                 request, 
                 f"La reserva con código {codigo} tiene el estado {reserva.get_estado_display()}, "
@@ -1187,9 +1278,9 @@ def devolucion_reserva(request, reserva_id):
     # Verificar si la reserva ha vencido y actualizarla si es necesario
     reserva.verificar_vencimiento()
     
-    # Verificar que la reserva esté en estado CONFIRMADA o NO_DEVUELTA
-    if reserva.estado not in ['CONFIRMADA', 'NO_DEVUELTA']:
-        messages.error(request, "Solo se pueden procesar devoluciones para reservas en estado CONFIRMADA o NO DEVUELTA.")
+    # Verificar que la reserva esté en estado ENTREGADA o NO_DEVUELTA
+    if reserva.estado not in ['ENTREGADA', 'NO_DEVUELTA']:
+        messages.error(request, "Solo se pueden procesar devoluciones para reservas en estado ENTREGADA o NO DEVUELTA.")
         return redirect('reservas:procesar_reservas')
     
     # Verificar que la sucursal de la reserva coincida con la del empleado
@@ -1757,3 +1848,123 @@ def check_payment_status(request, reserva_id):
             'message': f'Estado de la reserva: {reserva.get_estado_display()}',
             'estado_cambio': estado_cambio
         })
+
+@login_required
+@solo_empleado
+def entregar_reserva_por_codigo(request):
+    """
+    Vista para procesar la entrega de una reserva mediante su código.
+    Comprueba que el código exista, que la reserva esté en estado CONFIRMADA,
+    que la fecha de inicio sea hoy o anterior, y que la sucursal de la reserva
+    coincida con la del empleado.
+    """
+    if request.method != 'POST':
+        return redirect('reservas:procesar_reservas')
+    
+    form = ReservaPorCodigoForm(request.POST)
+    
+    if form.is_valid():
+        codigo = form.cleaned_data['codigo_reserva']
+        dni = form.cleaned_data['dni_cliente']
+        
+        # Debug información
+        print(f"*** Procesando entrega de reserva - Código: {codigo}, DNI: {dni}")
+        
+        # Buscar la reserva con ese código
+        try:
+            reserva = Reserva.objects.get(codigo_reserva=codigo)
+            print(f"*** Reserva encontrada - Estado: {reserva.estado}, Cliente DNI: {reserva.cliente.dni}")
+            
+            # Verificar que el DNI coincida con el cliente de la reserva
+            if reserva.cliente.dni != dni:
+                messages.error(request, "El DNI ingresado no corresponde al cliente de la reserva.")
+                return redirect('reservas:procesar_reservas')
+        except Reserva.DoesNotExist:
+            messages.error(request, f"No se encontró ninguna reserva con el código {codigo}.")
+            return redirect('reservas:procesar_reservas')
+        
+        # Verificar que la sucursal de la reserva coincida con la del empleado
+        if reserva.sucursal_retiro != request.user.sucursal:
+            messages.error(
+                request, 
+                f"Esta reserva pertenece a la sucursal {reserva.sucursal_retiro.nombre}. "
+                f"No se puede procesarla desde la sucursal {request.user.sucursal.nombre}."
+            )
+            return redirect('reservas:procesar_reservas')
+            
+        # Verificar si la reserva está en estado FINALIZADA
+        if reserva.estado == 'FINALIZADA':
+            messages.error(
+                request,
+                f"La reserva con código {codigo} ya está en estado FINALIZADA y no puede ser procesada nuevamente."
+            )
+            return redirect('reservas:procesar_reservas')
+            
+        # Verificar si la reserva ya está entregada
+        if reserva.estado == 'ENTREGADA':
+            messages.error(
+                request,
+                f"La reserva con código {codigo} ya está en estado ENTREGADA y no puede ser entregada nuevamente."
+            )
+            return redirect('reservas:procesar_reservas')
+            
+        # Verificar si la reserva está cancelada
+        if reserva.estado == 'CANCELADA':
+            messages.error(
+                request,
+                f"La reserva con código {codigo} está CANCELADA y no puede ser entregada."
+            )
+            return redirect('reservas:procesar_reservas')
+            
+        # Verificar si la reserva está en estado NO_DEVUELTA
+        if reserva.estado == 'NO_DEVUELTA':
+            messages.error(
+                request,
+                f"La reserva con código {codigo} está en estado NO_DEVUELTA y no puede ser entregada."
+            )
+            return redirect('reservas:procesar_reservas')
+            
+        # Verificar si la reserva está en estado PENDIENTE_PAGO
+        if reserva.estado == 'PENDIENTE_PAGO':
+            messages.error(
+                request,
+                f"La reserva con código {codigo} está en estado PENDIENTE DE PAGO y no puede ser entregada."
+            )
+            return redirect('reservas:procesar_reservas')
+        
+        # Verificar explícitamente que la reserva esté en estado CONFIRMADA
+        if reserva.estado != 'CONFIRMADA':
+            messages.error(
+                request,
+                f"La reserva con código {codigo} está en estado {reserva.get_estado_display()} y no puede ser entregada. Solo se pueden entregar reservas en estado CONFIRMADA."
+            )
+            return redirect('reservas:procesar_reservas')
+        
+        # Verificar la fecha de inicio
+        from datetime import date
+        today = date.today()
+        
+        if reserva.fecha_inicio > today:
+            messages.warning(
+                request,
+                f"No se puede entregar la reserva. La fecha de inicio ({reserva.fecha_inicio}) es posterior a la fecha actual."
+            )
+            return redirect('reservas:procesar_reservas')
+        
+        # Marcar la reserva como entregada
+        if reserva.marcar_entregada():
+            messages.success(
+                request, 
+                f"La reserva de {reserva.cliente.get_full_name()} ha sido marcada como ENTREGADA correctamente."
+            )
+        else:
+            messages.error(
+                request, 
+                "No se pudo marcar la reserva como entregada. Contacte al administrador."
+            )
+            
+        return redirect('reservas:procesar_reservas')
+    
+    # Si el formulario no es válido
+    messages.error(request, "Por favor, complete correctamente el formulario.")
+    return redirect('reservas:procesar_reservas')

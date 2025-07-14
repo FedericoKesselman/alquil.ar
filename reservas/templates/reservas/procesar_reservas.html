@@ -16,6 +16,8 @@
                     
                     <form method="post" action="{% url 'reservas:finalizar_reserva_por_codigo' %}" id="form-procesar-reserva">
                         {% csrf_token %}
+                        <!-- Hidden field to set default action -->
+                        <input type="hidden" name="action" value="reembolso">
                         <div class="mb-3">
                             <label for="{{ form.codigo_reserva.id_for_label }}" class="form-label fw-bold">
                                 {{ form.codigo_reserva.label }}
@@ -48,8 +50,8 @@
                         
                         <div class="d-grid gap-2">
                             <!-- Using formaction to differentiate the actions -->
-                            <button type="submit" name="action" value="finalizar" class="btn btn-primary" id="btn-finalizar">
-                                <i class="bi bi-check2-circle"></i> Finalizar Reserva
+                            <button type="submit" name="action" value="reembolso" class="btn btn-primary" id="btn-reembolso">
+                                <i class="bi bi-currency-exchange"></i> Procesar Reembolso
                             </button>
                         </div>
                     </form>
@@ -64,7 +66,21 @@
                         
                         <div class="d-grid">
                             <button type="submit" class="btn btn-success" id="btn-devolucion">
-                                <i class="bi bi-arrow-return-left"></i> Marcar Devolución
+                                <i class="bi bi-arrow-return-left"></i> Procesar Devolución
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <!-- Separate form for the entrega action -->
+                    <form method="post" action="{% url 'reservas:entregar_reserva_por_codigo' %}" id="form-entrega-reserva" class="mt-2">
+                        {% csrf_token %}
+                        <!-- Hidden fields to duplicate the values -->
+                        <input type="hidden" name="codigo_reserva" id="codigo-copy-entrega">
+                        <input type="hidden" name="dni_cliente" id="dni-copy-entrega">
+                        
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-info" id="btn-entrega">
+                                <i class="bi bi-box-arrow-right"></i> Procesar Entrega
                             </button>
                         </div>
                     </form>
@@ -73,8 +89,11 @@
                 <div class="card-footer bg-light">
                     <div class="text-center text-muted">
                         <small>
-                            Solo las reservas en estado "Confirmada" o "Cancelada" pueden ser finalizadas.
-                            Las reservas deben pertenecer a su sucursal.
+                            <strong>Procesar Reembolso:</strong> Solo para reservas en estado "Cancelada" que pertenezcan a su sucursal actual.<br>
+                            <strong>Procesar Devolución:</strong> Solo para reservas en estado "Entregada" o en estado "No Devuelta" que pertenezcan a su sucursal actual.<br>
+                            <strong>Procesar Entrega:</strong> Solo para reservas en estado "Confirmada" con fecha de inicio actual o pasada que pertenezcan a su sucursal actual.<br>
+                            <strong>Nota:</strong> No se pueden procesar reservas en estado "Finalizada", "Entregada" o "Pendiente de Pago".<br>
+                            <strong class="text-danger">Importante:</strong> Solo puede procesar reservas de la sucursal {{ user.sucursal.nombre }}.
                         </small>
                     </div>
                 </div>
@@ -88,16 +107,24 @@
                 <div class="card-body">
                     <ul class="list-group list-group-flush">
                         <li class="list-group-item">
-                            <i class="bi bi-check-circle-fill text-success"></i>
-                            <strong>Reservas confirmadas:</strong> Serán finalizadas normalmente.
+                            <i class="bi bi-box-arrow-right text-info"></i>
+                            <strong>Procesar Entrega:</strong> Para reservas en estado "Confirmada" con fecha de inicio actual o pasada, cuando el cliente retira la maquinaria. Solo se pueden procesar reservas que pertenezcan a su sucursal actual.
                         </li>
                         <li class="list-group-item">
-                            <i class="bi bi-x-circle-fill text-danger"></i>
-                            <strong>Reservas canceladas:</strong> Se calculará el monto de reembolso y se mostrarán instrucciones.
+                            <i class="bi bi-arrow-return-left text-success"></i>
+                            <strong>Procesar Devolución:</strong> Para reservas en estado "Entregada" o en estado "No Devuelta" cuando el cliente devuelve la maquinaria. Solo se pueden procesar reservas que pertenezcan a su sucursal actual.
+                        </li>
+                        <li class="list-group-item">
+                            <i class="bi bi-currency-exchange text-primary"></i>
+                            <strong>Procesar Reembolso:</strong> Exclusivamente para reservas en estado "Cancelada" que requieran un reembolso. Solo se pueden procesar reservas que pertenezcan a su sucursal actual.
+                        </li>
+                        <li class="list-group-item">
+                            <i class="bi bi-x-circle text-danger"></i>
+                            <strong>Estados no procesables:</strong> Las reservas en estado "Finalizada", "Confirmada" o "Pendiente de Pago" no pueden ser procesadas para devolución. Las reservas en estado "Finalizada", "Entregada", "Confirmada", "No Devuelta" o "Pendiente de Pago" no pueden ser procesadas para reembolso.
                         </li>
                         <li class="list-group-item">
                             <i class="bi bi-building-fill text-primary"></i>
-                            <strong>Sucursal:</strong> Solo podrá procesar reservas de su sucursal asignada ({{ user.sucursal.nombre }}).
+                            <strong>Sucursal:</strong> Solo podrá procesar reservas de su sucursal asignada ({{ user.sucursal.nombre }}). Si una reserva pertenece a otra sucursal, el sistema mostrará un mensaje de error y no permitirá procesarla.
                         </li>
                     </ul>
                 </div>
@@ -126,18 +153,72 @@
             const codigoReserva = codigoField.value;
             const dniCliente = dniField.value;
             
-            // Set values in the hidden fields
-            document.getElementById('codigo-copy').value = codigoReserva;
-            document.getElementById('dni-copy').value = dniCliente;
+            // Validar que el código de reserva sea válido
+            if (codigoReserva.length !== 6 || isNaN(codigoReserva)) {
+                alert('Por favor, ingrese un código válido de 6 dígitos.');
+                return;
+            }
             
-            // Submit the form
-            document.getElementById('form-devolucion-reserva').submit();
+            // Validar que el DNI esté ingresado
+            if (!dniCliente.trim()) {
+                alert('Por favor, ingrese el DNI del cliente.');
+                return;
+            }
+            
+            // Confirmar la devolución
+            if (confirm('¿Está seguro de que desea procesar la devolución de esta reserva?\n\nSolo se podrán procesar reservas en estado ENTREGADA o NO DEVUELTA que pertenezcan a su sucursal actual.\n\nLas reservas en estado FINALIZADA, CONFIRMADA, PENDIENTE DE PAGO o CANCELADA no son procesables.\n\nRECUERDE: Solo podrá procesar reservas de la sucursal {{ user.sucursal.nombre }}.')) {
+                // Set values in the hidden fields
+                document.getElementById('codigo-copy').value = codigoReserva;
+                document.getElementById('dni-copy').value = dniCliente;
+                
+                // Submit the form
+                document.getElementById('form-devolucion-reserva').submit();
+            }
+        });
+        
+        // Copy values from main form to entrega form before submission
+        document.getElementById('btn-entrega').addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Get values from the main form - using name instead of id for more reliability
+            const codigoField = document.querySelector('input[name="codigo_reserva"]');
+            const dniField = document.querySelector('input[name="dni_cliente"]');
+            
+            if (!codigoField || !dniField) {
+                console.error('Form fields not found!');
+                return;
+            }
+            
+            const codigoReserva = codigoField.value;
+            const dniCliente = dniField.value;
+            
+            // Validar que el código de reserva sea válido
+            if (codigoReserva.length !== 6 || isNaN(codigoReserva)) {
+                alert('Por favor, ingrese un código válido de 6 dígitos.');
+                return;
+            }
+            
+            // Validar que el DNI esté ingresado
+            if (!dniCliente.trim()) {
+                alert('Por favor, ingrese el DNI del cliente.');
+                return;
+            }
+            
+            // Confirmar la entrega
+            if (confirm('¿Está seguro de que desea procesar la entrega de esta reserva?\n\nSolo se podrán procesar reservas en estado CONFIRMADA con fechas de inicio actuales o pasadas que pertenezcan a su sucursal actual.\n\nLas reservas en estado FINALIZADA, ENTREGADA, PENDIENTE DE PAGO, NO DEVUELTA o CANCELADA no son procesables.\n\nSe validará que el código de reserva y DNI coincidan con una reserva que cumpla estas condiciones.\n\nRECUERDE: Solo podrá procesar reservas de la sucursal {{ user.sucursal.nombre }}.')) {
+                // Set values in the hidden fields
+                document.getElementById('codigo-copy-entrega').value = codigoReserva;
+                document.getElementById('dni-copy-entrega').value = dniCliente;
+                
+                // Submit the form
+                document.getElementById('form-entrega-reserva').submit();
+            }
         });
         
         // Enfoque automático en el campo de código
         document.getElementById('{{ form.codigo_reserva.id_for_label }}').focus();
         
-        // Confirmación antes de finalizar
+        // Confirmación antes de finalizar o reembolsar
         document.getElementById('form-procesar-reserva').addEventListener('submit', function(e) {
             e.preventDefault();
             
@@ -146,9 +227,18 @@
                 alert('Por favor, ingrese un código válido de 6 dígitos.');
                 return;
             }
+
+            const submitButton = e.submitter;
+            const action = submitButton.value;
             
-            if (confirm('¿Está seguro de que desea finalizar esta reserva?')) {
-                this.submit();
+            if (action === 'reembolso') {
+                if (confirm('¿Está seguro de que desea procesar el reembolso de esta reserva?\n\nSolo se podrán procesar reservas en estado CANCELADA que pertenezcan a su sucursal actual.\n\nLas reservas en estado FINALIZADA, PENDIENTE DE PAGO, CONFIRMADA o NO DEVUELTA no son elegibles para reembolso.\n\nRECUERDE: Solo podrá procesar reservas de la sucursal {{ user.sucursal.nombre }}.')) {
+                    this.submit();
+                }
+            } else {
+                if (confirm('¿Está seguro de que desea finalizar esta reserva?')) {
+                    this.submit();
+                }
             }
         });
     });

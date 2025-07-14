@@ -39,6 +39,7 @@ class Reserva(models.Model):
     ESTADO_CHOICES = [
         ('PENDIENTE_PAGO', 'Pendiente de Pago'),
         ('CONFIRMADA', 'Confirmada'),
+        ('ENTREGADA', 'Entregada'),
         ('CANCELADA', 'Cancelada'),
         ('FINALIZADA', 'Finalizada'),
         ('NO_DEVUELTA', 'No Devuelta'),
@@ -412,8 +413,8 @@ class Reserva(models.Model):
         Returns:
             bool: True si se finalizó exitosamente
         """
-        # Permitir finalizar reservas que estén en estado CONFIRMADA, CANCELADA o NO_DEVUELTA
-        if self.estado not in ['CONFIRMADA', 'CANCELADA', 'NO_DEVUELTA']:
+        # Permitir finalizar reservas que estén en estado CONFIRMADA, CANCELADA, ENTREGADA o NO_DEVUELTA
+        if self.estado not in ['CONFIRMADA', 'CANCELADA', 'ENTREGADA', 'NO_DEVUELTA']:
             return False
         
         # Cambiar estado a finalizada
@@ -621,3 +622,26 @@ class Reserva(models.Model):
             reservas_abandonadas.delete()
             
         return count
+    
+    def marcar_entregada(self):
+        """
+        Marca una reserva como entregada al cliente.
+        Solo se pueden marcar como entregadas las reservas en estado CONFIRMADA.
+        
+        Returns:
+            bool: True si se marcó como entregada exitosamente
+        """
+        # Solo permitir marcar como entregadas reservas en estado CONFIRMADA
+        if self.estado != 'CONFIRMADA':
+            return False
+        
+        # Verificar que la fecha de inicio sea menor o igual a hoy
+        from datetime import date
+        if self.fecha_inicio > date.today():
+            return False
+        
+        # Cambiar estado a entregada
+        self.estado = 'ENTREGADA'
+        self.save()
+        
+        return True
