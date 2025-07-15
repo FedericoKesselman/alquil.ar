@@ -599,6 +599,11 @@ def lista_reservas(request):
     reservas_actualizadas = Reserva.actualizar_reservas_vencidas()
     if reservas_actualizadas > 0 and (request.user.tipo == 'ADMIN' or request.user.tipo == 'EMPLEADO'):
         messages.info(request, f"Se actualizaron {reservas_actualizadas} reservas vencidas a estado 'No Devuelta'.")
+    
+    # Finalizar automáticamente las reservas confirmadas que nunca fueron retiradas y ya pasaron su fecha de fin
+    reservas_finalizadas = Reserva.finalizar_reservas_no_retiradas()
+    if reservas_finalizadas > 0 and (request.user.tipo == 'ADMIN' or request.user.tipo == 'EMPLEADO'):
+        messages.info(request, f"Se finalizaron automáticamente {reservas_finalizadas} reservas que nunca fueron retiradas.")
         
     # Limpiar reservas abandonadas (PENDIENTE_PAGO por más de 30 minutos)
     reservas_eliminadas = Reserva.limpiar_reservas_abandonadas()
@@ -1101,7 +1106,7 @@ def procesar_reservas(request):
 def finalizar_reserva_por_codigo(request):
     """
     Vista para procesar la finalización de una reserva mediante su código.
-    Comprueba que el código exista, que la reserva esté en estado CONFIRMADA, CANCELADA o NO_DEVUELTA,
+    Comprueba que el código exista, que la reserva esté en estado ENTREGADA, CANCELADA o NO_DEVUELTA,
     y que la sucursal de la reserva coincida con la del empleado.
     
     Si la reserva está en estado CANCELADA, se registra el reembolso correspondiente cuando
@@ -1201,10 +1206,10 @@ def finalizar_reserva_por_codigo(request):
                 )
                 return redirect('reservas:procesar_reservas')
             else:
-                print(f"Reserva no está en estado CONFIRMADA o NO_DEVUELTA: {reserva.estado}")
+                print(f"Reserva no está en estado ENTREGADA o NO_DEVUELTA: {reserva.estado}")
                 messages.warning(
                     request,
-                    f"Solo se pueden procesar devoluciones para reservas en estado CONFIRMADA o NO DEVUELTA."
+                    f"Solo se pueden procesar devoluciones para reservas en estado ENTREGADA o NO DEVUELTA."
                 )
                 return redirect('reservas:procesar_reservas')
                 
@@ -1233,7 +1238,7 @@ def finalizar_reserva_por_codigo(request):
             )
             return redirect('reservas:procesar_reservas')
             
-        if reserva.estado in ['CONFIRMADA', 'NO_DEVUELTA']:
+        if reserva.estado in ['ENTREGADA', 'NO_DEVUELTA']:
             # Finalizar la reserva
             print(f"*** Finalizando reserva en estado: {reserva.estado}")
             if reserva.finalizar_reserva():
@@ -1371,9 +1376,9 @@ def confirmar_devolucion(request, reserva_id):
     # Verificar si la reserva ha vencido y actualizarla si es necesario
     reserva.verificar_vencimiento()
     
-    # Verificar que la reserva esté en estado CONFIRMADA o NO_DEVUELTA
-    if reserva.estado not in ['CONFIRMADA', 'NO_DEVUELTA']:
-        messages.error(request, "Solo se pueden procesar devoluciones para reservas en estado CONFIRMADA o NO DEVUELTA.")
+    # Verificar que la reserva esté en estado ENTREGADA o NO_DEVUELTA
+    if reserva.estado not in ['ENTREGADA', 'NO_DEVUELTA']:
+        messages.error(request, "Solo se pueden procesar devoluciones para reservas en estado ENTREGADA o NO DEVUELTA.")
         return redirect('reservas:procesar_reservas')
     
     # Verificar que la sucursal de la reserva coincida con la del empleado

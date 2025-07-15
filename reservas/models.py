@@ -643,8 +643,8 @@ class Reserva(models.Model):
         Returns:
             bool: True si se actualizó el estado, False en caso contrario
         """
-        # Solo comprobar reservas CONFIRMADAS
-        if self.estado != 'CONFIRMADA':
+        # Solo comprobar reservas ENTREGADAS (anteriormente solo comprobaba CONFIRMADAS)
+        if self.estado != 'ENTREGADA':
             return False
             
         # Si la fecha de fin ha pasado y aún no está finalizada o marcada como no devuelta
@@ -658,15 +658,15 @@ class Reserva(models.Model):
     @classmethod
     def actualizar_reservas_vencidas(cls):
         """
-        Método de clase que actualiza todas las reservas confirmadas que ya han pasado su fecha
+        Método de clase que actualiza todas las reservas entregadas que ya han pasado su fecha
         de fin y las marca como NO_DEVUELTA.
         
         Returns:
             int: Número de reservas actualizadas
         """
-        # Obtener todas las reservas confirmadas cuya fecha de fin ha pasado
+        # Obtener todas las reservas entregadas cuya fecha de fin ha pasado
         contador = cls.objects.filter(
-            estado='CONFIRMADA',
+            estado='ENTREGADA',
             fecha_fin__lt=timezone.now().date()
         ).update(estado='NO_DEVUELTA')
             
@@ -726,3 +726,87 @@ class Reserva(models.Model):
         self.save()
         
         return True
+    
+    @classmethod
+    def finalizar_reservas_no_retiradas(cls):
+        """
+        Método de clase que finaliza todas las reservas confirmadas que ya han pasado su fecha
+        de fin y nunca fueron retiradas (nunca pasaron a estado ENTREGADA). Además, envía
+        un correo electrónico al cliente notificándole sobre la finalización de su reserva.
+        
+        Returns:
+            int: Número de reservas finalizadas
+        """
+        # Obtener todas las reservas confirmadas cuya fecha de fin ha pasado
+        reservas = cls.objects.filter(
+            estado='CONFIRMADA',
+            fecha_fin__lt=timezone.now().date()
+        )
+        
+        contador = 0
+        for reserva in reservas:
+            if reserva.finalizar_reserva():
+                # Enviar correo de notificación al cliente
+                reserva.enviar_notificacion_vencimiento()
+                contador += 1
+                
+        return contador
+        
+    def enviar_notificacion_vencimiento(self):
+        """
+        Envía una notificación por email al cliente informando que su reserva ha expirado
+        sin ser retirada y ha sido finalizada automáticamente.
+        
+        Returns:
+            bool: True si el email se envió correctamente, False en caso contrario
+        """
+        # Crear el mensaje con formato HTML
+        mensaje = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <h2 style="color: #2c3e50;">Notificación de Reserva Expirada</h2>
+            <p>Estimado/a {self.cliente.get_full_name()},</p>
+            <p>Le informamos que su reserva ha expirado sin ser retirada y ha sido finalizada automáticamente.</p>
+            
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                <p><strong>Detalles de la Reserva:</strong></p>
+                <ul>
+                    <li>Maquinaria: {self.maquinaria.nombre}</li>
+                    <li>Cantidad: {self.cantidad_solicitada} unidad/es</li>
+                    <li>Fecha de inicio: {self.fecha_inicio.strftime('%d/%m/%Y')}</li>
+                    <li>Fecha de fin: {self.fecha_fin.strftime('%d/%m/%Y')}</li>
+                    <li>Sucursal: {self.sucursal_retiro.nombre}</li>
+                </ul>
+            </div>
+            
+            <p>Si tiene alguna consulta o desea realizar una nueva reserva, no dude en contactarnos.</p>
+            
+            <p style="color: #666; font-size: 0.9em; margin-top: 30px;">
+                Saludos cordiales,<br>
+                El equipo de Alquil.ar
+            </p>
+        </body>
+        </html>
+        """
+        
+        # Configurar el email
+        subject = f'Notificación de Reserva Expirada - Alquil.ar'
+        from_email = settings.EMAIL_HOST_USER
+        to_email = self.cliente.email
+        
+        # Crear el mensaje
+        email = EmailMessage(
+            subject=subject,
+            body=mensaje,
+            from_email=from_email,
+            to=[to_email]
+        )
+        email.content_subtype = "html"  # Indicar que el contenido es HTML
+        
+        # Enviar el email
+        try:
+            email.send()
+            return True
+        except Exception as e:
+            print(f"Error al enviar notificación de vencimiento: {str(e)}")
+            return False
