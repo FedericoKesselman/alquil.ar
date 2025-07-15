@@ -52,26 +52,19 @@ class Sucursal(models.Model):
     def delete(self, *args, **kwargs):
         """
         Override the delete method to prevent deletion if the branch
-        is associated with any active (non-finalized) reservations
+        has machinery associated or active reservations
         """
-        # Import here to avoid circular imports
-        from reservas.models import Reserva
+        # Check if there are any machinery stocks associated with this sucursal
+        has_machinery = self.stocks.exists()
         
-        # Check if there are any active reservations for this branch
-        active_reservations = Reserva.objects.filter(
-            sucursal_retiro=self
-        ).exclude(
-            estado='FINALIZADA'
-        ).exists()
-        
-        if active_reservations:
+        if has_machinery:
             from django.db.models.deletion import ProtectedError
             raise ProtectedError(
-                "No se puede eliminar una sucursal con reservas en curso",
+                f"No se puede eliminar la sucursal '{self.nombre}' porque tiene maquinarias asociadas. Elimine primero las maquinarias de esta sucursal.",
                 self
             )
         
-        # If no active reservations, proceed with deletion
+        # If no machinery is associated, proceed with deletion
         super().delete(*args, **kwargs)
 
     def get_stock_disponible(self, maquinaria, fecha_inicio, fecha_fin, cantidad_solicitada):

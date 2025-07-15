@@ -104,27 +104,28 @@ class Maquinaria(models.Model):
     def delete(self, *args, **kwargs):
         """
         Override the delete method to prevent deletion if the machinery
-        is associated with any active (non-finalized) reservations
+        has any reservations that are not in 'FINALIZADA' state.
         """
         # Import here to avoid circular imports
         from reservas.models import Reserva
         
-        # Check if there are any active reservations for this machinery
-        active_reservations = Reserva.objects.filter(
+        # Check if there are any non-finalized reservations for this machinery
+        non_finalized_reservations = Reserva.objects.filter(
             maquinaria=self
         ).exclude(
             estado='FINALIZADA'
-        ).exists()
+        )
         
-        if active_reservations:
+        if non_finalized_reservations.exists():
+            # Get details of non-finalized reservations for better error message
             from django.db.models.deletion import ProtectedError
             raise ProtectedError(
-                "No se puede eliminar una maquinaria con reservas en curso",
+                f"No se puede eliminar la maquinaria '{self.nombre}' porque tiene reservas que no están finalizadas.",
                 self
             )
         
-        # If no active reservations, proceed with deletion
-        super().delete(*args, **kwargs)
+        # If all reservations are finalized, proceed with deletion
+        return super().delete(*args, **kwargs)
 
     def clean(self):
         """
