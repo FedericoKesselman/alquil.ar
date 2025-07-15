@@ -445,12 +445,38 @@ def cambiar_password_perfil_view(request):
         form = CambiarPasswordPerfilForm(request.user)
     return render(request, 'usuarios/cambiar_password_perfil.html', {'form': form})
 
-'''
-def home_view(request):
-    """Vista principal/home del sistema"""
-    if request.user.is_authenticated:
-        return redirect('redireccionar_por_rol')
-    else:
-        return redirect('login')
-'''
+@login_required
+@solo_empleado
+def eliminar_cliente_view(request, cliente_id):
+    """
+    Vista para eliminar un cliente
+    Solo se permite si todas sus reservas están finalizadas o si no tiene reservas
+    """
+    try:
+        cliente = Usuario.objects.get(id=cliente_id, tipo="CLIENTE")
+        
+        # Verificar si tiene reservas que no están en estado FINALIZADA
+        reservas_activas = cliente.reservas.exclude(estado='FINALIZADA').exists()
+        
+        if reservas_activas:
+            messages.error(request, 'No se puede eliminar el cliente porque tiene reservas activas.')
+            return redirect('listar_clientes')
+        
+        if request.method == 'POST':
+            # La confirmación ya se recibió, proceder con la eliminación
+            cliente.delete()  # Esto eliminará también todas sus reservas por CASCADE
+            messages.success(request, f'Cliente {cliente.nombre} eliminado correctamente.')
+            return redirect('listar_clientes')
+        
+        # Obtener el número de reservas que se eliminarán
+        num_reservas = cliente.reservas.count()
+        
+        return render(request, 'usuarios/confirmar_eliminar_cliente.html', {
+            'cliente': cliente,
+            'num_reservas': num_reservas
+        })
+        
+    except Usuario.DoesNotExist:
+        messages.error(request, 'Cliente no encontrado.')
+        return redirect('listar_clientes')
 

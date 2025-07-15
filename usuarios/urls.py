@@ -18,6 +18,7 @@ urlpatterns = [
     path('registrar-cliente/', views.crear_cliente_view, name="crear_cliente"),
     path('ver-empleados/', views.listar_empleados_view, name="listar_empleados"),
     path('ver-clientes/', views.listar_clientes_view, name="listar_clientes"),
+    path('eliminar-cliente/<int:cliente_id>/', views.eliminar_cliente_view, name="eliminar_cliente"),
     path('verificar-token/', views.verificar_token_view, name='verificar_token'),
     path('admin/sucursales/', views.admin_sucursales, name='admin_sucursales'),
     path('api/sucursales/', views.sucursales_json_publico, name='sucursales_json'),

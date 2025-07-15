@@ -37,9 +37,9 @@
                                         <a href="{% url 'crear_cliente' %}" class="btn btn-warning" title="Editar">
                                             <i class="fas fa-edit"></i>
                                         </a> <!-- Aca iria el editar cliente (Hay que mandarle despues de la url empleado.id) -->
-                                        <a href="{% url 'crear_cliente' %}" class="btn btn-danger" title="Eliminar">
+                                        <a href="{% url 'eliminar_cliente' cliente.id %}" class="btn btn-danger" title="Eliminar">
                                             <i class="fas fa-trash-alt"></i>
-                                        </a><!-- Aca iria el eliminar cliente -->
+                                        </a>
                                     </div>
                                 </td>
                             </tr>
