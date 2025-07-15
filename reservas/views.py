@@ -1428,15 +1428,11 @@ def confirmar_devolucion(request, reserva_id):
         cliente.actualizar_calificacion_promedio()
           # Finalizar la reserva
         if reserva.finalizar_reserva():
-            # Verificar si hay recargo por atraso
-            recargo_mensaje = ""
-            if reserva.recargo_atraso and reserva.recargo_atraso > 0:
-                recargo_mensaje = f" Se ha aplicado un recargo por atraso de ${float(reserva.recargo_atraso):.2f}."
             
             messages.success(
                 request, 
                 f"✅ DEVOLUCIÓN PROCESADA: La maquinaria {reserva.maquinaria.nombre} ({reserva.cantidad_solicitada} unidad/es) "
-                f"ha sido devuelta correctamente por {reserva.cliente.get_full_name()}.{recargo_mensaje} "
+                f"ha sido devuelta correctamente por {reserva.cliente.get_full_name()} "
                 f"La reserva ahora está en estado FINALIZADA."
             )
             messages.info(
