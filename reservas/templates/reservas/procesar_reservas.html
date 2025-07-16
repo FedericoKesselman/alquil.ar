@@ -104,15 +104,15 @@
                     <ul class="list-group list-group-flush">
                         <li class="list-group-item">
                             <i class="bi bi-box-arrow-right text-info"></i>
-                            <strong>Procesar Entrega:</strong> Para reservas en estado "Confirmada" con fecha de inicio actual o pasada, cuando el cliente retira la maquinaria.
+                            <strong>Procesar Entrega:</strong> Para reservas en estado "Confirmada" con fecha de inicio actual o pasada, cuando el cliente retira la maquinaria. <span class="text-danger">Solo para reservas de la sucursal {{ user.sucursal.nombre }}.</span>
                         </li>
                         <li class="list-group-item">
                             <i class="bi bi-arrow-return-left text-success"></i>
-                            <strong>Procesar Devolución:</strong> Sólo para reservas en estado "Entregada" o "No Devuelta" cuando el cliente devuelve la maquinaria.
+                            <strong>Procesar Devolución:</strong> Sólo para reservas en estado "Entregada" o "No Devuelta" cuando el cliente devuelve la maquinaria. <span class="text-danger">Solo para reservas de la sucursal {{ user.sucursal.nombre }}.</span>
                         </li>
                         <li class="list-group-item">
                             <i class="bi bi-currency-exchange text-primary"></i>
-                            <strong>Procesar Reembolso:</strong> Exclusivamente para reservas en estado "Cancelada" que requieran un reembolso.
+                            <strong>Procesar Reembolso:</strong> Exclusivamente para reservas en estado "Cancelada" que requieran un reembolso. <span class="text-danger">Solo para reservas de la sucursal {{ user.sucursal.nombre }}.</span>
                         </li>
                     </ul>
                 </div>
@@ -154,7 +154,7 @@
             }
             
             // Confirmar la devolución
-            if (confirm('¿Está seguro de que desea procesar la devolución de esta reserva?\n\nSolo se podrán procesar reservas en estado ENTREGADA o NO DEVUELTA que pertenezcan a su sucursal actual.\n\nLas reservas en estado FINALIZADA, CONFIRMADA, PENDIENTE DE PAGO o CANCELADA no son procesables.\n\nRECUERDE: Solo podrá procesar reservas de la sucursal {{ user.sucursal.nombre }}.')) {
+            if (confirm('¿Está seguro de que desea procesar la devolución de esta reserva?\n\nIMPORTANTE: Solo se podrán procesar reservas que cumplan con TODAS estas condiciones:\n\n1. Estar en estado ENTREGADA o NO DEVUELTA\n2. Pertenecer a la sucursal {{ user.sucursal.nombre }}\n\nEl sistema verificará que la reserva pertenezca a su sucursal actual y no permitirá devolver maquinarias de otra sucursal.\n\nLas reservas en estado FINALIZADA, CONFIRMADA, PENDIENTE DE PAGO o CANCELADA no son procesables.')) {
                 // Set values in the hidden fields
                 document.getElementById('codigo-copy').value = codigoReserva;
                 document.getElementById('dni-copy').value = dniCliente;
@@ -193,7 +193,7 @@
             }
             
             // Confirmar la entrega
-            if (confirm('¿Está seguro de que desea procesar la entrega de esta reserva?\n\nSolo se podrán procesar reservas en estado CONFIRMADA con fechas de inicio actuales o pasadas que pertenezcan a su sucursal actual.\n\nLas reservas en estado FINALIZADA, ENTREGADA, PENDIENTE DE PAGO, NO DEVUELTA o CANCELADA no son procesables.\n\nSe validará que el código de reserva y DNI coincidan con una reserva que cumpla estas condiciones.\n\nRECUERDE: Solo podrá procesar reservas de la sucursal {{ user.sucursal.nombre }}.')) {
+            if (confirm('¿Está seguro de que desea procesar la entrega de esta reserva?\n\nIMPORTANTE: Solo se podrán procesar reservas que cumplan con TODAS estas condiciones:\n\n1. Estar en estado CONFIRMADA\n2. Tener fecha de inicio igual o anterior a hoy\n3. Pertenecer a la sucursal {{ user.sucursal.nombre }}\n\nEl sistema verificará que la reserva pertenezca a su sucursal actual y no permitirá entregar maquinarias desde otra sucursal.\n\nLas reservas en estado FINALIZADA, ENTREGADA, PENDIENTE DE PAGO, NO DEVUELTA o CANCELADA no son procesables.')) {
                 // Set values in the hidden fields
                 document.getElementById('codigo-copy-entrega').value = codigoReserva;
                 document.getElementById('dni-copy-entrega').value = dniCliente;
@@ -220,11 +220,11 @@
             const action = submitButton.value;
             
             if (action === 'reembolso') {
-                if (confirm('¿Está seguro de que desea procesar el reembolso de esta reserva?\n\nSolo se podrán procesar reservas en estado CANCELADA que pertenezcan a su sucursal actual.\n\nLas reservas en estado FINALIZADA, PENDIENTE DE PAGO, CONFIRMADA o NO DEVUELTA no son elegibles para reembolso.\n\nRECUERDE: Solo podrá procesar reservas de la sucursal {{ user.sucursal.nombre }}.')) {
+                if (confirm('¿Está seguro de que desea procesar el reembolso de esta reserva?\n\nIMPORTANTE: Solo se podrán procesar reservas que cumplan con TODAS estas condiciones:\n\n1. Estar en estado CANCELADA\n2. Pertenecer a la sucursal {{ user.sucursal.nombre }}\n\nEl sistema verificará que la reserva pertenezca a su sucursal actual y no permitirá reembolsar reservas de otra sucursal.\n\nLas reservas en estado FINALIZADA, PENDIENTE DE PAGO, CONFIRMADA o NO DEVUELTA no son elegibles para reembolso.')) {
                     this.submit();
                 }
             } else {
-                if (confirm('¿Está seguro de que desea finalizar esta reserva?')) {
+                if (confirm('¿Está seguro de que desea finalizar esta reserva?\n\nIMPORTANTE: Solo se pueden procesar reservas de la sucursal {{ user.sucursal.nombre }}.')) {
                     this.submit();
                 }
             }

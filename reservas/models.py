@@ -648,6 +648,7 @@ class Reserva(models.Model):
             return False
             
         # Si la fecha de fin ha pasado y aún no está finalizada o marcada como no devuelta
+        # Una reserva se considera vencida cuando su día de fin ya ha pasado completamente
         if self.fecha_fin < timezone.now().date():
             self.estado = 'NO_DEVUELTA'
             self.save(update_fields=['estado'])
@@ -665,9 +666,11 @@ class Reserva(models.Model):
             int: Número de reservas actualizadas
         """
         # Obtener todas las reservas entregadas cuya fecha de fin ha pasado
+        # Una reserva se considera vencida cuando su día de fin ya ha pasado completamente
+        hoy = timezone.now().date()
         contador = cls.objects.filter(
             estado='ENTREGADA',
-            fecha_fin__lt=timezone.now().date()
+            fecha_fin__lt=hoy  # fecha_fin < hoy significa que el día de fin ya pasó
         ).update(estado='NO_DEVUELTA')
             
         return contador
@@ -737,10 +740,12 @@ class Reserva(models.Model):
         Returns:
             int: Número de reservas finalizadas
         """
-        # Obtener todas las reservas confirmadas cuya fecha de fin ha pasado
+        # Obtener todas las reservas confirmadas cuya fecha de fin ha pasado (es menor o igual a la fecha actual)
+        # Una reserva se considera vencida cuando su día de fin ya ha pasado completamente
+        hoy = timezone.now().date()
         reservas = cls.objects.filter(
             estado='CONFIRMADA',
-            fecha_fin__lt=timezone.now().date()
+            fecha_fin__lt=hoy  # fecha_fin < hoy significa que el día de fin ya pasó
         )
         
         contador = 0

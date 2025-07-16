@@ -656,21 +656,33 @@ def lista_reservas(request):
     if sucursal_id and (request.user.tipo in ['ADMIN', 'EMPLEADO']):
         reservas = reservas.filter(sucursal_retiro_id=sucursal_id)
     
+    # Obtener todas las maquinarias para el filtro
+    from maquinarias.models import Maquinaria
+    maquinaria_id = request.GET.get('maquinaria')
+    maquinarias = Maquinaria.objects.all().order_by('nombre')
+    
+    # Aplicar filtro de maquinaria si existe
+    if maquinaria_id:
+        reservas = reservas.filter(maquinaria_id=maquinaria_id)
+    
     # Ordenar por fecha de creación (más recientes primero)
     reservas = reservas.order_by('-fecha_creacion')
-      # Paginación
+      
+    # Paginación
     paginator = Paginator(reservas, 10)  # 10 reservas por página
     page = request.GET.get('page')
     reservas_paginadas = paginator.get_page(page)
-    
+
     context = {
         'reservas': reservas_paginadas,
         'is_paginated': True if reservas.count() > 10 else False,
         'page_obj': reservas_paginadas,
         'titulo': 'Historial de Reservas',
         'sucursales': sucursales,  # Lista de sucursales para el filtro
+        'maquinarias': maquinarias,  # Lista de maquinarias para el filtro
         'cliente_dni': cliente_dni,  # DNI del cliente para mantener el filtro
         'empleado_dni': empleado_dni,  # DNI del empleado para mantener el filtro
+        'filtros_aplicados': any([estado, fecha_desde, fecha_hasta, cliente_dni, empleado_dni, sucursal_id, maquinaria_id])
     }
     
     return render(request, 'reservas/lista_reservas.html', context)

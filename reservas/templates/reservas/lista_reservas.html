@@ -103,7 +103,9 @@
             <div class="col-md-3">
                 <label for="cliente_dni" class="form-label">DNI Cliente</label>
                 <input type="text" name="cliente_dni" id="cliente_dni" class="form-control" 
-                       value="{{ cliente_dni }}" placeholder="Buscar por DNI">
+                       value="{{ cliente_dni }}" placeholder="Buscar por DNI (8 dígitos)"
+                       pattern="[0-9]{8}" maxlength="8" title="Ingrese un DNI válido de 8 dígitos">
+                <div class="invalid-feedback" id="cliente_dni_error">El DNI debe contener exactamente 8 dígitos numéricos.</div>
             </div>
             {% endif %}
               {% if user.tipo == 'ADMIN' or user.tipo == 'EMPLEADO' %}
@@ -122,7 +124,9 @@
             <div class="col-md-3">
                 <label for="empleado_dni" class="form-label">DNI Empleado Procesador</label>
                 <input type="text" name="empleado_dni" id="empleado_dni" class="form-control" 
-                       value="{{ empleado_dni }}" placeholder="Buscar por DNI">
+                       value="{{ empleado_dni }}" placeholder="Buscar por DNI (8 dígitos)"
+                       pattern="[0-9]{8}" maxlength="8" title="Ingrese un DNI válido de 8 dígitos">
+                <div class="invalid-feedback" id="empleado_dni_error">El DNI debe contener exactamente 8 dígitos numéricos.</div>
             </div>
             {% endif %}
             
@@ -131,8 +135,22 @@
                 <select name="estado" id="estado" class="form-select">
                     <option value="">Todos</option>
                     <option value="CONFIRMADA" {% if request.GET.estado == 'CONFIRMADA' %}selected{% endif %}>Confirmada</option>
+                    <option value="ENTREGADA" {% if request.GET.estado == 'ENTREGADA' %}selected{% endif %}>Entregada</option>
+                    <option value="NO_DEVUELTA" {% if request.GET.estado == 'NO_DEVUELTA' %}selected{% endif %}>No Devuelta</option>
                     <option value="CANCELADA" {% if request.GET.estado == 'CANCELADA' %}selected{% endif %}>Cancelada</option>
                     <option value="FINALIZADA" {% if request.GET.estado == 'FINALIZADA' %}selected{% endif %}>Finalizada</option>
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <label for="maquinaria" class="form-label">Maquinaria</label>
+                <select name="maquinaria" id="maquinaria" class="form-select">
+                    <option value="">Todas las maquinarias</option>
+                    {% for maquinaria in maquinarias %}
+                    <option value="{{ maquinaria.id }}" {% if request.GET.maquinaria|stringformat:"s" == maquinaria.id|stringformat:"s" %}selected{% endif %}>
+                        {{ maquinaria.nombre }} ({{ maquinaria.marca }} {{ maquinaria.modelo }})
+                    </option>
+                    {% endfor %}
                 </select>
             </div>
             <div class="col-md-3">
@@ -238,7 +256,7 @@
         <nav aria-label="Navegación de páginas">
             <ul class="pagination justify-content-center">
                 {% if page_obj.has_previous %}
-                <li class="page-item">                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.estado %}&estado={{ request.GET.estado }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}{% if request.GET.cliente_dni %}&cliente_dni={{ request.GET.cliente_dni }}{% endif %}{% if request.GET.empleado_dni %}&empleado_dni={{ request.GET.empleado_dni }}{% endif %}{% if request.GET.sucursal %}&sucursal={{ request.GET.sucursal }}{% endif %}">
+                <li class="page-item">                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.estado %}&estado={{ request.GET.estado }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}{% if request.GET.cliente_dni %}&cliente_dni={{ request.GET.cliente_dni }}{% endif %}{% if request.GET.empleado_dni %}&empleado_dni={{ request.GET.empleado_dni }}{% endif %}{% if request.GET.sucursal %}&sucursal={{ request.GET.sucursal }}{% endif %}{% if request.GET.maquinaria %}&maquinaria={{ request.GET.maquinaria }}{% endif %}">
                         Anterior
                     </a>
                 </li>
@@ -250,7 +268,7 @@
                         <span class="page-link">{{ num }}</span>
                     </li>
                     {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-                    <li class="page-item">                        <a class="page-link" href="?page={{ num }}{% if request.GET.estado %}&estado={{ request.GET.estado }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}{% if request.GET.cliente_dni %}&cliente_dni={{ request.GET.cliente_dni }}{% endif %}{% if request.GET.empleado_dni %}&empleado_dni={{ request.GET.empleado_dni }}{% endif %}{% if request.GET.sucursal %}&sucursal={{ request.GET.sucursal }}{% endif %}">
+                    <li class="page-item">                        <a class="page-link" href="?page={{ num }}{% if request.GET.estado %}&estado={{ request.GET.estado }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}{% if request.GET.cliente_dni %}&cliente_dni={{ request.GET.cliente_dni }}{% endif %}{% if request.GET.empleado_dni %}&empleado_dni={{ request.GET.empleado_dni }}{% endif %}{% if request.GET.sucursal %}&sucursal={{ request.GET.sucursal }}{% endif %}{% if request.GET.maquinaria %}&maquinaria={{ request.GET.maquinaria }}{% endif %}">
                             {{ num }}
                         </a>
                     </li>
@@ -258,7 +276,7 @@
                 {% endfor %}
                 
                 {% if page_obj.has_next %}
-                <li class="page-item">                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.estado %}&estado={{ request.GET.estado }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}{% if request.GET.cliente_dni %}&cliente_dni={{ request.GET.cliente_dni }}{% endif %}{% if request.GET.empleado_dni %}&empleado_dni={{ request.GET.empleado_dni }}{% endif %}{% if request.GET.sucursal %}&sucursal={{ request.GET.sucursal }}{% endif %}">
+                <li class="page-item">                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.estado %}&estado={{ request.GET.estado }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}{% if request.GET.cliente_dni %}&cliente_dni={{ request.GET.cliente_dni }}{% endif %}{% if request.GET.empleado_dni %}&empleado_dni={{ request.GET.empleado_dni }}{% endif %}{% if request.GET.sucursal %}&sucursal={{ request.GET.sucursal }}{% endif %}{% if request.GET.maquinaria %}&maquinaria={{ request.GET.maquinaria }}{% endif %}">
                         Siguiente
                     </a>
                 </li>
@@ -285,6 +303,8 @@ function validarFechas() {
     // Reset validation states
     fechaDesde.classList.remove('is-invalid');
     fechaHasta.classList.remove('is-invalid');
+    fechaDesdeError.textContent = '';
+    fechaHastaError.textContent = '';
     
     if (fechaDesde.value && fechaHasta.value) {
         const desde = new Date(fechaDesde.value);
@@ -295,13 +315,108 @@ function validarFechas() {
             fechaHastaError.textContent = 'La fecha hasta no puede ser anterior a la fecha desde';
             return false;
         }
+    } else if (fechaDesde.value && !fechaHasta.value) {
+        // Opcionalmente podemos mostrar un recordatorio si se seleccionó fecha desde pero no hasta
+        fechaHastaError.textContent = 'Recuerda seleccionar una fecha hasta';
+    } else if (!fechaDesde.value && fechaHasta.value) {
+        // Opcionalmente podemos mostrar un recordatorio si se seleccionó fecha hasta pero no desde
+        fechaDesdeError.textContent = 'Recuerda seleccionar una fecha desde';
     }
     
     return true;
 }
 
+function validarDNI() {
+    let esValido = true;
+    const dniRegex = /^[0-9]{8}$/;  // Regex para exactamente 8 dígitos
+    
+    // Verificar DNI cliente si existe el campo
+    const clienteDniField = document.getElementById('cliente_dni');
+    if (clienteDniField && clienteDniField.value.trim() !== '') {
+        if (!dniRegex.test(clienteDniField.value)) {
+            clienteDniField.classList.add('is-invalid');
+            document.getElementById('cliente_dni_error').textContent = 'El DNI debe contener exactamente 8 dígitos numéricos.';
+            esValido = false;
+        } else {
+            clienteDniField.classList.remove('is-invalid');
+        }
+    }
+    
+    // Verificar DNI empleado si existe el campo
+    const empleadoDniField = document.getElementById('empleado_dni');
+    if (empleadoDniField && empleadoDniField.value.trim() !== '') {
+        if (!dniRegex.test(empleadoDniField.value)) {
+            empleadoDniField.classList.add('is-invalid');
+            document.getElementById('empleado_dni_error').textContent = 'El DNI debe contener exactamente 8 dígitos numéricos.';
+            esValido = false;
+        } else {
+            empleadoDniField.classList.remove('is-invalid');
+        }
+    }
+    
+    return esValido;
+}
+
+// Validar DNIs en tiempo real mientras se escribe
+document.addEventListener('DOMContentLoaded', function() {
+    const clienteDniField = document.getElementById('cliente_dni');
+    const empleadoDniField = document.getElementById('empleado_dni');
+    const fechaDesde = document.getElementById('fecha_desde');
+    const fechaHasta = document.getElementById('fecha_hasta');
+    
+    // Validar fechas al cargar la página si ya hay valores
+    if (fechaDesde && fechaHasta) {
+        if (fechaDesde.value && fechaHasta.value) {
+            validarFechas();
+        }
+        
+        // Agregar evento change adicional para validar al seleccionar con el calendario
+        fechaDesde.addEventListener('change', validarFechas);
+        fechaHasta.addEventListener('change', validarFechas);
+    }
+    
+    // Validar que solo se ingresen dígitos numéricos en los campos DNI
+    if (clienteDniField) {
+        clienteDniField.addEventListener('input', function(e) {
+            // Reemplazar cualquier carácter no numérico
+            this.value = this.value.replace(/[^0-9]/g, '');
+            
+            // Validar el campo mientras se escribe
+            if (this.value.trim() !== '' && !/^[0-9]{0,8}$/.test(this.value)) {
+                this.classList.add('is-invalid');
+            } else {
+                this.classList.remove('is-invalid');
+            }
+        });
+    }
+    
+    if (empleadoDniField) {
+        empleadoDniField.addEventListener('input', function(e) {
+            // Reemplazar cualquier carácter no numérico
+            this.value = this.value.replace(/[^0-9]/g, '');
+            
+            // Validar el campo mientras se escribe
+            if (this.value.trim() !== '' && !/^[0-9]{0,8}$/.test(this.value)) {
+                this.classList.add('is-invalid');
+            } else {
+                this.classList.remove('is-invalid');
+            }
+        });
+    }
+});
+
 document.querySelector('form').addEventListener('submit', function(e) {
+    let formValido = true;
+    
     if (!validarFechas()) {
+        formValido = false;
+    }
+    
+    if (!validarDNI()) {
+        formValido = false;
+    }
+    
+    if (!formValido) {
         e.preventDefault();
     }
 });
