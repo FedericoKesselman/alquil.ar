@@ -61,7 +61,8 @@ def tipo_maquinaria_delete(request, pk):
 @login_required
 @solo_admin
 def maquinaria_list(request):
-    maquinarias = Maquinaria.objects.all().order_by('nombre')
+    # Filtrar excluyendo maquinarias placeholder
+    maquinarias = Maquinaria.objects.filter(es_placeholder=False).order_by('nombre')
     paginator = Paginator(maquinarias, 10)
     page = request.GET.get('page')
     maquinarias = paginator.get_page(page)
@@ -71,9 +72,11 @@ def maquinaria_list_cliente(request):
     # Verificar si el usuario está autenticado y es cliente o empleado
     if not request.user.is_authenticated or (request.user.tipo not in ['CLIENTE', 'EMPLEADO']):
         # Query base sin filtros para usuarios no autenticados - mostrar maquinarias con stock en al menos una sucursal activa
+        # y excluyendo maquinarias placeholder
         maquinarias = Maquinaria.objects.filter(
             stocks__stock__gt=0,
-            stocks__sucursal__activa=True
+            stocks__sucursal__activa=True,
+            es_placeholder=False
         ).distinct().order_by('nombre')
         
         # Paginación
@@ -91,9 +94,11 @@ def maquinaria_list_cliente(request):
     sucursal_id = request.GET.get('sucursal')
     
     # Query base inicial - maquinarias que tienen stock en al menos una sucursal activa
+    # y excluyendo maquinarias placeholder
     base_queryset = Maquinaria.objects.filter(
         stocks__stock__gt=0,
-        stocks__sucursal__activa=True
+        stocks__sucursal__activa=True,
+        es_placeholder=False
     ).distinct()
 
     # Aplicar filtros y obtener queryset filtrado
@@ -328,8 +333,16 @@ def maquinaria_update(request, pk):
 @solo_admin
 def maquinaria_delete(request, pk):
     maquinaria = get_object_or_404(Maquinaria, pk=pk)
+    
+    # Verificar que no sea un placeholder
+    if maquinaria.es_placeholder:
+        messages.error(request, "No se puede eliminar una maquinaria placeholder utilizada para mantener datos históricos.")
+        return redirect('maquinaria_list')
+        
     try:
         # Intentar eliminar la maquinaria
+        # El método delete() del modelo Maquinaria ya maneja todas las verificaciones necesarias
+        # y la transferencia de datos a la maquinaria placeholder si es necesario
         nombre_maquinaria = maquinaria.nombre
         maquinaria.delete()
         messages.success(request, f'Maquinaria "{nombre_maquinaria}" eliminada exitosamente.')
@@ -388,3 +401,38 @@ class MaquinariaListCliente(LoginRequiredMixin, ListView):
             stocks__stock_disponible__gt=0,
             stocks__sucursal__activa=True
         ).distinct().order_by('nombre')
+
+def get_or_create_deleted_machinery_placeholder():
+    """
+    Retorna una maquinaria placeholder para mantener asociadas las reservas
+    de maquinarias eliminadas, para fines estadísticos y de auditoría.
+    """
+    nombre = "Maquinaria Eliminada"
+    try:
+        # Intentar recuperar la maquinaria placeholder existente
+        return Maquinaria.objects.get(es_placeholder=True)
+    except Maquinaria.DoesNotExist:
+        # Crear la maquinaria placeholder si no existe
+        # Primero necesitamos un tipo de maquinaria
+        tipo, created = TipoMaquinaria.objects.get_or_create(
+            nombre="Tipo Placeholder",
+            defaults={"descripcion": "Tipo utilizado para maquinarias eliminadas"}
+        )
+        
+        # Crear la maquinaria placeholder
+        deleted_machinery = Maquinaria.objects.create(
+            nombre=nombre,
+            tipo=tipo,
+            marca="N/A",
+            modelo="N/A",
+            anio=2000,
+            descripcion="Esta es una maquinaria placeholder para mantener la integridad referencial de reservas históricas",
+            precio_por_dia=0.0,
+            minimo=1,
+            maximo=30,
+            cantDias_total=30,
+            cantDias_parcial=15,
+            cantDias_nulo=5,
+            es_placeholder=True
+        )
+        return deleted_machinery

@@ -15,6 +15,8 @@ class Sucursal(models.Model):
     latitud = models.FloatField()
     longitud = models.FloatField()
     activa = models.BooleanField(default=True)
+    # Nuevo campo para identificar sucursales eliminadas
+    es_placeholder = models.BooleanField(default=False)
 
     def __str__(self):
         return self.nombre
@@ -64,7 +66,44 @@ class Sucursal(models.Model):
                 self
             )
         
-        # If no machinery is associated, proceed with deletion
+        # Import here to avoid circular imports
+        from reservas.models import Reserva
+        
+        # Check if there are any non-finalized reservations for this branch
+        non_finalized_reservations = Reserva.objects.filter(
+            sucursal_retiro=self
+        ).exclude(
+            estado='FINALIZADA'
+        )
+        
+        if non_finalized_reservations.exists():
+            from django.db.models.deletion import ProtectedError
+            raise ProtectedError(
+                f"No se puede eliminar la sucursal '{self.nombre}' porque tiene reservas que no están finalizadas.",
+                self
+            )
+        
+        # Check if there are any finalized reservations for this branch
+        finalized_reservations = Reserva.objects.filter(
+            sucursal_retiro=self, 
+            estado='FINALIZADA'
+        ).exists()
+        
+        if finalized_reservations:
+            # Get or create a placeholder for sucursal
+            from usuarios.views import get_or_create_deleted_sucursal_placeholder
+            sucursal_placeholder = get_or_create_deleted_sucursal_placeholder()
+            
+            # Transfer all finalized reservations to the placeholder
+            Reserva.objects.filter(
+                sucursal_retiro=self,
+                estado='FINALIZADA'
+            ).update(sucursal_retiro=sucursal_placeholder)
+            
+            # Now we can safely delete the sucursal
+            return super().delete(*args, **kwargs)
+        
+        # If there are no reservations at all, just delete normally
         super().delete(*args, **kwargs)
 
     def get_stock_disponible(self, maquinaria, fecha_inicio, fecha_fin, cantidad_solicitada):

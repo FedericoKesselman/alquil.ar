@@ -217,12 +217,17 @@ def admin_sucursales(request):
     return render(request, 'usuarios/admin_sucursales.html')
 
 def sucursales_json_publico(request):
-    data = list(Sucursal.objects.filter(activa=True).values('id', 'nombre', 'direccion', 'telefono', 'latitud', 'longitud', 'activa'))
+    data = list(Sucursal.objects.filter(
+        activa=True, 
+        es_placeholder=False
+    ).values('id', 'nombre', 'direccion', 'telefono', 'latitud', 'longitud', 'activa'))
     return JsonResponse(data, safe=False)
 
 def todas_sucursales_json(request):
     """API para obtener todas las sucursales (para el admin)"""
-    data = list(Sucursal.objects.all().values('id', 'nombre', 'direccion', 'telefono', 'latitud', 'longitud', 'activa'))
+    data = list(Sucursal.objects.filter(
+        es_placeholder=False
+    ).values('id', 'nombre', 'direccion', 'telefono', 'latitud', 'longitud', 'activa'))
     return JsonResponse(data, safe=False)
 
 @csrf_exempt
@@ -382,8 +387,19 @@ def actualizar_ubicacion_sucursal(request, id):
 def eliminar_sucursal(request, id):
     try:
         sucursal = Sucursal.objects.get(id=id)
+        
+        # Verificar que no sea un placeholder
+        if sucursal.es_placeholder:
+            return JsonResponse({
+                'error': 'No se puede eliminar una sucursal placeholder utilizada para mantener datos históricos'
+            }, status=400)
+            
         nombre_sucursal = sucursal.nombre
+        
+        # El método delete() del modelo Sucursal ya maneja todas las verificaciones necesarias
+        # y la transferencia de datos a la sucursal placeholder si es necesario
         sucursal.delete()
+        
         return JsonResponse({
             'status': 'ok',
             'mensaje': f'Sucursal "{nombre_sucursal}" eliminada exitosamente'
@@ -701,4 +717,26 @@ def get_or_create_deleted_employee_placeholder():
             tipo='EMPLEADO'
         )
         return deleted_user
+
+def get_or_create_deleted_sucursal_placeholder():
+    """
+    Retorna una sucursal placeholder para mantener asociadas las reservas 
+    de sucursales eliminadas, para fines estadísticos y de auditoría.
+    """
+    nombre = "Sucursal Eliminada"
+    try:
+        # Intentar recuperar la sucursal placeholder existente
+        return Sucursal.objects.get(es_placeholder=True)
+    except Sucursal.DoesNotExist:
+        # Crear la sucursal placeholder si no existe
+        deleted_sucursal = Sucursal.objects.create(
+            nombre=nombre,
+            direccion="N/A",
+            telefono="0000000000",
+            latitud=0.0,
+            longitud=0.0,
+            activa=False,
+            es_placeholder=True
+        )
+        return deleted_sucursal
 
