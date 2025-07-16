@@ -13,7 +13,8 @@ from .forms import (
     RecuperarPasswordForm,
     RestablecerPasswordForm,
     CambiarPasswordPerfilForm,
-    EditarClienteForm
+    EditarClienteForm,
+    EditarEmpleadoForm
 )
 from usuarios.decorators import solo_admin, solo_cliente, solo_empleado
 from django.core.paginator import Paginator
@@ -174,7 +175,10 @@ def crear_cliente_view(request):
 @login_required
 @solo_admin
 def listar_empleados_view(request):
-    empleados = Usuario.objects.filter(tipo="EMPLEADO").order_by('nombre') #Extraigo los empleados de la base de datos
+    # Excluir al empleado placeholder de la lista
+    empleados = Usuario.objects.filter(tipo="EMPLEADO").exclude(
+        email="empleado_eliminado@alquil.ar"
+    ).order_by('nombre') #Extraigo los empleados de la base de datos
 
     paginator = Paginator(empleados, 10) # 10 item por pagina
     page_number = request.GET.get('page')
@@ -191,7 +195,10 @@ def listar_empleados_view(request):
 @login_required
 @solo_empleado
 def listar_clientes_view(request):
-    clientes = Usuario.objects.filter(tipo="CLIENTE").order_by('nombre') #Extraigo los clientes de la base de datos
+    # Excluir al cliente placeholder de la lista
+    clientes = Usuario.objects.filter(tipo="CLIENTE").exclude(
+        email="cliente_eliminado@alquil.ar"
+    ).order_by('nombre') #Extraigo los clientes de la base de datos
 
     paginator = Paginator(clientes, 10) # 10 item por pagina
     page_number = request.GET.get('page')
@@ -533,6 +540,106 @@ def editar_cliente_view(request, cliente_id):
     
     return render(request, 'usuarios/editar_cliente.html', context)
 
+@login_required
+@solo_admin
+def editar_empleado_view(request, empleado_id):
+    """
+    Vista para editar un empleado
+    Permite modificar nombre, teléfono, fecha de nacimiento y sucursal
+    Email y DNI no son editables
+    """
+    empleado = get_object_or_404(Usuario, id=empleado_id, tipo="EMPLEADO")
+    
+    if request.method == 'POST':
+        form = EditarEmpleadoForm(request.POST, instance=empleado)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Empleado {empleado.nombre} actualizado correctamente.')
+            return redirect('listar_empleados')
+        else:
+            messages.error(request, 'Por favor, corrige los errores en el formulario.')
+    else:
+        form = EditarEmpleadoForm(instance=empleado)
+    
+    context = {
+        'form': form,
+        'empleado': empleado,
+        'titulo': 'Editar Empleado'
+    }
+    
+    return render(request, 'usuarios/editar_empleado.html', context)
+
+@login_required
+@solo_admin
+def eliminar_empleado_view(request, empleado_id):
+    """
+    Vista para eliminar un empleado
+    Preserva las transacciones históricas asociándolas a un empleado placeholder
+    Solo permite eliminación si todas las reservas están finalizadas
+    """
+    try:
+        empleado = Usuario.objects.get(id=empleado_id, tipo="EMPLEADO")
+        
+        # Verificar que no sea el único administrador si es admin
+        if empleado.tipo == "ADMIN" and Usuario.objects.filter(tipo="ADMIN").count() <= 1:
+            messages.error(request, 'No se puede eliminar al único administrador del sistema.')
+            return redirect('listar_empleados')
+            
+        # Verificar si tiene reservas que no están en estado FINALIZADA
+        try:
+            from reservas.models import Reserva
+            reservas_activas = Reserva.objects.filter(
+                empleado_procesador_id=empleado.id
+            ).exclude(estado='FINALIZADA').exists()
+            
+            if reservas_activas:
+                messages.error(request, 'No se puede eliminar el empleado porque tiene reservas activas.')
+                return redirect('listar_empleados')
+        except ImportError:
+            # Si no existe el modelo, simplemente continuamos
+            pass
+        
+        if request.method == 'POST':
+            # La confirmación ya se recibió, proceder con la transferencia y eliminación
+            nombre_empleado = empleado.nombre
+            
+            # Obtener o crear usuario placeholder para preservar datos históricos
+            usuario_eliminado = get_or_create_deleted_employee_placeholder()
+            
+            # Transferir todas las transacciones relevantes al usuario placeholder
+            # Esto dependerá de cómo esté modelado el sistema
+            
+            # Transferir reservas procesadas por este empleado al empleado placeholder
+            try:
+                from reservas.models import Reserva
+                
+                # Verificar si existen reservas asociadas y transferirlas al empleado placeholder
+                reservas = Reserva.objects.filter(empleado_procesador_id=empleado.id)
+                if reservas.exists():
+                    # Asegurarse de que todas están finalizadas (doble verificación)
+                    if reservas.exclude(estado='FINALIZADA').exists():
+                        messages.error(request, 'No se puede eliminar el empleado porque tiene reservas activas.')
+                        return redirect('listar_empleados')
+                    
+                    # Transferir las reservas finalizadas al empleado placeholder
+                    reservas.update(empleado_procesador_id=usuario_eliminado.id)
+            except (ImportError, AttributeError) as e:
+                # Si no existe el modelo o hay un error, lo registramos pero continuamos
+                print(f"Error al transferir reservas: {str(e)}")
+            
+            # Ahora eliminar el empleado
+            empleado.delete()
+            messages.success(request, f'Empleado {nombre_empleado} eliminado correctamente.')
+            return redirect('listar_empleados')
+        
+        return render(request, 'usuarios/confirmar_eliminar_empleado.html', {
+            'empleado': empleado
+        })
+        
+    except Usuario.DoesNotExist:
+        messages.error(request, 'Empleado no encontrado.')
+        return redirect('listar_empleados')
+
 def get_or_create_deleted_user_placeholder():
     """
     Retorna un usuario placeholder para mantener asociadas las reservas y reembolsos
@@ -561,6 +668,37 @@ def get_or_create_deleted_user_placeholder():
             telefono="0000000000",
             fecha_nacimiento=date(2000, 1, 1),  # Fecha arbitraria
             tipo='CLIENTE'
+        )
+        return deleted_user
+
+def get_or_create_deleted_employee_placeholder():
+    """
+    Retorna un usuario placeholder para mantener asociadas las transacciones
+    de empleados eliminados, para fines estadísticos y de auditoría.
+    """
+    email = "empleado_eliminado@alquil.ar"
+    try:
+        # Intentar recuperar el usuario placeholder existente
+        return Usuario.objects.get(email=email)
+    except Usuario.DoesNotExist:
+        # Crear el usuario placeholder si no existe
+        import string
+        import random
+        from datetime import date
+        
+        # Generar una contraseña aleatoria segura que no se usará
+        password = ''.join(random.choice(string.ascii_letters + string.digits + string.punctuation) for _ in range(32))
+        
+        # Crear el usuario placeholder
+        deleted_user = Usuario.objects.create_user(
+            username=email,
+            email=email,
+            password=password,
+            nombre="Empleado Eliminado",
+            dni="00000001",
+            telefono="0000000001",
+            fecha_nacimiento=date(2000, 1, 1),  # Fecha arbitraria
+            tipo='EMPLEADO'
         )
         return deleted_user
 
