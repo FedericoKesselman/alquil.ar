@@ -249,7 +249,7 @@ class ClienteForm(forms.Form):
     telefono = forms.CharField(
         label="Teléfono",
         max_length=20,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Número de teléfono'}),
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Número de teléfono', 'oninput': 'this.value = this.value.replace(/[^0-9]/g, "")'}),
         validators=[RegexValidator(r'^\d+$', 'Solo se permiten números en el teléfono')]
     )
     fecha_nacimiento = forms.DateField(
@@ -275,6 +275,12 @@ class ClienteForm(forms.Form):
             raise forms.ValidationError('El DNI ingresado ya se encuentra registrado en el sistema')
         return dni
     
+    def clean_telefono(self):
+        telefono = self.cleaned_data.get('telefono')
+        if telefono and User.objects.filter(telefono=telefono).exists():
+            raise forms.ValidationError('Este número de teléfono ya está registrado en el sistema.')
+        return telefono
+
     def clean_fecha_nacimiento(self):
         fecha_nacimiento = self.cleaned_data.get('fecha_nacimiento')
         
