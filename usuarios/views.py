@@ -464,12 +464,36 @@ def eliminar_cliente_view(request, cliente_id):
             return redirect('listar_clientes')
         
         if request.method == 'POST':
-            # La confirmación ya se recibió, proceder con la eliminación
-            cliente.delete()  # Esto eliminará también todas sus reservas por CASCADE
-            messages.success(request, f'Cliente {cliente.nombre} eliminado correctamente.')
+            # La confirmación ya se recibió, proceder con la transferencia y eliminación
+            nombre_cliente = cliente.nombre
+            
+            # Obtener o crear usuario placeholder para preservar datos históricos
+            usuario_eliminado = get_or_create_deleted_user_placeholder()
+            
+            # Transferir todas las reservas y sus relaciones al usuario placeholder
+            reservas = cliente.reservas.all()
+            if reservas.exists():
+                reservas.update(cliente=usuario_eliminado)
+                
+            # Verificar si hay reembolsos asociados y transferirlos
+            from django.db.models import Q
+            try:
+                # Intenta importar el modelo Reembolso si existe
+                from reservas.models import Reembolso
+                # Transferir reembolsos si existen
+                reembolsos = Reembolso.objects.filter(Q(reserva__cliente=cliente) | Q(cliente=cliente))
+                if reembolsos.exists():
+                    reembolsos.update(cliente=usuario_eliminado)
+            except ImportError:
+                # Si no existe el modelo, simplemente continuamos
+                pass
+                
+            # Ahora eliminar el cliente (ya no tiene reservas asociadas)
+            cliente.delete()
+            messages.success(request, f'Cliente {nombre_cliente} eliminado correctamente.')
             return redirect('listar_clientes')
         
-        # Obtener el número de reservas que se eliminarán
+        # Obtener el número de reservas para el mensaje de confirmación
         num_reservas = cliente.reservas.count()
         
         return render(request, 'usuarios/confirmar_eliminar_cliente.html', {
@@ -508,4 +532,35 @@ def editar_cliente_view(request, cliente_id):
     }
     
     return render(request, 'usuarios/editar_cliente.html', context)
+
+def get_or_create_deleted_user_placeholder():
+    """
+    Retorna un usuario placeholder para mantener asociadas las reservas y reembolsos
+    de clientes eliminados, para fines estadísticos y de auditoría.
+    """
+    email = "cliente_eliminado@alquil.ar"
+    try:
+        # Intentar recuperar el usuario placeholder existente
+        return Usuario.objects.get(email=email)
+    except Usuario.DoesNotExist:
+        # Crear el usuario placeholder si no existe
+        import string
+        import random
+        from datetime import date
+        
+        # Generar una contraseña aleatoria segura que no se usará
+        password = ''.join(random.choice(string.ascii_letters + string.digits + string.punctuation) for _ in range(32))
+        
+        # Crear el usuario placeholder
+        deleted_user = Usuario.objects.create_user(
+            username=email,
+            email=email,
+            password=password,
+            nombre="Cliente Eliminado",
+            dni="00000000",
+            telefono="0000000000",
+            fecha_nacimiento=date(2000, 1, 1),  # Fecha arbitraria
+            tipo='CLIENTE'
+        )
+        return deleted_user
 
