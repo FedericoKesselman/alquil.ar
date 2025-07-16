@@ -1,5 +1,5 @@
 # usuarios/views.py
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -12,7 +12,8 @@ from .forms import (
     TokenVerificationForm,
     RecuperarPasswordForm,
     RestablecerPasswordForm,
-    CambiarPasswordPerfilForm
+    CambiarPasswordPerfilForm,
+    EditarClienteForm
 )
 from usuarios.decorators import solo_admin, solo_cliente, solo_empleado
 from django.core.paginator import Paginator
@@ -479,4 +480,32 @@ def eliminar_cliente_view(request, cliente_id):
     except Usuario.DoesNotExist:
         messages.error(request, 'Cliente no encontrado.')
         return redirect('listar_clientes')
+
+@login_required
+@solo_empleado
+def editar_cliente_view(request, cliente_id):
+    """
+    Vista para editar un cliente
+    Solo permite editar nombre, teléfono y fecha de nacimiento
+    """
+    cliente = get_object_or_404(Usuario, id=cliente_id, tipo="CLIENTE")
+    
+    if request.method == 'POST':
+        form = EditarClienteForm(request.POST, instance=cliente)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Cliente {cliente.nombre} actualizado correctamente.')
+            return redirect('listar_clientes')
+        else:
+            messages.error(request, 'Por favor, corrige los errores en el formulario.')
+    else:
+        form = EditarClienteForm(instance=cliente)
+    
+    context = {
+        'form': form,
+        'cliente': cliente,
+        'titulo': 'Editar Cliente'
+    }
+    
+    return render(request, 'usuarios/editar_cliente.html', context)
 

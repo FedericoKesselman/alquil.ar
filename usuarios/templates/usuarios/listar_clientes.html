@@ -34,9 +34,9 @@
                                 <td>{{ cliente.telefono }}</td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <a href="{% url 'crear_cliente' %}" class="btn btn-warning" title="Editar">
+                                        <a href="{% url 'editar_cliente' cliente.id %}" class="btn btn-warning" title="Editar">
                                             <i class="fas fa-edit"></i>
-                                        </a> <!-- Aca iria el editar cliente (Hay que mandarle despues de la url empleado.id) -->
+                                        </a>
                                         <a href="{% url 'eliminar_cliente' cliente.id %}" class="btn btn-danger" title="Eliminar">
                                             <i class="fas fa-trash-alt"></i>
                                         </a>
