@@ -249,7 +249,7 @@ class ClienteForm(forms.Form):
     telefono = forms.CharField(
         label="Teléfono",
         max_length=20,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Número de teléfono'}),
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Número de teléfono', 'oninput': 'this.value = this.value.replace(/[^0-9]/g, "")'}),
         validators=[RegexValidator(r'^\d+$', 'Solo se permiten números en el teléfono')]
     )
     fecha_nacimiento = forms.DateField(
@@ -275,6 +275,12 @@ class ClienteForm(forms.Form):
             raise forms.ValidationError('El DNI ingresado ya se encuentra registrado en el sistema')
         return dni
     
+    def clean_telefono(self):
+        telefono = self.cleaned_data.get('telefono')
+        if telefono and User.objects.filter(telefono=telefono).exists():
+            raise forms.ValidationError('Este número de teléfono ya está registrado en el sistema.')
+        return telefono
+
     def clean_fecha_nacimiento(self):
         fecha_nacimiento = self.cleaned_data.get('fecha_nacimiento')
         
@@ -544,3 +550,178 @@ class CambiarPasswordPerfilForm(forms.Form):
         self.user.set_password(new_password)
         self.user.save()
         return self.user
+
+class EditarClienteForm(forms.Form):
+    nombre = forms.CharField(
+        label="Nombre completo",
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre completo'})
+    )
+    dni = forms.CharField(
+        label="DNI",
+        max_length=8,
+        min_length=7,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control', 
+            'placeholder': 'DNI (7-8 dígitos)',
+            'readonly': 'readonly',  # DNI no editable
+            'style': 'background-color: #f8f9fa;'
+        }),
+        validators=[
+            RegexValidator(
+                r'^\d{7,8}$', 
+                'El DNI debe tener 7 u 8 dígitos numéricos'
+            )
+        ]
+    )
+    email = forms.EmailField(
+        label="Email",
+        widget=forms.EmailInput(attrs={
+            'class': 'form-control', 
+            'placeholder': 'Email del cliente',
+            'readonly': 'readonly',  # Email no editable
+            'style': 'background-color: #f8f9fa;'
+        })
+    )
+    telefono = forms.CharField(
+        label="Teléfono",
+        max_length=20,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Número de teléfono', 'oninput': 'this.value = this.value.replace(/[^0-9]/g, "")'}),
+        validators=[RegexValidator(r'^\d+$', 'Solo se permiten números en el teléfono')]
+    )
+    fecha_nacimiento = forms.DateField(
+        label="Fecha de nacimiento",
+        widget=forms.DateInput(
+            attrs={
+                'class': 'form-control', 
+                'type': 'date',
+                'max': date.today().isoformat(),
+            }
+        )
+    )
+    
+    def __init__(self, *args, **kwargs):
+        self.instance = kwargs.pop('instance', None)
+        super(EditarClienteForm, self).__init__(*args, **kwargs)
+        if self.instance:
+            self.initial['nombre'] = self.instance.nombre
+            self.initial['dni'] = self.instance.dni
+            self.initial['email'] = self.instance.email
+            self.initial['telefono'] = self.instance.telefono
+            self.initial['fecha_nacimiento'] = self.instance.fecha_nacimiento
+
+    def clean_telefono(self):
+        telefono = self.cleaned_data.get('telefono')
+        # Verificar si el teléfono ya existe, excluyendo al usuario actual
+        if telefono and User.objects.filter(telefono=telefono).exclude(id=self.instance.id).exists():
+            raise forms.ValidationError('Este número de teléfono ya está registrado.')
+        return telefono
+        
+    def clean_fecha_nacimiento(self):
+        fecha_nacimiento = self.cleaned_data.get('fecha_nacimiento')
+        if fecha_nacimiento:
+            # Verificar si es mayor de edad (18 años)
+            hoy = date.today()
+            edad = hoy.year - fecha_nacimiento.year - ((hoy.month, hoy.day) < (fecha_nacimiento.month, fecha_nacimiento.day))
+            if edad < 18:
+                raise forms.ValidationError('El cliente debe ser mayor de edad (18 años o más).')
+        return fecha_nacimiento
+    
+    def save(self):
+        cliente = self.instance
+        cliente.nombre = self.cleaned_data['nombre']
+        cliente.telefono = self.cleaned_data['telefono']
+        cliente.fecha_nacimiento = self.cleaned_data['fecha_nacimiento']
+        cliente.save()
+        return cliente
+
+class EditarEmpleadoForm(forms.Form):
+    nombre = forms.CharField(
+        label="Nombre completo",
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre completo'})
+    )
+    dni = forms.CharField(
+        label="DNI",
+        max_length=8,
+        min_length=7,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control', 
+            'inputmode': 'numeric',
+            'placeholder': 'DNI (7-8 dígitos)',
+            'readonly': 'readonly',  # DNI no editable
+            'style': 'background-color: #f8f9fa;'
+        }),
+        validators=[
+            RegexValidator(
+                r'^\d{7,8}$', 
+                'El DNI debe tener 7 u 8 dígitos numéricos'
+            )
+        ]
+    )
+    email = forms.EmailField(
+        label="Email",
+        widget=forms.EmailInput(attrs={
+            'class': 'form-control', 
+            'placeholder': 'Email del empleado',
+            'readonly': 'readonly',  # Email no editable
+            'style': 'background-color: #f8f9fa;'
+        })
+    )
+    telefono = forms.CharField(
+        label="Teléfono",
+        max_length=20,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Número de teléfono', 'oninput': 'this.value = this.value.replace(/[^0-9]/g, "")'}),
+        validators=[RegexValidator(r'^\d+$', 'Solo se permiten números en el teléfono')]
+    )
+    fecha_nacimiento = forms.DateField(
+        label="Fecha de nacimiento",
+        widget=forms.DateInput(
+            attrs={
+                'class': 'form-control', 
+                'type': 'date',
+                'max': date.today().isoformat(),
+            }
+        )
+    )
+    sucursal = forms.ModelChoiceField(
+        queryset=Sucursal.objects.filter(activa=True),
+        label="Sucursal",
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        required=True
+    )
+    
+    def __init__(self, *args, **kwargs):
+        self.instance = kwargs.pop('instance', None)
+        super(EditarEmpleadoForm, self).__init__(*args, **kwargs)
+        if self.instance:
+            self.initial['nombre'] = self.instance.nombre
+            self.initial['dni'] = self.instance.dni
+            self.initial['email'] = self.instance.email
+            self.initial['telefono'] = self.instance.telefono
+            self.initial['fecha_nacimiento'] = self.instance.fecha_nacimiento
+            self.initial['sucursal'] = self.instance.sucursal.id if self.instance.sucursal else None
+
+    def clean_telefono(self):
+        telefono = self.cleaned_data.get('telefono')
+        # Verificar si el teléfono ya existe, excluyendo al usuario actual
+        if telefono and User.objects.filter(telefono=telefono).exclude(id=self.instance.id).exists():
+            raise forms.ValidationError('Este número de teléfono ya está registrado.')
+        return telefono
+        
+    def clean_fecha_nacimiento(self):
+        fecha_nacimiento = self.cleaned_data.get('fecha_nacimiento')
+        if fecha_nacimiento:
+            # Verificar si es mayor de edad (18 años)
+            hoy = date.today()
+            edad = hoy.year - fecha_nacimiento.year - ((hoy.month, hoy.day) < (fecha_nacimiento.month, fecha_nacimiento.day))
+            if edad < 18:
+                raise forms.ValidationError('El empleado debe ser mayor de edad (18 años o más).')
+        return fecha_nacimiento
+    
+    def save(self):
+        empleado = self.instance
+        empleado.nombre = self.cleaned_data['nombre']
+        empleado.telefono = self.cleaned_data['telefono']
+        empleado.fecha_nacimiento = self.cleaned_data['fecha_nacimiento']
+        empleado.sucursal = self.cleaned_data['sucursal']
+        empleado.save()
+        return empleado

@@ -1,5 +1,5 @@
 # usuarios/views.py
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -12,7 +12,9 @@ from .forms import (
     TokenVerificationForm,
     RecuperarPasswordForm,
     RestablecerPasswordForm,
-    CambiarPasswordPerfilForm
+    CambiarPasswordPerfilForm,
+    EditarClienteForm,
+    EditarEmpleadoForm
 )
 from usuarios.decorators import solo_admin, solo_cliente, solo_empleado
 from django.core.paginator import Paginator
@@ -173,7 +175,10 @@ def crear_cliente_view(request):
 @login_required
 @solo_admin
 def listar_empleados_view(request):
-    empleados = Usuario.objects.filter(tipo="EMPLEADO").order_by('nombre') #Extraigo los empleados de la base de datos
+    # Excluir al empleado placeholder de la lista
+    empleados = Usuario.objects.filter(tipo="EMPLEADO").exclude(
+        email="empleado_eliminado@alquil.ar"
+    ).order_by('nombre') #Extraigo los empleados de la base de datos
 
     paginator = Paginator(empleados, 10) # 10 item por pagina
     page_number = request.GET.get('page')
@@ -190,7 +195,10 @@ def listar_empleados_view(request):
 @login_required
 @solo_empleado
 def listar_clientes_view(request):
-    clientes = Usuario.objects.filter(tipo="CLIENTE").order_by('nombre') #Extraigo los clientes de la base de datos
+    # Excluir al cliente placeholder de la lista
+    clientes = Usuario.objects.filter(tipo="CLIENTE").exclude(
+        email="cliente_eliminado@alquil.ar"
+    ).order_by('nombre') #Extraigo los clientes de la base de datos
 
     paginator = Paginator(clientes, 10) # 10 item por pagina
     page_number = request.GET.get('page')
@@ -209,12 +217,17 @@ def admin_sucursales(request):
     return render(request, 'usuarios/admin_sucursales.html')
 
 def sucursales_json_publico(request):
-    data = list(Sucursal.objects.filter(activa=True).values('id', 'nombre', 'direccion', 'telefono', 'latitud', 'longitud', 'activa'))
+    data = list(Sucursal.objects.filter(
+        activa=True, 
+        es_placeholder=False
+    ).values('id', 'nombre', 'direccion', 'telefono', 'latitud', 'longitud', 'activa'))
     return JsonResponse(data, safe=False)
 
 def todas_sucursales_json(request):
     """API para obtener todas las sucursales (para el admin)"""
-    data = list(Sucursal.objects.all().values('id', 'nombre', 'direccion', 'telefono', 'latitud', 'longitud', 'activa'))
+    data = list(Sucursal.objects.filter(
+        es_placeholder=False
+    ).values('id', 'nombre', 'direccion', 'telefono', 'latitud', 'longitud', 'activa'))
     return JsonResponse(data, safe=False)
 
 @csrf_exempt
@@ -374,8 +387,19 @@ def actualizar_ubicacion_sucursal(request, id):
 def eliminar_sucursal(request, id):
     try:
         sucursal = Sucursal.objects.get(id=id)
+        
+        # Verificar que no sea un placeholder
+        if sucursal.es_placeholder:
+            return JsonResponse({
+                'error': 'No se puede eliminar una sucursal placeholder utilizada para mantener datos históricos'
+            }, status=400)
+            
         nombre_sucursal = sucursal.nombre
+        
+        # El método delete() del modelo Sucursal ya maneja todas las verificaciones necesarias
+        # y la transferencia de datos a la sucursal placeholder si es necesario
         sucursal.delete()
+        
         return JsonResponse({
             'status': 'ok',
             'mensaje': f'Sucursal "{nombre_sucursal}" eliminada exitosamente'
@@ -445,12 +469,274 @@ def cambiar_password_perfil_view(request):
         form = CambiarPasswordPerfilForm(request.user)
     return render(request, 'usuarios/cambiar_password_perfil.html', {'form': form})
 
-'''
-def home_view(request):
-    """Vista principal/home del sistema"""
-    if request.user.is_authenticated:
-        return redirect('redireccionar_por_rol')
+@login_required
+@solo_empleado
+def eliminar_cliente_view(request, cliente_id):
+    """
+    Vista para eliminar un cliente
+    Solo se permite si todas sus reservas están finalizadas o si no tiene reservas
+    """
+    try:
+        cliente = Usuario.objects.get(id=cliente_id, tipo="CLIENTE")
+        
+        # Verificar si tiene reservas que no están en estado FINALIZADA
+        reservas_activas = cliente.reservas.exclude(estado='FINALIZADA').exists()
+        
+        if reservas_activas:
+            messages.error(request, 'No se puede eliminar el cliente porque tiene reservas activas.')
+            return redirect('listar_clientes')
+        
+        if request.method == 'POST':
+            # La confirmación ya se recibió, proceder con la transferencia y eliminación
+            nombre_cliente = cliente.nombre
+            
+            # Obtener o crear usuario placeholder para preservar datos históricos
+            usuario_eliminado = get_or_create_deleted_user_placeholder()
+            
+            # Transferir todas las reservas y sus relaciones al usuario placeholder
+            reservas = cliente.reservas.all()
+            if reservas.exists():
+                reservas.update(cliente=usuario_eliminado)
+                
+            # Verificar si hay reembolsos asociados y transferirlos
+            from django.db.models import Q
+            try:
+                # Intenta importar el modelo Reembolso si existe
+                from reservas.models import Reembolso
+                # Transferir reembolsos si existen
+                reembolsos = Reembolso.objects.filter(Q(reserva__cliente=cliente) | Q(cliente=cliente))
+                if reembolsos.exists():
+                    reembolsos.update(cliente=usuario_eliminado)
+            except ImportError:
+                # Si no existe el modelo, simplemente continuamos
+                pass
+                
+            # Ahora eliminar el cliente (ya no tiene reservas asociadas)
+            cliente.delete()
+            messages.success(request, f'Cliente {nombre_cliente} eliminado correctamente.')
+            return redirect('listar_clientes')
+        
+        # Obtener el número de reservas para el mensaje de confirmación
+        num_reservas = cliente.reservas.count()
+        
+        return render(request, 'usuarios/confirmar_eliminar_cliente.html', {
+            'cliente': cliente,
+            'num_reservas': num_reservas
+        })
+        
+    except Usuario.DoesNotExist:
+        messages.error(request, 'Cliente no encontrado.')
+        return redirect('listar_clientes')
+
+@login_required
+@solo_empleado
+def editar_cliente_view(request, cliente_id):
+    """
+    Vista para editar un cliente
+    Solo permite editar nombre, teléfono y fecha de nacimiento
+    """
+    cliente = get_object_or_404(Usuario, id=cliente_id, tipo="CLIENTE")
+    
+    if request.method == 'POST':
+        form = EditarClienteForm(request.POST, instance=cliente)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Cliente {cliente.nombre} actualizado correctamente.')
+            return redirect('listar_clientes')
+        else:
+            messages.error(request, 'Por favor, corrige los errores en el formulario.')
     else:
-        return redirect('login')
-'''
+        form = EditarClienteForm(instance=cliente)
+    
+    context = {
+        'form': form,
+        'cliente': cliente,
+        'titulo': 'Editar Cliente'
+    }
+    
+    return render(request, 'usuarios/editar_cliente.html', context)
+
+@login_required
+@solo_admin
+def editar_empleado_view(request, empleado_id):
+    """
+    Vista para editar un empleado
+    Permite modificar nombre, teléfono, fecha de nacimiento y sucursal
+    Email y DNI no son editables
+    """
+    empleado = get_object_or_404(Usuario, id=empleado_id, tipo="EMPLEADO")
+    
+    if request.method == 'POST':
+        form = EditarEmpleadoForm(request.POST, instance=empleado)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Empleado {empleado.nombre} actualizado correctamente.')
+            return redirect('listar_empleados')
+        else:
+            messages.error(request, 'Por favor, corrige los errores en el formulario.')
+    else:
+        form = EditarEmpleadoForm(instance=empleado)
+    
+    context = {
+        'form': form,
+        'empleado': empleado,
+        'titulo': 'Editar Empleado'
+    }
+    
+    return render(request, 'usuarios/editar_empleado.html', context)
+
+@login_required
+@solo_admin
+def eliminar_empleado_view(request, empleado_id):
+    """
+    Vista para eliminar un empleado
+    Preserva las transacciones históricas asociándolas a un empleado placeholder
+    Solo permite eliminación si todas las reservas están finalizadas
+    """
+    try:
+        empleado = Usuario.objects.get(id=empleado_id, tipo="EMPLEADO")
+        
+        # Verificar que no sea el único administrador si es admin
+        if empleado.tipo == "ADMIN" and Usuario.objects.filter(tipo="ADMIN").count() <= 1:
+            messages.error(request, 'No se puede eliminar al único administrador del sistema.')
+            return redirect('listar_empleados')
+            
+        # Verificar si tiene reservas que no están en estado FINALIZADA
+        try:
+            from reservas.models import Reserva
+            reservas_activas = Reserva.objects.filter(
+                empleado_procesador_id=empleado.id
+            ).exclude(estado='FINALIZADA').exists()
+            
+            if reservas_activas:
+                messages.error(request, 'No se puede eliminar el empleado porque tiene reservas activas.')
+                return redirect('listar_empleados')
+        except ImportError:
+            # Si no existe el modelo, simplemente continuamos
+            pass
+        
+        if request.method == 'POST':
+            # La confirmación ya se recibió, proceder con la transferencia y eliminación
+            nombre_empleado = empleado.nombre
+            
+            # Obtener o crear usuario placeholder para preservar datos históricos
+            usuario_eliminado = get_or_create_deleted_employee_placeholder()
+            
+            # Transferir todas las transacciones relevantes al usuario placeholder
+            # Esto dependerá de cómo esté modelado el sistema
+            
+            # Transferir reservas procesadas por este empleado al empleado placeholder
+            try:
+                from reservas.models import Reserva
+                
+                # Verificar si existen reservas asociadas y transferirlas al empleado placeholder
+                reservas = Reserva.objects.filter(empleado_procesador_id=empleado.id)
+                if reservas.exists():
+                    # Asegurarse de que todas están finalizadas (doble verificación)
+                    if reservas.exclude(estado='FINALIZADA').exists():
+                        messages.error(request, 'No se puede eliminar el empleado porque tiene reservas activas.')
+                        return redirect('listar_empleados')
+                    
+                    # Transferir las reservas finalizadas al empleado placeholder
+                    reservas.update(empleado_procesador_id=usuario_eliminado.id)
+            except (ImportError, AttributeError) as e:
+                # Si no existe el modelo o hay un error, lo registramos pero continuamos
+                print(f"Error al transferir reservas: {str(e)}")
+            
+            # Ahora eliminar el empleado
+            empleado.delete()
+            messages.success(request, f'Empleado {nombre_empleado} eliminado correctamente.')
+            return redirect('listar_empleados')
+        
+        return render(request, 'usuarios/confirmar_eliminar_empleado.html', {
+            'empleado': empleado
+        })
+        
+    except Usuario.DoesNotExist:
+        messages.error(request, 'Empleado no encontrado.')
+        return redirect('listar_empleados')
+
+def get_or_create_deleted_user_placeholder():
+    """
+    Retorna un usuario placeholder para mantener asociadas las reservas y reembolsos
+    de clientes eliminados, para fines estadísticos y de auditoría.
+    """
+    email = "cliente_eliminado@alquil.ar"
+    try:
+        # Intentar recuperar el usuario placeholder existente
+        return Usuario.objects.get(email=email)
+    except Usuario.DoesNotExist:
+        # Crear el usuario placeholder si no existe
+        import string
+        import random
+        from datetime import date
+        
+        # Generar una contraseña aleatoria segura que no se usará
+        password = ''.join(random.choice(string.ascii_letters + string.digits + string.punctuation) for _ in range(32))
+        
+        # Crear el usuario placeholder
+        deleted_user = Usuario.objects.create_user(
+            username=email,
+            email=email,
+            password=password,
+            nombre="Cliente Eliminado",
+            dni="00000000",
+            telefono="0000000000",
+            fecha_nacimiento=date(2000, 1, 1),  # Fecha arbitraria
+            tipo='CLIENTE'
+        )
+        return deleted_user
+
+def get_or_create_deleted_employee_placeholder():
+    """
+    Retorna un usuario placeholder para mantener asociadas las transacciones
+    de empleados eliminados, para fines estadísticos y de auditoría.
+    """
+    email = "empleado_eliminado@alquil.ar"
+    try:
+        # Intentar recuperar el usuario placeholder existente
+        return Usuario.objects.get(email=email)
+    except Usuario.DoesNotExist:
+        # Crear el usuario placeholder si no existe
+        import string
+        import random
+        from datetime import date
+        
+        # Generar una contraseña aleatoria segura que no se usará
+        password = ''.join(random.choice(string.ascii_letters + string.digits + string.punctuation) for _ in range(32))
+        
+        # Crear el usuario placeholder
+        deleted_user = Usuario.objects.create_user(
+            username=email,
+            email=email,
+            password=password,
+            nombre="Empleado Eliminado",
+            dni="00000001",
+            telefono="0000000001",
+            fecha_nacimiento=date(2000, 1, 1),  # Fecha arbitraria
+            tipo='EMPLEADO'
+        )
+        return deleted_user
+
+def get_or_create_deleted_sucursal_placeholder():
+    """
+    Retorna una sucursal placeholder para mantener asociadas las reservas 
+    de sucursales eliminadas, para fines estadísticos y de auditoría.
+    """
+    nombre = "Sucursal Eliminada"
+    try:
+        # Intentar recuperar la sucursal placeholder existente
+        return Sucursal.objects.get(es_placeholder=True)
+    except Sucursal.DoesNotExist:
+        # Crear la sucursal placeholder si no existe
+        deleted_sucursal = Sucursal.objects.create(
+            nombre=nombre,
+            direccion="N/A",
+            telefono="0000000000",
+            latitud=0.0,
+            longitud=0.0,
+            activa=False,
+            es_placeholder=True
+        )
+        return deleted_sucursal
 

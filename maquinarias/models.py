@@ -30,6 +30,8 @@ class Maquinaria(models.Model):
     cantDias_total = models.SmallIntegerField()
     cantDias_parcial = models.SmallIntegerField()
     cantDias_nulo = models.SmallIntegerField()
+    # Nuevo campo para identificar maquinarias eliminadas/placeholder
+    es_placeholder = models.BooleanField(default=False)
     
     # Relación many-to-many con Sucursal a través de MaquinariaStock
     sucursales = models.ManyToManyField(Sucursal, through='MaquinariaStock', related_name='maquinarias')
@@ -124,7 +126,27 @@ class Maquinaria(models.Model):
                 self
             )
         
-        # If all reservations are finalized, proceed with deletion
+        # Check if there are any finalized reservations for this machinery
+        finalized_reservations = Reserva.objects.filter(
+            maquinaria=self, 
+            estado='FINALIZADA'
+        ).exists()
+        
+        if finalized_reservations:
+            # Get or create a placeholder for machinery
+            from maquinarias.views import get_or_create_deleted_machinery_placeholder
+            maquinaria_placeholder = get_or_create_deleted_machinery_placeholder()
+            
+            # Transfer all finalized reservations to the placeholder
+            Reserva.objects.filter(
+                maquinaria=self,
+                estado='FINALIZADA'
+            ).update(maquinaria=maquinaria_placeholder)
+            
+            # Now we can safely delete the machinery
+            return super().delete(*args, **kwargs)
+        
+        # If there are no reservations at all, just delete normally
         return super().delete(*args, **kwargs)
 
     def clean(self):

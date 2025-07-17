@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="card">
+        <div class="card-header bg-danger text-white">
+            <h3 class="mb-0">Confirmar eliminación</h3>
+        </div>
+        
+        <div class="card-body">
+            <div class="alert alert-warning">
+                <h4 class="alert-heading">¡Atención!</h4>
+                <p>Estás a punto de eliminar al empleado <strong>{{ empleado.nombre }}</strong> ({{ empleado.email }}).</p>
+                
+                <p>
+                    Los datos históricos asociados a este empleado se preservarán para 
+                    fines de estadísticas, auditorías y facturación.
+                </p>
+                <p><strong>La eliminación del empleado no se puede deshacer.</strong></p>
+            </div>
+            
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{% url 'listar_empleados' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left me-1"></i> Cancelar
+                </a>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash-alt me-1"></i> Confirmar eliminación
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

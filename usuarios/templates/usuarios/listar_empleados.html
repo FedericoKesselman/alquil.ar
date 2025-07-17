@@ -36,12 +36,12 @@
                                 <td>{{ empleado.sucursal.nombre|default:"-" }}</td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <a href="{% url 'crear_empleado' %}" class="btn btn-warning" title="Editar">
+                                        <a href="{% url 'editar_empleado' empleado.id %}" class="btn btn-warning" title="Editar">
                                             <i class="fas fa-edit"></i>
-                                        </a> <!-- Aca iria el editar empleado (Hay que mandarle despues de la url empleado.id) -->
-                                        <a href="{% url 'crear_empleado' %}" class="btn btn-danger" title="Eliminar">
+                                        </a>
+                                        <a href="{% url 'eliminar_empleado' empleado.id %}" class="btn btn-danger" title="Eliminar">
                                             <i class="fas fa-trash-alt"></i>
-                                        </a><!-- Aca iria el eliminar empleado -->
+                                        </a>
                                     </div>
                                 </td>
                             </tr>
