@@ -147,12 +147,26 @@
         </div>
         <div class="card-footer bg-transparent border-top-0">
           {% if user.is_authenticated %}
-            <a href="{% url 'maquinaria_detail' maquinaria.pk %}" class="btn btn-primary w-100">
-              <i class="fas fa-info-circle"></i> Ver Detalles
-            </a>
+            <div class="d-flex gap-2 mb-2">
+              <a href="{% url 'maquinaria_detail' maquinaria.pk %}" class="btn btn-primary flex-grow-1">
+                <i class="bi bi-info-circle"></i> Ver Detalles
+              </a>
+              
+              {% if user.tipo == 'CLIENTE' %}
+                {% if maquinaria.id in favoritos_ids %}
+                  <a href="{% url 'eliminar_favorito' maquinaria.pk %}" class="btn btn-outline-primary">
+                    <i class="bi bi-bookmark-fill"></i>
+                  </a>
+                {% else %}
+                  <a href="{% url 'agregar_favorito' maquinaria.pk %}" class="btn btn-outline-primary">
+                    <i class="bi bi-bookmark"></i>
+                  </a>
+                {% endif %}
+              {% endif %}
+            </div>
           {% else %}
             <a href="{% url 'login' %}?next={% url 'maquinaria_detail' maquinaria.pk %}" class="btn btn-outline-secondary w-100">
-              <i class="fas fa-sign-in-alt"></i> Iniciar sesión para ver detalles
+              <i class="bi bi-box-arrow-in-right"></i> Iniciar sesión para ver detalles
             </a>
           {% endif %}
         </div>

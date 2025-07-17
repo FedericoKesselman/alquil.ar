@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mis Maquinarias Favoritas{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">
+        <i class="bi bi-bookmark-fill"></i> Mis Maquinarias Favoritas
+    </h2>
+
+    {% if favoritos %}
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4">
+            {% for favorito in favoritos %}
+                <div class="col">
+                    <div class="card h-100">
+                        {% if favorito.maquinaria.imagen %}
+                            <img src="{{ favorito.maquinaria.imagen.url }}" class="card-img-top" alt="{{ favorito.maquinaria.nombre }}" style="height: 200px; object-fit: cover;">
+                        {% else %}
+                            <div class="bg-light text-center p-5">
+                                <i class="bi bi-tools" style="font-size: 3rem;"></i>
+                            </div>
+                        {% endif %}
+                        <div class="card-body">
+                            <h5 class="card-title">{{ favorito.maquinaria.nombre }}</h5>
+                            <p class="card-text">
+                                <strong>Tipo:</strong> {{ favorito.maquinaria.tipo.nombre }}<br>
+                                <strong>Marca:</strong> {{ favorito.maquinaria.marca }}<br>
+                                <strong>Modelo:</strong> {{ favorito.maquinaria.modelo }}
+                            </p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-primary fw-bold">${{ favorito.maquinaria.precio_por_dia|floatformat:2 }}</span>
+                                <div>
+                                    {% if favorito.maquinaria.stock_disponible > 0 %}
+                                        <span class="badge bg-success">Disponible</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">No disponible</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer d-flex justify-content-between">
+                            <a href="{% url 'maquinaria_detail' favorito.maquinaria.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-info-circle"></i> Detalles
+                            </a>
+                            <a href="{% url 'eliminar_favorito' favorito.maquinaria.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-bookmark-dash"></i> Quitar de favoritos
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- Paginación -->
+        {% if favoritos.paginator.num_pages > 1 %}
+        <nav aria-label="Paginación" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if favoritos.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1">Primera</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ favoritos.previous_page_number }}">Anterior</a>
+                    </li>
+                {% endif %}
+
+                {% for num in favoritos.paginator.page_range %}
+                    {% if favoritos.number == num %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ num }}</span>
+                        </li>
+                    {% elif num > favoritos.number|add:'-3' and num < favoritos.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if favoritos.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ favoritos.next_page_number }}">Siguiente</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ favoritos.paginator.num_pages }}">Última</a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+
+    {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Aún no tienes maquinarias favoritas. Explora el <a href="{% url 'maquinaria_list_cliente' %}">catálogo</a> para añadir algunas.
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

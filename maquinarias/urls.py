@@ -15,6 +15,11 @@ urlpatterns = [
     path('editar/<int:pk>/', views.maquinaria_update, name='maquinaria_update'),
     path('eliminar/<int:pk>/', views.maquinaria_delete, name='maquinaria_delete'),
     path('detalle/<int:pk>/', views.maquinaria_detail, name='maquinaria_detail'),
+    
+    # URLs para Maquinarias Favoritas
+    path('favoritos/', views.maquinarias_favoritas, name='maquinarias_favoritas'),
+    path('favoritos/agregar/<int:pk>/', views.agregar_favorito, name='agregar_favorito'),
+    path('favoritos/eliminar/<int:pk>/', views.eliminar_favorito, name='eliminar_favorito'),
     path('admin/tipos/', views.tipo_maquinaria_list, name='tipo_maquinaria_list'),
     path('admin/tipos/crear/', views.tipo_maquinaria_create, name='tipo_maquinaria_create'),
     path('admin/tipos/<int:pk>/editar/', views.tipo_maquinaria_update, name='tipo_maquinaria_update'),

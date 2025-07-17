@@ -1,6 +1,6 @@
 #maquinarias/models.py
 from django.db import models
-from usuarios.models import Sucursal
+from usuarios.models import Sucursal, Usuario
 
 class TipoMaquinaria(models.Model):
     nombre = models.CharField(max_length=50, unique=True)
@@ -189,3 +189,17 @@ class MaquinariaStock(models.Model):
         super().delete(*args, **kwargs)
         # Actualizar los totales de la maquinaria después de eliminar
         maquinaria.actualizar_stocks()
+
+class MaquinariaFavorita(models.Model):
+    """Modelo para guardar las maquinarias favoritas de los clientes"""
+    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='maquinarias_favoritas')
+    maquinaria = models.ForeignKey(Maquinaria, on_delete=models.CASCADE, related_name='favoritos')
+    fecha_agregado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('usuario', 'maquinaria')
+        verbose_name = "Maquinaria Favorita"
+        verbose_name_plural = "Maquinarias Favoritas"
+
+    def __str__(self):
+        return f"{self.usuario.nombre} - {self.maquinaria.nombre}"

@@ -73,6 +73,13 @@
               </a>
             </li>
             {% endif %}
+            {% if user.tipo == 'CLIENTE' %}
+              <li class="nav-item me-2">
+                <a class="nav-link" href="{% url 'maquinarias_favoritas' %}">
+                  <i class="bi bi-bookmark"></i> Favoritos
+                </a>
+              </li>
+            {% endif %}
           </ul>
           
           <!-- Panel derecho con funciones específicas por rol -->
@@ -107,7 +114,6 @@
                       <i class="bi bi-shop"></i> Gestionar Sucursales</a></li>
                   </ul>
                 </li>
-                
               {% elif user.tipo == 'EMPLEADO' %}
                 <!-- Panel de Empleado -->
                 <li class="nav-item dropdown me-2">

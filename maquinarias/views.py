@@ -6,10 +6,13 @@ from django.core.paginator import Paginator
 from django.views.generic import ListView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.forms import formset_factory
-from .models import Maquinaria, TipoMaquinaria, MaquinariaStock
+from django import forms
+from django.http import JsonResponse, HttpResponseRedirect
+from django.urls import reverse
+from .models import Maquinaria, TipoMaquinaria, MaquinariaStock, MaquinariaFavorita
 from .forms import (MaquinariaForm, MaquinariaUpdateForm, TipoMaquinariaForm, 
                    MaquinariaStockFormSet, MaquinariaStockForm)
-from usuarios.decorators import solo_admin, solo_empleado
+from usuarios.decorators import solo_admin, solo_empleado, solo_cliente
 from usuarios.models import Sucursal
 
 # Vistas para Tipos de Maquinaria
@@ -201,6 +204,13 @@ def maquinaria_list_cliente(request):
         elif request.user.calificacion <= 2.0:
             context['aplicar_recargo'] = True
             context['porcentaje_recargo'] = 20
+            
+        # Obtener los IDs de maquinarias favoritas del cliente
+        favoritos_ids = MaquinariaFavorita.objects.filter(
+            usuario=request.user
+        ).values_list('maquinaria_id', flat=True)
+        
+        context['favoritos_ids'] = set(favoritos_ids)
     
     return render(request, 'maquinarias/maquinaria_list_cliente.html', context)
 
@@ -372,6 +382,14 @@ def maquinaria_detail(request, pk):
         context['aplicar_recargo'] = porcentaje_recargo > 0
         context['porcentaje_recargo'] = porcentaje_recargo
         context['precio_con_recargo'] = precio_ajustado
+        
+        # Verificar si la maquinaria está en favoritos
+        is_favorito = MaquinariaFavorita.objects.filter(
+            usuario=request.user, 
+            maquinaria=maquinaria
+        ).exists()
+        
+        context['is_favorito'] = is_favorito
     
     return render(request, 'maquinarias/maquinaria_detail.html', context)
 
@@ -388,3 +406,60 @@ class MaquinariaListCliente(LoginRequiredMixin, ListView):
             stocks__stock_disponible__gt=0,
             stocks__sucursal__activa=True
         ).distinct().order_by('nombre')
+
+@login_required
+@solo_cliente
+def maquinarias_favoritas(request):
+    """Vista para mostrar las maquinarias favoritas del cliente"""
+    favoritos = MaquinariaFavorita.objects.filter(usuario=request.user).select_related('maquinaria')
+    
+    # Paginar los resultados
+    paginator = Paginator(favoritos, 12)
+    page = request.GET.get('page')
+    favoritos = paginator.get_page(page)
+    
+    context = {
+        'favoritos': favoritos,
+        'is_cliente': True,
+    }
+    
+    return render(request, 'maquinarias/maquinarias_favoritas.html', context)
+
+@login_required
+@solo_cliente
+def agregar_favorito(request, pk):
+    """Vista para agregar una maquinaria a favoritos"""
+    maquinaria = get_object_or_404(Maquinaria, pk=pk)
+    
+    # Verificar si ya existe como favorito
+    favorito_existente = MaquinariaFavorita.objects.filter(usuario=request.user, maquinaria=maquinaria).exists()
+    
+    if not favorito_existente:
+        # Crear el nuevo favorito
+        MaquinariaFavorita.objects.create(usuario=request.user, maquinaria=maquinaria)
+        messages.success(request, f"¡{maquinaria.nombre} añadida a tus favoritos!")
+    else:
+        messages.info(request, "Esta maquinaria ya está en tus favoritos")
+    
+    # Redirigir a la página anterior
+    referer = request.META.get('HTTP_REFERER')
+    if referer:
+        return HttpResponseRedirect(referer)
+    else:
+        return redirect('maquinaria_list_cliente')
+
+@login_required
+@solo_cliente
+def eliminar_favorito(request, pk):
+    """Vista para eliminar una maquinaria de favoritos"""
+    favorito = get_object_or_404(MaquinariaFavorita, maquinaria_id=pk, usuario=request.user)
+    nombre_maquinaria = favorito.maquinaria.nombre
+    favorito.delete()
+    messages.success(request, f"{nombre_maquinaria} ha sido eliminada de tus favoritos")
+    
+    # Redirigir a la página anterior o a favoritos
+    referer = request.META.get('HTTP_REFERER')
+    if referer and 'favoritos' in referer:
+        return HttpResponseRedirect(referer)
+    else:
+        return redirect('maquinaria_list_cliente')
