@@ -54,12 +54,32 @@ def generar_estadisticas(fecha_desde, fecha_hasta, tipo_estadistica):
         if not maquinas_stats:
             context['error'] = "No hay datos suficientes para computar la estadística solicitada."
             return context
+        
+        # Crear etiquetas y datos agrupando maquinarias eliminadas
+        labels = []
+        data = []
+        maquinarias_eliminadas_total = 0
+        
+        for item in maquinas_stats:
+            nombre = item['maquinaria__nombre']
+            
+            # Si es una maquinaria eliminada, acumular en una categoría general
+            if nombre == "Maquinaria Eliminada":
+                maquinarias_eliminadas_total += item['total_alquileres']
+            else:
+                labels.append(nombre)
+                data.append(item['total_alquileres'])
+        
+        # Si hay maquinarias eliminadas, agregar una entrada consolidada
+        if maquinarias_eliminadas_total > 0:
+            labels.append("Maquinarias Eliminadas")
+            data.append(maquinarias_eliminadas_total)
             
         context['datos_grafico'] = {
             'tipo': 'bar',
             'titulo': 'Máquinas Más Alquiladas',
-            'labels': [item['maquinaria__nombre'] for item in maquinas_stats],
-            'data': [item['total_alquileres'] for item in maquinas_stats],
+            'labels': labels,
+            'data': data,
             'color': 'rgba(54, 162, 235, 0.6)',
             'borde': 'rgba(54, 162, 235, 1)',
             'leyenda': 'Número de Alquileres'
@@ -101,15 +121,34 @@ def generar_estadisticas(fecha_desde, fecha_hasta, tipo_estadistica):
             item['monto_formateado'] = f"${float(item['total_monto']):.2f}"
         
         # Crear etiquetas que incluyan nombre, DNI y monto total
+        # Agrupar clientes eliminados para evitar mostrar DNIs específicos
         labels = []
+        data = []
+        clientes_eliminados_total = 0
+        monto_eliminados_total = 0
+        
         for item in usuarios_stats:
-            labels.append(f"{item['cliente__nombre']} (DNI: {item['cliente__dni']}) - {item['monto_formateado']}")
+            nombre = item['cliente__nombre']
+            dni = item['cliente__dni']
+            
+            # Si es un cliente eliminado, acumular en una categoría general
+            if nombre == "Cliente Eliminado" or dni == "00000":
+                clientes_eliminados_total += item['total_reservas']
+                monto_eliminados_total += float(item['total_monto'])
+            else:
+                labels.append(f"{nombre} (DNI: {dni}) - {item['monto_formateado']}")
+                data.append(item['total_reservas'])
+        
+        # Si hay clientes eliminados, agregar una entrada consolidada
+        if clientes_eliminados_total > 0:
+            labels.append(f"Clientes Eliminados - ${monto_eliminados_total:.2f}")
+            data.append(clientes_eliminados_total)
         
         context['datos_grafico'] = {
             'tipo': 'bar',
             'titulo': 'Usuarios con Más Reservas',
             'labels': labels,
-            'data': [item['total_reservas'] for item in usuarios_stats],
+            'data': data,
             'color': 'rgba(75, 192, 192, 0.6)',
             'borde': 'rgba(75, 192, 192, 1)',
             'leyenda': 'Número de Reservas'
