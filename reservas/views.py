@@ -9,7 +9,7 @@ from django.db.models import Q
 from django.utils import timezone
 from datetime import datetime, timedelta
 from usuarios.decorators import solo_cliente, solo_empleado, solo_admin
-from usuarios.models import Usuario, Sucursal
+from usuarios.models import Usuario, Sucursal, Cupon
 from maquinarias.models import Maquinaria, MaquinariaStock
 from .models import Reserva
 from .forms import (
@@ -17,7 +17,9 @@ from .forms import (
     BusquedaReservasForm, EditarReservaForm, ReservaEmpleadoForm,
     ReservaPorCodigoForm, DevolucionForm
 )
+from .forms_cupon import AplicarCuponForm
 import decimal
+from .forms_cupon import AplicarCuponForm
 import logging
 import os
 import mercadopago
@@ -231,7 +233,39 @@ def confirmar_reservas(request):
 
                 # Aplicar recargo según calificación del cliente
                 precio_por_dia, _ = maquinaria.get_precio_para_cliente(cliente)
-                precio_total = precio_por_dia * dias * reserva_data['cantidad_solicitada']
+                precio_base = precio_por_dia * dias * reserva_data['cantidad_solicitada']
+                
+                # Convertir a Decimal para mantener consistencia
+                precio_base = decimal.Decimal(str(precio_base)).quantize(decimal.Decimal('0.01'), rounding=decimal.ROUND_HALF_UP)
+                precio_total = precio_base
+
+                # Aplicar descuento de cupón si existe
+                descuento_aplicado = decimal.Decimal('0.00')
+                precio_antes_descuento = None
+                
+                if 'codigo_cupon' in reserva_data and reserva_data['codigo_cupon']:
+                    try:
+                        codigo_cupon = reserva_data['codigo_cupon']
+                        cupon = Cupon.objects.get(codigo=codigo_cupon)
+                        
+                        if 'descuento_aplicado' in reserva_data:
+                            descuento_aplicado = decimal.Decimal(reserva_data['descuento_aplicado'])
+                            
+                            # Usar el precio_base de la sesión si está disponible
+                            if 'precio_base' in reserva_data:
+                                precio_antes_descuento = decimal.Decimal(reserva_data['precio_base'])
+                            else:
+                                precio_antes_descuento = precio_base
+                                
+                            precio_total = precio_antes_descuento - descuento_aplicado
+                            print(f"=== CONFIRMAR EMPLEADO DEBUG ===")
+                            print(f"Precio base: ${precio_antes_descuento}")
+                            print(f"Descuento aplicado: ${descuento_aplicado}")
+                            print(f"Precio total con descuento: ${precio_total}")
+                    except Cupon.DoesNotExist:
+                        logger.error(f"No se encontró el cupón con código {reserva_data['codigo_cupon']}")
+                    except Exception as e:
+                        logger.error(f"Error al aplicar el cupón: {str(e)}")
 
                 # Round to 2 decimal places to ensure it fits the model constraint
                 precio_total = decimal.Decimal(str(precio_total)).quantize(decimal.Decimal('0.01'), rounding=decimal.ROUND_HALF_UP)
@@ -249,6 +283,26 @@ def confirmar_reservas(request):
                     precio_total=precio_total,
                     empleado_procesador=request.user
                 )
+                
+                # Si se aplicó un cupón, actualizar la reserva y el cupón
+                if 'codigo_cupon' in reserva_data and reserva_data['codigo_cupon'] and descuento_aplicado > 0:
+                    try:
+                        cupon = Cupon.objects.get(codigo=reserva_data['codigo_cupon'])
+                        
+                        # Actualizar información del descuento y el precio final en la reserva
+                        reserva.precio_antes_descuento = precio_antes_descuento if precio_antes_descuento else precio_base
+                        reserva.descuento_aplicado = descuento_aplicado
+                        reserva.precio_total = precio_total
+                        reserva.save()
+                        
+                        # Marcar el cupón como usado y asociarlo a la reserva
+                        cupon.usado = True
+                        cupon.reserva_uso = reserva
+                        cupon.save()
+                        
+                        logger.info(f"Cupón {cupon.codigo} aplicado a la reserva {reserva.id}")
+                    except Exception as e:
+                        logger.error(f"Error al finalizar la aplicación del cupón: {str(e)}")
 
                 # Limpiar datos de la sesión
                 del request.session['reserva_data']
@@ -268,7 +322,7 @@ def confirmar_reservas(request):
             messages.info(request, "Reserva cancelada")
             return redirect('home')
 
-    # GET request - mostrar página de confirmación
+    # GET request o aplicación de cupón
     reserva_data = request.session.get('reserva_data')
     if not reserva_data:
         messages.error(request, "No hay datos de reserva para confirmar")
@@ -286,10 +340,55 @@ def confirmar_reservas(request):
 
     # Aplicar recargo según calificación del cliente
     precio_por_dia, porcentaje_recargo = maquinaria.get_precio_para_cliente(cliente)
-    precio_total = precio_por_dia * dias * reserva_data['cantidad_solicitada']
-
+    precio_base = precio_por_dia * dias * reserva_data['cantidad_solicitada']
+    
     # Redondear a 2 decimales
-    precio_total = decimal.Decimal(str(precio_total)).quantize(decimal.Decimal('0.01'), rounding=decimal.ROUND_HALF_UP)
+    precio_base = decimal.Decimal(str(precio_base)).quantize(decimal.Decimal('0.01'), rounding=decimal.ROUND_HALF_UP)
+    precio_total = precio_base
+
+    # Buscar cupones disponibles para el cliente
+    cupones_disponibles = Cupon.objects.filter(
+        cliente=cliente, 
+        usado=False,
+        fecha_vencimiento__gte=timezone.now().date()
+    ).order_by('-fecha_creacion')
+
+    # Inicializar variables para cupones
+    cupon_aplicado = None
+    descuento_aplicado = decimal.Decimal('0.00')
+    
+    # Verificar si se está aplicando un cupón
+    if request.method == 'POST' and 'aplicar_cupon' in request.POST:
+        # Crear formulario con los datos enviados
+        form_cupon = AplicarCuponForm(request.POST, cliente=cliente, precio_reserva=precio_base)
+        
+        if form_cupon.is_valid():
+            # Calcular descuento
+            descuento_aplicado = form_cupon.get_descuento()
+            precio_total = precio_base - descuento_aplicado
+            
+            # Obtener el cupón aplicado para mostrarlo
+            codigo = form_cupon.cleaned_data.get('codigo_cupon')
+            if codigo:
+                try:
+                    cupon_aplicado = Cupon.objects.get(codigo=codigo)
+                except Cupon.DoesNotExist:
+                    cupon_aplicado = None
+            
+            # Guardar el descuento en la sesión para cuando se confirme la reserva
+            reserva_data['descuento_aplicado'] = str(descuento_aplicado)
+            reserva_data['codigo_cupon'] = codigo
+            reserva_data['precio_base'] = str(precio_base)  # También guardar el precio base
+            request.session['reserva_data'] = reserva_data
+            
+            messages.success(request, f"¡Cupón aplicado correctamente! Descuento: ${descuento_aplicado}")
+        else:
+            # Mostrar errores del formulario si el cupón no es válido
+            for field, errors in form_cupon.errors.items():
+                for error in errors:
+                    messages.error(request, f"Error en cupón: {error}")
+    else:
+        form_cupon = AplicarCuponForm(cliente=cliente, precio_reserva=precio_base)
 
     context = {
         'cliente': cliente,
@@ -298,8 +397,13 @@ def confirmar_reservas(request):
         'fecha_inicio': reserva_data['fecha_inicio'],
         'fecha_fin': reserva_data['fecha_fin'],
         'cantidad_solicitada': reserva_data['cantidad_solicitada'],
+        'precio_base': precio_base,
         'precio_total': precio_total,
-        'titulo': 'Confirmar Reserva'
+        'titulo': 'Confirmar Reserva',
+        'cupones_disponibles': cupones_disponibles,
+        'form_cupon': form_cupon,
+        'cupon_aplicado': cupon_aplicado,
+        'descuento_aplicado': descuento_aplicado
     }
 
     return render(request, 'reservas/confirmar_reservas.html', context)
@@ -354,7 +458,37 @@ def confirmar_reserva_cliente(request):
                 
                 # Aplicar recargo según calificación del cliente
                 precio_por_dia, _ = maquinaria.get_precio_para_cliente(cliente)
-                precio_total = precio_por_dia * dias * int(reserva_data['cantidad_solicitada'])
+                precio_base = precio_por_dia * dias * int(reserva_data['cantidad_solicitada'])
+                precio_total = precio_base
+                
+                # Aplicar descuento de cupón si existe
+                descuento_aplicado = decimal.Decimal('0.00')
+                precio_antes_descuento = None
+                
+                if 'codigo_cupon' in reserva_data and reserva_data['codigo_cupon']:
+                    try:
+                        codigo_cupon = reserva_data['codigo_cupon']
+                        cupon = Cupon.objects.get(codigo=codigo_cupon)
+                        
+                        if 'descuento_aplicado' in reserva_data:
+                            descuento_aplicado = decimal.Decimal(reserva_data['descuento_aplicado'])
+                            
+                            # Usar el precio_base de la sesión si está disponible
+                            if 'precio_base' in reserva_data:
+                                precio_antes_descuento = decimal.Decimal(reserva_data['precio_base'])
+                            else:
+                                precio_antes_descuento = precio_base
+                                
+                            precio_total = precio_antes_descuento - descuento_aplicado
+                            print(f"=== CONFIRMAR CLIENTE DEBUG ===")
+                            print(f"Precio base: ${precio_antes_descuento}")
+                            print(f"Descuento aplicado: ${descuento_aplicado}")
+                            print(f"Precio total con descuento: ${precio_total}")
+                    except Cupon.DoesNotExist:
+                        logger.error(f"No se encontró el cupón con código {reserva_data['codigo_cupon']}")
+                    except Exception as e:
+                        logger.error(f"Error al aplicar el cupón: {str(e)}")
+                
                 # Redondear a 2 decimales para evitar errores de validación
                 precio_total = decimal.Decimal(str(precio_total)).quantize(decimal.Decimal('0.01'), rounding=decimal.ROUND_HALF_UP)
                 
@@ -370,6 +504,46 @@ def confirmar_reserva_cliente(request):
                     estado='PENDIENTE_PAGO',
                     precio_total=precio_total
                 )
+                
+                # Si se aplicó un cupón, actualizar la reserva y el cupón
+                if 'codigo_cupon' in reserva_data and reserva_data['codigo_cupon'] and descuento_aplicado > 0:
+                    try:
+                        cupon = Cupon.objects.get(codigo=reserva_data['codigo_cupon'])
+                        
+                        # Asegurar que los valores son Decimal con 2 decimales máximo
+                        if precio_antes_descuento:
+                            precio_antes_descuento_decimal = decimal.Decimal(str(precio_antes_descuento)).quantize(
+                                decimal.Decimal('0.01'), rounding=decimal.ROUND_HALF_UP
+                            )
+                        else:
+                            precio_antes_descuento_decimal = precio_base
+                            
+                        descuento_aplicado_decimal = decimal.Decimal(str(descuento_aplicado)).quantize(
+                            decimal.Decimal('0.01'), rounding=decimal.ROUND_HALF_UP
+                        )
+                        precio_total_decimal = decimal.Decimal(str(precio_total)).quantize(
+                            decimal.Decimal('0.01'), rounding=decimal.ROUND_HALF_UP
+                        )
+                        
+                        # Actualizar información del descuento y el precio final en la reserva
+                        reserva.precio_antes_descuento = precio_antes_descuento_decimal
+                        reserva.descuento_aplicado = descuento_aplicado_decimal
+                        reserva.precio_total = precio_total_decimal
+                        reserva.save()
+                        
+                        # Marcar el cupón como usado y asociarlo a la reserva
+                        cupon.usado = True
+                        cupon.reserva_uso = reserva
+                        cupon.save()
+                        
+                        print(f"=== CUPÓN GUARDADO ===")
+                        print(f"Precio antes descuento guardado: ${reserva.precio_antes_descuento}")
+                        print(f"Descuento aplicado guardado: ${reserva.descuento_aplicado}")
+                        print(f"Precio total guardado: ${reserva.precio_total}")
+                        
+                        logger.info(f"Cupón {cupon.codigo} aplicado a la reserva {reserva.id}")
+                    except Exception as e:
+                        logger.error(f"Error al finalizar la aplicación del cupón: {str(e)}")
                 
                 # Verificar disponibilidad
                 try:
@@ -435,7 +609,55 @@ def confirmar_reserva_cliente(request):
     fecha_fin = datetime.strptime(reserva_data['fecha_fin'], '%Y-%m-%d').date()
     dias = (fecha_fin - fecha_inicio).days + 1  # +1 para incluir el día de inicio
     precio_por_dia, porcentaje_recargo = maquinaria.get_precio_para_cliente(cliente)
-    precio_total = precio_por_dia * dias * int(reserva_data['cantidad_solicitada'])
+    precio_base = precio_por_dia * dias * int(reserva_data['cantidad_solicitada'])
+    
+    # Convertir a Decimal para mantener consistencia con el resto del código
+    precio_base = decimal.Decimal(str(precio_base)).quantize(decimal.Decimal('0.01'), rounding=decimal.ROUND_HALF_UP)
+    precio_total = precio_base
+
+    # Buscar cupones disponibles para el cliente
+    cupones_disponibles = Cupon.objects.filter(
+        cliente=cliente, 
+        usado=False,
+        fecha_vencimiento__gte=timezone.now().date()
+    ).order_by('-fecha_creacion')
+
+    # Inicializar variables para cupones
+    cupon_aplicado = None
+    descuento_aplicado = decimal.Decimal('0.00')
+    
+    # Verificar si se está aplicando un cupón
+    if request.method == 'POST' and 'aplicar_cupon' in request.POST:
+        # Crear formulario con los datos enviados
+        form_cupon = AplicarCuponForm(request.POST, cliente=cliente, precio_reserva=precio_base)
+        
+        if form_cupon.is_valid():
+            # Calcular descuento
+            descuento_aplicado = form_cupon.get_descuento()
+            precio_total = precio_base - descuento_aplicado
+            
+            # Obtener el cupón aplicado para mostrarlo
+            codigo = form_cupon.cleaned_data.get('codigo_cupon')
+            if codigo:
+                try:
+                    cupon_aplicado = Cupon.objects.get(codigo=codigo)
+                except Cupon.DoesNotExist:
+                    cupon_aplicado = None
+            
+            # Guardar el descuento en la sesión para cuando se confirme la reserva
+            reserva_data['descuento_aplicado'] = str(descuento_aplicado)
+            reserva_data['codigo_cupon'] = codigo
+            reserva_data['precio_base'] = str(precio_base)  # También guardar el precio base
+            request.session['reserva_data'] = reserva_data
+            
+            messages.success(request, f"¡Cupón aplicado correctamente! Descuento: ${descuento_aplicado}")
+        else:
+            # Mostrar errores del formulario si el cupón no es válido
+            for field, errors in form_cupon.errors.items():
+                for error in errors:
+                    messages.error(request, f"Error en cupón: {error}")
+    else:
+        form_cupon = AplicarCuponForm(cliente=cliente, precio_reserva=precio_base)
     
     context = {
         'cliente': cliente,
@@ -444,10 +666,15 @@ def confirmar_reserva_cliente(request):
         'fecha_inicio': reserva_data['fecha_inicio'],
         'fecha_fin': reserva_data['fecha_fin'],
         'cantidad_solicitada': reserva_data['cantidad_solicitada'],
+        'precio_base': precio_base,
         'precio_total': precio_total,
         'titulo': 'Confirmar Reserva',
         'aplicar_recargo': porcentaje_recargo > 0,
-        'porcentaje_recargo': porcentaje_recargo
+        'porcentaje_recargo': porcentaje_recargo,
+        'cupones_disponibles': cupones_disponibles,
+        'form_cupon': form_cupon,
+        'cupon_aplicado': cupon_aplicado,
+        'descuento_aplicado': descuento_aplicado
     }
     
     return render(request, 'reservas/confirmar_reserva_cliente.html', context)
@@ -543,6 +770,26 @@ def procesar_pago(request, reserva_id):
         # Verificar que el usuario puede acceder a esta reserva
         if request.user != reserva.cliente and not request.user.tipo in ['ADMIN', 'EMPLEADO']:
             return HttpResponseForbidden("No tiene permisos para acceder a esta reserva.")
+        
+        # Refrescar la reserva y ajustar precio si hay cupón aplicado
+        reserva.refresh_from_db()
+        
+        # Log para debugging
+        print(f"=== PROCESAR PAGO DEBUG ===")
+        print(f"Reserva ID: {reserva.id}")
+        print(f"Precio total actual: ${reserva.precio_total}")
+        print(f"Precio antes descuento: ${reserva.precio_antes_descuento}")
+        print(f"Descuento aplicado: ${reserva.descuento_aplicado}")
+        
+        if reserva.precio_antes_descuento and reserva.descuento_aplicado and reserva.descuento_aplicado > 0:
+            precio_calculado = reserva.precio_antes_descuento - reserva.descuento_aplicado
+            print(f"Precio calculado: ${precio_calculado}")
+            if precio_calculado != reserva.precio_total:
+                print(f"Actualizando precio de ${reserva.precio_total} a ${precio_calculado}")
+                reserva.precio_total = precio_calculado
+                reserva.save()
+            else:
+                print("El precio ya está correcto, no se actualiza")
         
         # Obtener información de recargo según calificación del cliente
         cliente = reserva.cliente
@@ -1468,11 +1715,25 @@ def gen_preference_mp(request, reserva):
         # URL base de ngrok
         base_url = NGROK_URL
 
+        # Asegurar que tenemos el precio final correcto con cualquier descuento aplicado
+        precio_final = float(reserva.precio_total)
+        
+        # Información de debug
+        print(f"=== GEN PREFERENCE DEBUG ===")
+        print(f"Preference - Generando preferencia para reserva #{reserva.id}")
+        print(f"Preference - Precio total en BD: ${reserva.precio_total}")
+        print(f"Preference - Precio final para MP: ${precio_final}")
+        
+        # Verificar si hay descuentos aplicados
+        if hasattr(reserva, 'precio_antes_descuento') and reserva.precio_antes_descuento and hasattr(reserva, 'descuento_aplicado') and reserva.descuento_aplicado:
+            print(f"Preference - Precio antes del descuento: ${reserva.precio_antes_descuento}")
+            print(f"Preference - Descuento aplicado: ${reserva.descuento_aplicado}")
+            
         preference_data = {
             "items": [{
                 "title": f"Reserva de {reserva.maquinaria.nombre}",
                 "quantity": 1,
-                "unit_price": float(reserva.precio_total),
+                "unit_price": precio_final,
                 "currency_id": "ARS",
                 "description": f"Reserva desde {reserva.fecha_inicio} hasta {reserva.fecha_fin}"
             }],
@@ -1750,12 +2011,24 @@ def generar_qr_orden_mp(reserva):
         import requests
         import json
         from datetime import datetime, timedelta
-        
+            
         # Fecha de expiración (15 minutos desde ahora)
         expiration_time = (datetime.utcnow() + timedelta(minutes=15)).isoformat() + "Z"
 
         # Obtener el access token para extraer el user_id
         access_token = MP_ACCESS_TOKEN
+        
+        # Asegurar que tenemos el precio final correcto con cualquier descuento aplicado
+        precio_final = float(reserva.precio_total)
+        
+        # Información de debug
+        print(f"QR - Generando orden de pago para reserva #{reserva.id}")
+        print(f"QR - Precio total: ${precio_final}")
+        
+        # Verificar si hay descuentos aplicados
+        if hasattr(reserva, 'precio_antes_descuento') and reserva.precio_antes_descuento and hasattr(reserva, 'descuento_aplicado') and reserva.descuento_aplicado:
+            print(f"QR - Precio antes del descuento: ${reserva.precio_antes_descuento}")
+            print(f"QR - Descuento aplicado: ${reserva.descuento_aplicado}")
         
         # Datos básicos para la orden
         order_data = {
@@ -1763,16 +2036,16 @@ def generar_qr_orden_mp(reserva):
             "title": f"Reserva de {reserva.maquinaria.nombre}",
             "description": f"Reserva desde {reserva.fecha_inicio} hasta {reserva.fecha_fin}",
             "notification_url": f"{NGROK_URL}/reservas/payment/webhook/",
-            "total_amount": float(reserva.precio_total),
+            "total_amount": precio_final,
             "items": [{
                 "sku_number": str(reserva.maquinaria.id),
                 "category": "alquiler",
                 "title": reserva.maquinaria.nombre,
                 "description": f"{reserva.cantidad_solicitada} unidad/es del {reserva.fecha_inicio} al {reserva.fecha_fin}",
-                "unit_price": float(reserva.precio_total),
+                "unit_price": precio_final,
                 "quantity": 1,
                 "unit_measure": "unit",
-                "total_amount": float(reserva.precio_total)
+                "total_amount": precio_final
             }],
             "expiration_date": expiration_time
         }
@@ -1864,7 +2137,22 @@ def mostrar_qr_pago(request, reserva_id):
     if reserva.estado != 'PENDIENTE_PAGO' or reserva.tipo_pago != 'PRESENCIAL':
         messages.error(request, "Esta reserva no requiere pago presencial o ya fue pagada.")
         return redirect('reservas:detalle_reserva', reserva_id=reserva.id)
-
+        
+    # Refrescar la reserva para asegurar que tenemos los datos más actualizados
+    # especialmente si hubo cambios en el precio debido a cupones aplicados
+    reserva.refresh_from_db()
+    # Ajustar y guardar precio_total según cupón aplicado si no se reflejó en la BD
+    if reserva.precio_antes_descuento and reserva.descuento_aplicado and reserva.descuento_aplicado > 0:
+        precio_calculado = reserva.precio_antes_descuento - reserva.descuento_aplicado
+        reserva.precio_total = precio_calculado
+        reserva.save()
+    
+    # Log para depuración
+    print(f"Generando QR para reserva #{reserva.id}")
+    print(f"Precio total: ${reserva.precio_total}")
+    if hasattr(reserva, 'descuento_aplicado') and reserva.descuento_aplicado:
+        print(f"Descuento aplicado: ${reserva.descuento_aplicado}")
+    
     qr_data = generar_qr_orden_mp(reserva)
 
     if not qr_data:
@@ -2044,3 +2332,54 @@ def entregar_reserva_por_codigo(request):
     # Si el formulario no es válido
     messages.error(request, "Por favor, complete correctamente el formulario.")
     return redirect('reservas:procesar_reservas')
+
+
+@login_required
+def aplicar_cupon_view(request, reserva_id):
+    """
+    Vista para aplicar un cupón de descuento a una reserva.
+    """
+    reserva = get_object_or_404(Reserva, id=reserva_id)
+    
+    # Verificar que el usuario puede acceder a esta reserva
+    if request.user != reserva.cliente and not request.user.tipo in ['ADMIN', 'EMPLEADO']:
+        return HttpResponseForbidden("No tiene permisos para acceder a esta reserva.")
+    
+    # Verificar que la reserva esté en un estado válido para aplicar cupones
+    if reserva.estado != 'PENDIENTE_PAGO':
+        messages.error(request, "Solo se pueden aplicar cupones a reservas pendientes de pago.")
+        return redirect('reservas:procesar_pago', reserva_id=reserva.id)
+    
+    # Verificar que no se haya aplicado un cupón previamente
+    if reserva.descuento_aplicado > 0:
+        messages.error(request, "Ya se ha aplicado un cupón a esta reserva.")
+        return redirect('reservas:procesar_pago', reserva_id=reserva.id)
+    
+    # Crear el formulario para aplicar cupones
+    if request.method == 'POST':
+        form = AplicarCuponForm(
+            request.POST,
+            cliente=request.user if request.user.tipo == 'CLIENTE' else reserva.cliente,
+            precio_reserva=reserva.precio_total
+        )
+        
+        if form.is_valid():
+            # Aplicar el cupón a la reserva
+            aplicado = form.aplicar_cupon(reserva)
+            
+            if aplicado:
+                messages.success(request, "¡Cupón aplicado correctamente!")
+            else:
+                messages.warning(request, "No se pudo aplicar el cupón.")
+                
+            return redirect('reservas:procesar_pago', reserva_id=reserva.id)
+    else:
+        form = AplicarCuponForm(
+            cliente=request.user if request.user.tipo == 'CLIENTE' else reserva.cliente,
+            precio_reserva=reserva.precio_total
+        )
+    
+    return render(request, 'reservas/aplicar_cupon.html', {
+        'form': form,
+        'reserva': reserva
+    })

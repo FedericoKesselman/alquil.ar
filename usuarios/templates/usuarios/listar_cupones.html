@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+
+{% block title %}Listado de Cupones{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2><i class="fas fa-ticket-alt me-2"></i>Listado de Cupones</h2>
+        <a href="{% url 'listar_clientes' %}" class="btn btn-primary">
+            <i class="fas fa-users me-2"></i>Seleccionar Cliente para Cupón
+        </a>
+    </div>
+    
+    <!-- Filtros -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtros</h5>
+        </div>
+        <div class="card-body">
+            <form method="get">
+                <div class="row">
+                    <!-- Estado del cupón -->
+                    <div class="col-md-3">
+                        <label for="estado" class="form-label">Estado:</label>
+                        <select name="estado" id="estado" class="form-select">
+                            <option value="">Todos</option>
+                            <option value="vigente" {% if estado == 'vigente' %}selected{% endif %}>Vigentes</option>
+                            <option value="vencido" {% if estado == 'vencido' %}selected{% endif %}>Vencidos</option>
+                            <option value="usado" {% if estado == 'usado' %}selected{% endif %}>Utilizados</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Tipo de cupón -->
+                    <div class="col-md-3">
+                        <label for="tipo" class="form-label">Tipo:</label>
+                        <select name="tipo" id="tipo" class="form-select">
+                            <option value="">Todos</option>
+                            <option value="PORCENTAJE" {% if tipo == 'PORCENTAJE' %}selected{% endif %}>Porcentaje</option>
+                            <option value="MONTO" {% if tipo == 'MONTO' %}selected{% endif %}>Monto Fijo</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Cliente -->
+                    <div class="col-md-3">
+                        <label for="cliente_id" class="form-label">Cliente:</label>
+                        <select name="cliente_id" id="cliente_id" class="form-select">
+                            <option value="">Todos los clientes</option>
+                            {% for cliente in clientes %}
+                                <option value="{{ cliente.id }}" {% if cliente_id == cliente.id|stringformat:"i" %}selected{% endif %}>
+                                    {{ cliente.nombre }} ({{ cliente.email }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search me-2"></i>Aplicar Filtros
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Tabla de cupones -->
+    <div class="card shadow">
+        <div class="card-body">
+            {% if hay_cupones %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Cliente</th>
+                                <th>Tipo</th>
+                                <th>Valor</th>
+                                <th>Estado</th>
+                                <th>Fecha Creación</th>
+                                <th>Fecha Vencimiento</th>
+                                <th>Reserva Uso</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cupon in cupones %}
+                                <tr>
+                                    <td><code>{{ cupon.codigo }}</code></td>
+                                    <td>{{ cupon.cliente.nombre }}</td>
+                                    <td>
+                                        {% if cupon.tipo == 'PORCENTAJE' %}
+                                            <span class="badge bg-info">Porcentaje</span>
+                                        {% else %}
+                                            <span class="badge bg-success">Monto Fijo</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if cupon.tipo == 'PORCENTAJE' %}
+                                            {{ cupon.valor }}%
+                                        {% else %}
+                                            ${{ cupon.valor }}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if cupon.usado %}
+                                            <span class="badge bg-secondary">Utilizado</span>
+                                        {% elif cupon.fecha_vencimiento < today %}
+                                            <span class="badge bg-danger">Vencido</span>
+                                        {% else %}
+                                            <span class="badge bg-success">Vigente</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ cupon.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                                    <td>{{ cupon.fecha_vencimiento|date:"d/m/Y" }}</td>
+                                    <td>
+                                        {% if cupon.reserva_uso %}
+                                            <a href="{% url 'detalle_reserva' cupon.reserva_uso.id %}" class="btn btn-sm btn-outline-info">
+                                                Ver Reserva #{{ cupon.reserva_uso.id }}
+                                            </a>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No hay cupones emitidos para listar.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

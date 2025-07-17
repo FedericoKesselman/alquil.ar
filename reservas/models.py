@@ -82,6 +82,10 @@ class Reserva(models.Model):
     observaciones = models.TextField(blank=True, null=True)
     codigo_reserva = models.CharField(max_length=6, blank=True, null=True, unique=True)
     
+    # Información del cupón aplicado
+    descuento_aplicado = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    precio_antes_descuento = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    
     class Meta:
         verbose_name = "Reserva"
         verbose_name_plural = "Reservas"
@@ -308,7 +312,14 @@ class Reserva(models.Model):
         if not self.precio_total and self.maquinaria and self.fecha_inicio and self.fecha_fin:
             dias = (self.fecha_fin - self.fecha_inicio).days + 1  # +1 para incluir el día de inicio
             precio_por_dia, _ = self.maquinaria.get_precio_para_cliente(self.cliente)
-            self.precio_total = precio_por_dia * dias * self.cantidad_solicitada
+            precio_base = precio_por_dia * dias * self.cantidad_solicitada
+            
+            # Guardar el precio antes del descuento si hay descuento
+            if self.descuento_aplicado > 0 and not self.precio_antes_descuento:
+                self.precio_antes_descuento = precio_base
+                self.precio_total = precio_base - self.descuento_aplicado
+            else:
+                self.precio_total = precio_base
         
         super().save(*args, **kwargs)
 

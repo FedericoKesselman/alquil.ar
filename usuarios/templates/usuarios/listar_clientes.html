@@ -1,4 +1,6 @@
 {% extends 'base.html' %}
+{% load static %}
+{% load usuarios_tags %}
 
 {% block content %}
 <div class="container-fluid mt-4">
@@ -13,7 +15,63 @@
         </div>
         
         <div class="card-body">
-            {% if clientes %}
+            <!-- Formulario de búsqueda y filtros -->
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">Búsqueda y Filtros</h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="GET" class="row g-3">
+                                <!-- Búsqueda por nombre o DNI -->
+                                <div class="col-md-6">
+                                    <label for="search" class="form-label">Buscar por nombre o DNI:</label>
+                                    <input type="text" class="form-control" id="search" name="search" 
+                                           value="{{ search_query }}" placeholder="Nombre o DNI exacto">
+                                </div>
+                                
+                                <!-- Filtro por cantidad mínima de reservas -->
+                                <div class="col-md-3">
+                                    <label for="min_reservas" class="form-label">Mín. Reservas:</label>
+                                    <input type="number" min="0" class="form-control" id="min_reservas" 
+                                           name="min_reservas" value="{{ min_reservas }}" placeholder="Ej: 5">
+                                </div>
+                                
+                                <!-- Filtro por calificación mínima -->
+                                <div class="col-md-3">
+                                    <label for="min_calificacion" class="form-label">Mín. Calificación:</label>
+                                    <select class="form-select" id="min_calificacion" name="min_calificacion">
+                                        <option value="">Cualquier calificación</option>
+                                        <option value="0" {% if min_calificacion == '0' %}selected{% endif %}>0</option>
+                                        <option value="1" {% if min_calificacion == '1' %}selected{% endif %}>1</option>
+                                        <option value="2" {% if min_calificacion == '2' %}selected{% endif %}>2</option>
+                                        <option value="3" {% if min_calificacion == '3' %}selected{% endif %}>3</option>
+                                        <option value="4" {% if min_calificacion == '4' %}selected{% endif %}>4</option>
+                                        <option value="5" {% if min_calificacion == '5' %}selected{% endif %}>5</option>
+                                    </select>
+                                </div>
+                                
+                                <!-- Botones de acción -->
+                                <div class="col-md-12 d-flex justify-content-end mt-3">
+                                    <button type="submit" class="btn btn-primary me-2">
+                                        <i class="fas fa-search"></i> Aplicar filtros
+                                    </button>
+                                    <a href="{% url 'listar_clientes' %}" class="btn btn-secondary">
+                                        <i class="fas fa-times"></i> Limpiar filtros
+                                    </a>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {% if no_results %}
+                <div class="alert alert-info">
+                    No se encontraron clientes que cumplan con los criterios de búsqueda y filtrado.
+                </div>
+            {% elif clientes %}
                 <div class="table-responsive">
                     <table class="table table-striped table-hover">
                         <thead class="table-dark">
@@ -22,6 +80,8 @@
                                 <th>Email</th>
                                 <th>DNI</th>
                                 <th>Teléfono</th>
+                                <th>Reservas</th>
+                                <th>Calificación</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
@@ -33,6 +93,22 @@
                                 <td>{{ cliente.dni }}</td>
                                 <td>{{ cliente.telefono }}</td>
                                 <td>
+                                    {% with reservas_count=cliente.reservas.count %}
+                                        {{ reservas_count }} reserva{% if reservas_count != 1 %}s{% endif %}
+                                    {% endwith %}
+                                </td>
+                                <td>
+                                    <div class="star-rating">
+                                        {% with calificacion=cliente.id|obtener_calificacion_cliente %}
+                                            {% if calificacion %}
+                                                {{ calificacion }} <i class="fas fa-star text-warning"></i>
+                                            {% else %}
+                                                <span class="text-muted">Sin calificar</span>
+                                            {% endif %}
+                                        {% endwith %}
+                                    </div>
+                                </td>
+                                <td>
                                     <div class="btn-group btn-group-sm">
                                         <a href="{% url 'editar_cliente' cliente.id %}" class="btn btn-warning" title="Editar">
                                             <i class="fas fa-edit"></i>
@@ -40,6 +116,11 @@
                                         <a href="{% url 'eliminar_cliente' cliente.id %}" class="btn btn-danger" title="Eliminar">
                                             <i class="fas fa-trash-alt"></i>
                                         </a>
+                                        {% if es_admin %}
+                                        <a href="{% url 'crear_cupon' cliente.id %}" class="btn btn-info" title="Crear Cupón">
+                                            <i class="fas fa-ticket-alt"></i>
+                                        </a>
+                                        {% endif %}
                                     </div>
                                 </td>
                             </tr>
@@ -56,7 +137,7 @@
                         </span>
                     </div>
                     <ul class="pagination">
-                        {% if empleados.has_previous %}
+                        {% if clientes.has_previous %}
                             <li class="page-item">
                                 <a class="page-link" href="?page=1">&laquo; Primera</a>
                             </li>
@@ -89,4 +170,31 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Mantener los parámetros de búsqueda al paginar
+    document.addEventListener("DOMContentLoaded", function() {
+        const paginationLinks = document.querySelectorAll('.pagination a');
+        const searchParams = new URLSearchParams(window.location.search);
+        
+        // Eliminar el parámetro 'page' para no duplicarlo
+        searchParams.delete('page');
+        
+        // Construir la querystring base
+        let queryString = '';
+        if (searchParams.toString()) {
+            queryString = '&' + searchParams.toString();
+        }
+        
+        // Actualizar los enlaces de paginación para incluir los filtros
+        paginationLinks.forEach(link => {
+            const href = link.getAttribute('href');
+            if (href && href.includes('page=')) {
+                link.setAttribute('href', href + queryString);
+            }
+        });
+    });
+</script>
 {% endblock %}

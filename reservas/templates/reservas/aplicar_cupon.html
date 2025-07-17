@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block title %}Aplicar Cupón{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="bi bi-ticket-perforated me-2"></i>Aplicar Cupón de Descuento</h4>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <h5>Detalles de la Reserva</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Maquinaria:</strong> {{ reserva.maquinaria.nombre }}</p>
+                                <p><strong>Fechas:</strong> {{ reserva.fecha_inicio|date:"d/m/Y" }} al {{ reserva.fecha_fin|date:"d/m/Y" }}</p>
+                                <p><strong>Cantidad:</strong> {{ reserva.cantidad_solicitada }} unidad(es)</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Sucursal:</strong> {{ reserva.sucursal_retiro.nombre }}</p>
+                                <p><strong>Días:</strong> {{ reserva.dias_reserva }}</p>
+                                <p><strong>Precio Total:</strong> ${{ reserva.precio_total }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        {% if form.errors %}
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            {{ form.errors }}
+                        </div>
+                        {% endif %}
+                        
+                        {% if messages %}
+                            {% for message in messages %}
+                                <div class="alert alert-{{ message.tags }}">
+                                    {{ message }}
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                        
+                        <div class="mb-3">
+                            <label for="{{ form.codigo_cupon.id_for_label }}" class="form-label">
+                                <i class="bi bi-ticket-perforated me-1"></i>{{ form.codigo_cupon.label }}:
+                            </label>
+                            {{ form.codigo_cupon }}
+                            <small class="text-muted">Ingresa el código del cupón que deseas aplicar a esta reserva</small>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{% url 'reservas:procesar_pago' reserva.id %}" class="btn btn-secondary">
+                                <i class="bi bi-x-circle me-1"></i>Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Aplicar Cupón
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

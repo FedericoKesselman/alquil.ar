@@ -4,8 +4,9 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from .models import Reserva
 from maquinarias.models import MaquinariaStock
-from usuarios.models import Sucursal, Usuario
+from usuarios.models import Sucursal, Usuario, Cupon
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 
 class ReservaForm(forms.ModelForm):

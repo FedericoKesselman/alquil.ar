@@ -1,11 +1,18 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import Usuario, Sucursal
+from .models import Usuario, Sucursal, Cupon
 from .calificaciones import CalificacionCliente
 
 
 # Registra los modelos
 admin.site.register(CalificacionCliente)
+
+@admin.register(Cupon)
+class CuponAdmin(admin.ModelAdmin):
+    list_display = ('codigo', 'cliente', 'tipo', 'valor', 'fecha_vencimiento', 'usado')
+    list_filter = ('tipo', 'usado', 'fecha_vencimiento')
+    search_fields = ('codigo', 'cliente__nombre', 'cliente__email')
+    date_hierarchy = 'fecha_creacion'
 @admin.register(Sucursal)
 class SucursalAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'direccion', 'telefono', 'activa')

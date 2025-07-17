@@ -725,3 +725,63 @@ class EditarEmpleadoForm(forms.Form):
         empleado.sucursal = self.cleaned_data['sucursal']
         empleado.save()
         return empleado
+
+
+class CrearCuponForm(forms.Form):
+    """
+    Formulario para crear un cupón de descuento para un cliente específico.
+    """
+    cliente = forms.ModelChoiceField(
+        queryset=Usuario.objects.filter(tipo='CLIENTE'),
+        label="Cliente",
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        required=False  # Lo hacemos opcional para poder eliminarlo en la vista
+    )
+    
+    tipo = forms.ChoiceField(
+        choices=[('PORCENTAJE', 'Porcentaje'), ('MONTO', 'Monto Fijo')],
+        label="Tipo de Cupón",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    
+    valor = forms.DecimalField(
+        max_digits=10, 
+        decimal_places=2,
+        min_value=1,
+        label="Valor",
+        widget=forms.NumberInput(attrs={'class': 'form-control'})
+    )
+    
+    fecha_vencimiento = forms.DateField(
+        label="Fecha de Vencimiento",
+        widget=forms.DateInput(attrs={
+            'class': 'form-control', 
+            'type': 'date',
+            'min': timezone.now().date().isoformat()
+        })
+    )
+    
+    def clean_fecha_vencimiento(self):
+        """Validar que la fecha de vencimiento sea futura"""
+        fecha = self.cleaned_data.get('fecha_vencimiento')
+        if fecha and fecha < timezone.now().date():
+            raise forms.ValidationError("La fecha de vencimiento debe ser futura.")
+        return fecha
+    
+    def clean(self):
+        """Validación general del formulario"""
+        cleaned_data = super().clean()
+        tipo = cleaned_data.get('tipo')
+        valor = cleaned_data.get('valor')
+        
+        if tipo and valor:
+            if tipo == 'PORCENTAJE' and (valor < 1 or valor > 100):
+                self.add_error('valor', "El porcentaje debe estar entre 1 y 100.")
+        
+        return cleaned_data
+    
+    def generar_codigo(self):
+        """Genera un código único para el cupón"""
+        base = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        timestamp = str(int(timezone.now().timestamp()))
+        return f"CUP-{base}-{timestamp[-4:]}"

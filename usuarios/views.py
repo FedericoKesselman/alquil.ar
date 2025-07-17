@@ -4,6 +4,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from .models import Usuario
 from .forms import (
     LoginForm, 
@@ -14,7 +15,8 @@ from .forms import (
     RestablecerPasswordForm,
     CambiarPasswordPerfilForm,
     EditarClienteForm,
-    EditarEmpleadoForm
+    EditarEmpleadoForm,
+    CrearCuponForm
 )
 from usuarios.decorators import solo_admin, solo_cliente, solo_empleado
 from django.core.paginator import Paginator
@@ -27,8 +29,29 @@ from django.db.models import Q
 from django.utils import timezone
 from datetime import timedelta
 import django.db.models.deletion  # Añadimos esta importación para ProtectedError
+import re
 
 User = get_user_model()  # Agregamos esta línea
+
+def is_valid_rating(rating_str):
+    """
+    Valida si el string es un número válido entre 0 y 5, permitiendo valores de 0.5 en 0.5
+    """
+    try:
+        # Convertir a float
+        rating = float(rating_str)
+        
+        # Verificar que esté entre 0 y 5
+        if rating < 0 or rating > 5:
+            return False
+        
+        # Verificar que sea un múltiplo de 0.5
+        if rating * 2 != int(rating * 2):
+            return False
+            
+        return True
+    except (ValueError, TypeError):
+        return False
 
 def login_view(request):
     if request.user.is_authenticated:
@@ -193,24 +216,88 @@ def listar_empleados_view(request):
     return render(request, 'usuarios/listar_empleados.html', context) # Context tiene la info que voy a utilizar en el html
 
 @login_required
-@solo_empleado
 def listar_clientes_view(request):
-    # Excluir al cliente placeholder de la lista
-    clientes = Usuario.objects.filter(tipo="CLIENTE").exclude(
+    # Verificar que el usuario sea empleado o admin
+    if not (request.user.tipo == 'EMPLEADO' or request.user.tipo == 'ADMIN'):
+        return redirect('home')
+    
+    # Determinar si es admin o empleado
+    es_admin = request.user.tipo == 'ADMIN'
+    
+    # Inicializar la consulta base
+    base_query = Usuario.objects.filter(tipo="CLIENTE").exclude(
         email="cliente_eliminado@alquil.ar"
-    ).order_by('nombre') #Extraigo los clientes de la base de datos
-
-    paginator = Paginator(clientes, 10) # 10 item por pagina
+    )
+    
+    # Aplicar filtros de búsqueda
+    search_query = request.GET.get('search', '')
+    min_reservas = request.GET.get('min_reservas', '')
+    min_calificacion = request.GET.get('min_calificacion', '')
+    
+    # Si hay un término de búsqueda
+    if search_query:
+        # Verificar si es un DNI exacto o una búsqueda parcial por nombre
+        if search_query.isdigit() and len(search_query) >= 7:  # Probablemente un DNI
+            clientes = base_query.filter(dni=search_query)
+        else:  # Búsqueda parcial por nombre
+            clientes = base_query.filter(nombre__icontains=search_query)
+    else:
+        clientes = base_query
+    
+    # Filtrar por cantidad mínima de reservas
+    if min_reservas and min_reservas.isdigit():
+        try:
+            from django.db.models import Count
+            from reservas.models import Reserva
+            
+            # Obtener IDs de clientes con al menos min_reservas reservas
+            cliente_ids = Reserva.objects.values('cliente_id').annotate(
+                total=Count('cliente_id')
+            ).filter(total__gte=int(min_reservas)).values_list('cliente_id', flat=True)
+            
+            clientes = clientes.filter(id__in=cliente_ids)
+        except ImportError:
+            # Si no se puede importar el modelo Reserva, no aplicamos este filtro
+            pass
+    
+    # Filtrar por calificación mínima
+    if min_calificacion and is_valid_rating(min_calificacion):
+        try:
+            from usuarios.calificaciones import obtener_calificacion_promedio_cliente
+            
+            # Esto es menos eficiente pero más preciso que hacer la consulta directamente en la base de datos
+            # ya que las calificaciones podrían estar en diferentes modelos o requerir cálculos complejos
+            clientes_filtrados = []
+            for cliente in clientes:
+                calificacion = obtener_calificacion_promedio_cliente(cliente.id)
+                if calificacion is not None and calificacion >= float(min_calificacion):
+                    clientes_filtrados.append(cliente.id)
+            
+            clientes = clientes.filter(id__in=clientes_filtrados)
+        except ImportError:
+            # Si no se puede importar la función de calificaciones, no aplicamos este filtro
+            pass
+    
+    # Ordenar los resultados
+    clientes = clientes.order_by('nombre')
+    
+    # Paginación
+    paginator = Paginator(clientes, 10)  # 10 items por página
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     
     context = {
         'clientes': page_obj,
         'total_clientes': clientes.count(),
-        'titulo': 'Listado de Clientes'
+        'titulo': 'Listado de Clientes',
+        'search_query': search_query,
+        'min_reservas': min_reservas,
+        'min_calificacion': min_calificacion,
+        'no_results': clientes.count() == 0,
+        'es_admin': es_admin,
     }
 
-    return render(request, 'usuarios/listar_clientes.html', context) # Context tiene la info que voy a utilizar en el html
+    return render(request, 'usuarios/listar_clientes.html', context)  # Context tiene la info que voy a utilizar en el html
 
 @solo_admin
 def admin_sucursales(request):
@@ -470,12 +557,16 @@ def cambiar_password_perfil_view(request):
     return render(request, 'usuarios/cambiar_password_perfil.html', {'form': form})
 
 @login_required
-@solo_empleado
 def eliminar_cliente_view(request, cliente_id):
     """
     Vista para eliminar un cliente
     Solo se permite si todas sus reservas están finalizadas o si no tiene reservas
+    Solo accesible por empleados y administradores
     """
+    # Verificar si el usuario es empleado o administrador
+    if not (request.user.tipo == 'EMPLEADO' or request.user.tipo == 'ADMIN'):
+        messages.error(request, "No tenés permiso para acceder a esta sección.")
+        return redirect('home')
     try:
         cliente = Usuario.objects.get(id=cliente_id, tipo="CLIENTE")
         
@@ -529,12 +620,16 @@ def eliminar_cliente_view(request, cliente_id):
         return redirect('listar_clientes')
 
 @login_required
-@solo_empleado
 def editar_cliente_view(request, cliente_id):
     """
     Vista para editar un cliente
     Solo permite editar nombre, teléfono y fecha de nacimiento
+    Solo accesible por empleados y administradores
     """
+    # Verificar si el usuario es empleado o administrador
+    if not (request.user.tipo == 'EMPLEADO' or request.user.tipo == 'ADMIN'):
+        messages.error(request, "No tenés permiso para acceder a esta sección.")
+        return redirect('home')
     cliente = get_object_or_404(Usuario, id=cliente_id, tipo="CLIENTE")
     
     if request.method == 'POST':
@@ -739,4 +834,179 @@ def get_or_create_deleted_sucursal_placeholder():
             es_placeholder=True
         )
         return deleted_sucursal
+
+
+@login_required
+@solo_admin
+def crear_cupon_view(request, cliente_id=None):
+    """
+    Vista para crear un cupón de descuento para un cliente específico.
+    Requiere obligatoriamente un cliente_id.
+    """
+    # Si no se proporcionó cliente_id en la URL, intentar obtenerlo de GET
+    if cliente_id is None:
+        cliente_id = request.GET.get('cliente_id')
+    
+    # Si aún no hay cliente_id, redirigir al listado
+    if not cliente_id:
+        messages.error(request, 'Debe seleccionar un cliente para crear un cupón.')
+        return redirect('listar_clientes')
+    
+    # Obtener el cliente
+    try:
+        cliente = Usuario.objects.get(id=cliente_id, tipo='CLIENTE')
+    except Usuario.DoesNotExist:
+        messages.error(request, 'Cliente no encontrado.')
+        return redirect('listar_clientes')
+    
+    if request.method == 'POST':
+        # Crear un formulario personalizado que no incluya el campo cliente
+        form = CrearCuponForm(request.POST)
+        # Eliminamos el campo cliente si existe en el formulario
+        if 'cliente' in form.fields:
+            del form.fields['cliente']
+            
+        if form.is_valid():
+            # Crear el cupón
+            from .models import Cupon
+            
+            # Usamos el cliente que obtuvimos de la URL o parámetro GET
+            tipo = form.cleaned_data['tipo']
+            valor = form.cleaned_data['valor']
+            fecha_vencimiento = form.cleaned_data['fecha_vencimiento']
+            
+            # Generar código único
+            codigo = form.generar_codigo()
+            
+            cupon = Cupon.objects.create(
+                cliente=cliente,
+                codigo=codigo,
+                tipo=tipo,
+                valor=valor,
+                fecha_vencimiento=fecha_vencimiento
+            )
+            
+            messages.success(
+                request, 
+                f'Cupón creado correctamente para {cliente.nombre}. '
+                f'Código: {codigo} - {"Porcentaje" if tipo == "PORCENTAJE" else "Monto"}: '
+                f'{"{}%".format(valor) if tipo == "PORCENTAJE" else "${:,.2f}".format(valor)}'
+            )
+            return redirect('listar_cupones')
+    else:
+        # Crear el formulario pero eliminando el campo cliente, ya que es fijo
+        form = CrearCuponForm()
+        # Eliminar el campo 'cliente' del formulario, ya que ya está fijado
+        if 'cliente' in form.fields:
+            del form.fields['cliente']
+    
+    return render(request, 'usuarios/crear_cupon.html', {
+        'form': form,
+        'cliente': cliente,
+        'title': f'Crear Cupón para {cliente.nombre}'
+    })
+
+
+@login_required
+@solo_admin
+def listar_cupones_view(request):
+    """
+    Vista para listar todos los cupones emitidos.
+    """
+    from .models import Cupon
+    
+    # Obtener todos los clientes para el filtro
+    clientes = Usuario.objects.filter(tipo='CLIENTE')
+    today = timezone.now().date()
+    
+    # Filtrar cupones según los parámetros de búsqueda
+    cupones = Cupon.objects.all()
+    
+    # Filtrar por estado (vigente/vencido/usado)
+    estado = request.GET.get('estado')
+    if estado:
+        if estado == 'vigente':
+            cupones = cupones.filter(usado=False, fecha_vencimiento__gte=today)
+        elif estado == 'vencido':
+            cupones = cupones.filter(usado=False, fecha_vencimiento__lt=today)
+        elif estado == 'usado':
+            cupones = cupones.filter(usado=True)
+    
+    # Filtrar por cliente
+    cliente_id = request.GET.get('cliente_id')
+    if cliente_id:
+        cupones = cupones.filter(cliente_id=cliente_id)
+        
+    # Filtrar por tipo
+    tipo = request.GET.get('tipo')
+    if tipo:
+        cupones = cupones.filter(tipo=tipo)
+        
+    return render(request, 'usuarios/listar_cupones.html', {
+        'cupones': cupones,
+        'hay_cupones': cupones.exists(),
+        'estado': estado,
+        'cliente_id': cliente_id,
+        'tipo': tipo,
+        'clientes': clientes,
+        'today': today,  # Para comparar en la plantilla
+    })
+
+
+@login_required
+def validar_cupon_view(request, codigo):
+    """
+    Vista API para validar un cupón por su código.
+    Retorna información sobre el cupón si es válido.
+    """
+    from django.http import JsonResponse
+    from .models import Cupon
+    
+    if not request.user.is_authenticated:
+        return JsonResponse({'valid': False, 'error': 'No autenticado'}, status=401)
+    
+    try:
+        cupon = Cupon.objects.get(codigo=codigo)
+        
+        # Verificar si el cupón pertenece al cliente actual (solo para clientes)
+        if request.user.tipo == 'CLIENTE' and cupon.cliente_id != request.user.id:
+            return JsonResponse({
+                'valid': False, 
+                'error': 'Este cupón no te pertenece'
+            }, status=403)
+        
+        # Verificar si el cupón está vigente
+        today = timezone.now().date()
+        if cupon.fecha_vencimiento < today:
+            return JsonResponse({
+                'valid': False, 
+                'error': 'Cupón vencido',
+                'fecha_vencimiento': cupon.fecha_vencimiento.isoformat()
+            })
+        
+        # Verificar si el cupón ya fue usado
+        if cupon.usado:
+            return JsonResponse({
+                'valid': False, 
+                'error': 'Cupón ya utilizado'
+            })
+        
+        # Cupón válido
+        return JsonResponse({
+            'valid': True,
+            'cupon': {
+                'id': cupon.id,
+                'codigo': cupon.codigo,
+                'cliente_id': cupon.cliente_id,
+                'cliente_nombre': cupon.cliente.nombre,
+                'tipo': cupon.tipo,
+                'valor': float(cupon.valor),
+                'fecha_vencimiento': cupon.fecha_vencimiento.isoformat()
+            }
+        })
+        
+    except Cupon.DoesNotExist:
+        return JsonResponse({'valid': False, 'error': 'Cupón no encontrado'}, status=404)
+    except Exception as e:
+        return JsonResponse({'valid': False, 'error': str(e)}, status=500)
 

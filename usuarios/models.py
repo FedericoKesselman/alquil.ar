@@ -1,10 +1,11 @@
 # usuarios/models.py
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-from django.core.validators import RegexValidator
+from django.core.validators import RegexValidator, MinValueValidator, MaxValueValidator
 from django.db.models.signals import pre_save
 from django.dispatch import receiver
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 # Aca van las declaraciones de las tablas de la base de datos
 
@@ -269,3 +270,60 @@ def prevent_sucursal_deactivation(sender, instance, **kwargs):
     except Sucursal.DoesNotExist:
         # This should not happen, but just in case
         pass
+
+
+class Cupon(models.Model):
+    """
+    Modelo para representar cupones de descuento asignados a clientes específicos.
+    Pueden ser de tipo porcentaje o monto fijo.
+    """
+    TIPO_CHOICES = [
+        ('PORCENTAJE', 'Porcentaje'),
+        ('MONTO', 'Monto Fijo'),
+    ]
+    
+    cliente = models.ForeignKey('Usuario', on_delete=models.CASCADE, related_name='cupones', 
+                              limit_choices_to={'tipo': 'CLIENTE'})
+    codigo = models.CharField(max_length=20, unique=True)
+    tipo = models.CharField(max_length=10, choices=TIPO_CHOICES)
+    valor = models.DecimalField(max_digits=10, decimal_places=2)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_vencimiento = models.DateField()
+    usado = models.BooleanField(default=False)
+    reserva_uso = models.OneToOneField('reservas.Reserva', on_delete=models.SET_NULL, 
+                                     null=True, blank=True, related_name='cupon_aplicado')
+    
+    class Meta:
+        verbose_name = 'Cupón'
+        verbose_name_plural = 'Cupones'
+        ordering = ['-fecha_creacion']
+    
+    def __str__(self):
+        if self.tipo == 'PORCENTAJE':
+            return f"Cupón {self.valor}% para {self.cliente.nombre}"
+        else:
+            return f"Cupón ${self.valor} para {self.cliente.nombre}"
+    
+    def is_valid(self):
+        """Verifica si el cupón está vigente y no ha sido usado."""
+        today = timezone.now().date()
+        return not self.usado and self.fecha_vencimiento >= today
+    
+    def clean(self):
+        """Validaciones para el cupón"""
+        # Validar que el valor sea positivo
+        if self.valor <= 0:
+            raise ValidationError("El valor del cupón debe ser mayor a cero.")
+            
+        # Validar que los porcentajes estén entre 1 y 100
+        if self.tipo == 'PORCENTAJE' and (self.valor < 1 or self.valor > 100):
+            raise ValidationError("El porcentaje debe estar entre 1 y 100.")
+            
+        # Validar que la fecha de vencimiento sea futura
+        today = timezone.now().date()
+        if self.fecha_vencimiento < today:
+            raise ValidationError("La fecha de vencimiento debe ser futura.")
+            
+        # Validar que el cliente sea de tipo CLIENTE
+        if hasattr(self, 'cliente') and self.cliente.tipo != 'CLIENTE':
+            raise ValidationError("Los cupones solo pueden ser asignados a clientes.")

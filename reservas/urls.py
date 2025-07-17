@@ -32,6 +32,7 @@ urlpatterns = [
     
     # URLs para pagos
     path('procesar-pago/<int:reserva_id>/', views.procesar_pago, name='procesar_pago'),
+    path('aplicar-cupon/<int:reserva_id>/', views.aplicar_cupon_view, name='aplicar_cupon'),
     path('payment/success/<int:reserva_id>/', views.payment_success, name='payment_success'),
     path('payment/failure/<int:reserva_id>/', views.payment_failure, name='payment_failure'),
     path('payment/pending/<int:reserva_id>/', views.payment_pending, name='payment_pending'),

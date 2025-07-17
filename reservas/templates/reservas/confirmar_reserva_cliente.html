@@ -264,6 +264,58 @@
                         </div>
                     </div>
 
+                    <!-- Cupones Disponibles -->
+                    {% if cupones_disponibles %}
+                    <div class="highlight-box mt-4">
+                        <h5 class="mb-3 icon-text">
+                            <i class="bi bi-ticket-perforated text-primary"></i>
+                            <span>Mis Cupones Disponibles</span>
+                        </h5>
+
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="aplicar_cupon" value="1">
+                            
+                            <div class="mb-3">
+                                <label for="{{ form_cupon.codigo_cupon.id_for_label }}" class="form-label">
+                                    <i class="bi bi-ticket-perforated me-1"></i>Seleccionar cupón:
+                                </label>
+                                <select name="{{ form_cupon.codigo_cupon.name }}" id="{{ form_cupon.codigo_cupon.id_for_label }}" class="form-select">
+                                    <option value="">-- Seleccionar cupón --</option>
+                                    {% for cupon in cupones_disponibles %}
+                                        <option value="{{ cupon.codigo }}">
+                                            {{ cupon.get_tipo_display }}: {% if cupon.tipo == 'PORCENTAJE' %}{{ cupon.valor }}%{% else %}${{ cupon.valor }}{% endif %} - Vence: {{ cupon.fecha_vencimiento|date:"d/m/Y" }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-outline-primary">
+                                <i class="bi bi-ticket-perforated me-1"></i>Aplicar Cupón
+                            </button>
+                        </form>
+                        
+                        {% if cupon_aplicado %}
+                            <div class="alert alert-success mt-3">
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-check-circle-fill me-2"></i>
+                                    <div>
+                                        <strong>¡Cupón aplicado!</strong>
+                                        <p class="mb-0">
+                                            {{ cupon_aplicado.get_tipo_display }}: 
+                                            {% if cupon_aplicado.tipo == 'PORCENTAJE' %}
+                                                {{ cupon_aplicado.valor }}% de descuento
+                                            {% else %}
+                                                ${{ cupon_aplicado.valor }} de descuento
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
                     <!-- Resumen de Precio -->
                     <div class="highlight-box mt-4">
                         <h5 class="mb-3 icon-text">
@@ -305,6 +357,15 @@
                             <span class="detail-value">${{ maquinaria.precio_por_dia|floatformat:2|multiply:"1.2"|floatformat:2 }} por día</span>
                         </div>
                         {% endif %}
+                        
+                        <!-- Mostrar descuento aplicado si corresponde -->
+                        {% if descuento_aplicado > 0 %}
+                        <div class="detail-row">
+                            <span class="detail-label"><i class="bi bi-tag-fill me-1 text-success"></i>Descuento aplicado:</span>
+                            <span class="detail-value text-success">-${{ descuento_aplicado|floatformat:2 }}</span>
+                        </div>
+                        {% endif %}
+                        
                         <div class="detail-row">
                             <span class="detail-label">Precio Total:</span>
                             <span class="detail-value total-price">${{ precio_total }}</span>
