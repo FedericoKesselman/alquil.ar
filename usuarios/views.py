@@ -871,7 +871,6 @@ def crear_cupon_view(request, cliente_id=None):
             from .models import Cupon
             
             # Usamos el cliente que obtuvimos de la URL o parámetro GET
-            tipo = form.cleaned_data['tipo']
             valor = form.cleaned_data['valor']
             fecha_vencimiento = form.cleaned_data['fecha_vencimiento']
             
@@ -881,7 +880,7 @@ def crear_cupon_view(request, cliente_id=None):
             cupon = Cupon.objects.create(
                 cliente=cliente,
                 codigo=codigo,
-                tipo=tipo,
+                tipo='PORCENTAJE',  # Solo cupones por porcentaje
                 valor=valor,
                 fecha_vencimiento=fecha_vencimiento
             )
@@ -889,8 +888,7 @@ def crear_cupon_view(request, cliente_id=None):
             messages.success(
                 request, 
                 f'Cupón creado correctamente para {cliente.get_full_name()}. '
-                f'Código: {codigo} - {"Porcentaje" if tipo == "PORCENTAJE" else "Monto"}: '
-                f'{"{}%".format(valor) if tipo == "PORCENTAJE" else "${:,.2f}".format(valor)}. '
+                f'Código: {codigo} - Descuento: {valor}%. '
                 f'Se ha enviado una notificación por email al cliente.'
             )
             return redirect('listar_cupones')
@@ -912,7 +910,7 @@ def crear_cupon_view(request, cliente_id=None):
 @solo_admin
 def listar_cupones_view(request):
     """
-    Vista para listar todos los cupones emitidos.
+    Vista para listar todos los cupones emitidos (solo por porcentaje).
     """
     from .models import Cupon
     
@@ -930,17 +928,11 @@ def listar_cupones_view(request):
             cupones = cupones.filter(usado=False, fecha_vencimiento__lt=today)
         elif estado == 'usado':
             cupones = cupones.filter(usado=True)
-    
-    # Filtrar por tipo
-    tipo = request.GET.get('tipo')
-    if tipo:
-        cupones = cupones.filter(tipo=tipo)
         
     return render(request, 'usuarios/listar_cupones.html', {
         'cupones': cupones,
         'hay_cupones': cupones.exists(),
         'estado': estado,
-        'tipo': tipo,
         'today': today,  # Para comparar en la plantilla
     })
 

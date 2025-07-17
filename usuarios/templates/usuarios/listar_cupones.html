@@ -112,7 +112,7 @@
             <form method="get">
                 <div class="row align-items-end g-3">
                     <!-- Estado del cupón -->
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                         <label for="estado" class="form-label">Estado:</label>
                         <select name="estado" id="estado" class="form-select">
                             <option value="">Todos</option>
@@ -122,18 +122,8 @@
                         </select>
                     </div>
                     
-                    <!-- Tipo de cupón -->
-                    <div class="col-md-4">
-                        <label for="tipo" class="form-label">Tipo:</label>
-                        <select name="tipo" id="tipo" class="form-select">
-                            <option value="">Todos</option>
-                            <option value="PORCENTAJE" {% if tipo == 'PORCENTAJE' %}selected{% endif %}>Porcentaje</option>
-                            <option value="MONTO" {% if tipo == 'MONTO' %}selected{% endif %}>Monto Fijo</option>
-                        </select>
-                    </div>
-                    
                     <!-- Botón de aplicar filtros -->
-                    <div class="col-md-4 d-flex align-items-end">
+                    <div class="col-md-6 d-flex align-items-end">
                         <button type="submit" class="btn btn-primary shadow-sm flex-fill">
                             <i class="fas fa-search me-2"></i>Aplicar Filtros
                         </button>
@@ -153,8 +143,7 @@
                             <tr>
                                 <th>Código</th>
                                 <th>Cliente</th>
-                                <th>Tipo</th>
-                                <th>Valor</th>
+                                <th>Descuento</th>
                                 <th>Estado</th>
                                 <th>Fecha Creación</th>
                                 <th>Fecha Vencimiento</th>
@@ -167,19 +156,8 @@
                                 <tr>
                                     <td><code>{{ cupon.codigo }}</code></td>
                                     <td>{{ cupon.cliente.nombre }}</td>
-                                    <td>
-                                        {% if cupon.tipo == 'PORCENTAJE' %}
-                                            <span class="badge bg-info">Porcentaje</span>
-                                        {% else %}
-                                            <span class="badge bg-success">Monto Fijo</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if cupon.tipo == 'PORCENTAJE' %}
-                                            {{ cupon.valor }}%
-                                        {% else %}
-                                            ${{ cupon.valor }}
-                                        {% endif %}
+                                    <td class="text-center">
+                                        <span class="badge bg-info">{{ cupon.valor }}%</span>
                                     </td>
                                     <td>
                                         {% if cupon.usado and cupon.reserva_uso and cupon.reserva_uso.estado != 'PENDIENTE_PAGO' %}

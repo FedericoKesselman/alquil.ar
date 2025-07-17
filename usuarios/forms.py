@@ -729,7 +729,7 @@ class EditarEmpleadoForm(forms.Form):
 
 class CrearCuponForm(forms.Form):
     """
-    Formulario para crear un cupón de descuento para un cliente específico.
+    Formulario para crear un cupón de descuento por porcentaje para un cliente específico.
     """
     cliente = forms.ModelChoiceField(
         queryset=Usuario.objects.filter(tipo='CLIENTE'),
@@ -738,18 +738,18 @@ class CrearCuponForm(forms.Form):
         required=False  # Lo hacemos opcional para poder eliminarlo en la vista
     )
     
-    tipo = forms.ChoiceField(
-        choices=[('PORCENTAJE', 'Porcentaje'), ('MONTO', 'Monto Fijo')],
-        label="Tipo de Cupón",
-        widget=forms.Select(attrs={'class': 'form-select'})
-    )
-    
     valor = forms.DecimalField(
-        max_digits=10, 
+        max_digits=5, 
         decimal_places=2,
         min_value=1,
-        label="Valor",
-        widget=forms.NumberInput(attrs={'class': 'form-control'})
+        max_value=99,
+        label="Porcentaje de Descuento",
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'min': '1',
+            'max': '99',
+            'step': '0.01'
+        })
     )
     
     fecha_vencimiento = forms.DateField(
@@ -768,17 +768,12 @@ class CrearCuponForm(forms.Form):
             raise forms.ValidationError("La fecha de vencimiento debe ser futura.")
         return fecha
     
-    def clean(self):
-        """Validación general del formulario"""
-        cleaned_data = super().clean()
-        tipo = cleaned_data.get('tipo')
-        valor = cleaned_data.get('valor')
-        
-        if tipo and valor:
-            if tipo == 'PORCENTAJE' and (valor < 1 or valor > 99):
-                self.add_error('valor', "El porcentaje debe estar entre 1 y 99.")
-        
-        return cleaned_data
+    def clean_valor(self):
+        """Validar que el porcentaje esté entre 1 y 99"""
+        valor = self.cleaned_data.get('valor')
+        if valor and (valor < 1 or valor > 99):
+            raise forms.ValidationError("El porcentaje debe estar entre 1 y 99.")
+        return valor
     
     def generar_codigo(self):
         """Genera un código único para el cupón"""

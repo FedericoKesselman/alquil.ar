@@ -289,18 +289,17 @@ def prevent_sucursal_deactivation(sender, instance, **kwargs):
 class Cupon(models.Model):
     """
     Modelo para representar cupones de descuento asignados a clientes específicos.
-    Pueden ser de tipo porcentaje o monto fijo.
+    Solo cupones de tipo porcentaje.
     """
     TIPO_CHOICES = [
         ('PORCENTAJE', 'Porcentaje'),
-        ('MONTO', 'Monto Fijo'),
     ]
     
     cliente = models.ForeignKey('Usuario', on_delete=models.CASCADE, related_name='cupones', 
                               limit_choices_to={'tipo': 'CLIENTE'})
     codigo = models.CharField(max_length=20, unique=True)
-    tipo = models.CharField(max_length=10, choices=TIPO_CHOICES)
-    valor = models.DecimalField(max_digits=10, decimal_places=2)
+    tipo = models.CharField(max_length=10, choices=TIPO_CHOICES, default='PORCENTAJE')
+    valor = models.DecimalField(max_digits=5, decimal_places=2)  # Solo para porcentajes
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_vencimiento = models.DateField()
     usado = models.BooleanField(default=False)
@@ -313,10 +312,7 @@ class Cupon(models.Model):
         ordering = ['-fecha_creacion']
     
     def __str__(self):
-        if self.tipo == 'PORCENTAJE':
-            return f"Cupón {self.valor}% para {self.cliente.nombre}"
-        else:
-            return f"Cupón ${self.valor} para {self.cliente.nombre}"
+        return f"Cupón {self.valor}% para {self.cliente.nombre}"
     
     def is_valid(self):
         """Verifica si el cupón está vigente y no ha sido usado."""
@@ -330,7 +326,7 @@ class Cupon(models.Model):
             raise ValidationError("El valor del cupón debe ser mayor a cero.")
             
         # Validar que los porcentajes estén entre 1 y 99
-        if self.tipo == 'PORCENTAJE' and (self.valor < 1 or self.valor > 99):
+        if self.valor < 1 or self.valor > 99:
             raise ValidationError("El porcentaje debe estar entre 1 y 99.")
             
         # Validar que la fecha de vencimiento sea futura
@@ -346,12 +342,8 @@ class Cupon(models.Model):
         """Envía un correo electrónico al cliente notificando que se le ha asignado un nuevo cupón"""
         try:
             # Determinar el texto del valor según el tipo de cupón
-            if self.tipo == 'PORCENTAJE':
-                valor_texto = f"{self.valor}% de descuento"
-                valor_display = f"{self.valor}%"
-            else:
-                valor_texto = f"${self.valor} de descuento"
-                valor_display = f"${self.valor:,.2f}"
+            valor_texto = f"{self.valor}% de descuento"
+            valor_display = f"{self.valor}%"
             
             # Formatear la fecha de vencimiento
             fecha_vencimiento_str = self.fecha_vencimiento.strftime('%d/%m/%Y')

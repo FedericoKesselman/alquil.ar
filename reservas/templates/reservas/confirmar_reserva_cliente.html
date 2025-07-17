@@ -284,7 +284,7 @@
                                     <option value="">-- Seleccionar cupón --</option>
                                     {% for cupon in cupones_disponibles %}
                                         <option value="{{ cupon.codigo }}">
-                                            {{ cupon.get_tipo_display }}: {% if cupon.tipo == 'PORCENTAJE' %}{{ cupon.valor }}%{% else %}${{ cupon.valor }}{% endif %} - Vence: {{ cupon.fecha_vencimiento|date:"d/m/Y" }}
+                                            Descuento: {{ cupon.valor }}% - Vence: {{ cupon.fecha_vencimiento|date:"d/m/Y" }}
                                         </option>
                                     {% endfor %}
                                 </select>

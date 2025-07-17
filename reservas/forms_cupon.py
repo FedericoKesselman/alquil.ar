@@ -48,20 +48,15 @@ class AplicarCuponForm(forms.Form):
         return codigo
     
     def get_descuento(self):
-        """Calcula el descuento a aplicar basado en el cupón"""
+        """Calcula el descuento a aplicar basado en el cupón (solo porcentaje)"""
         codigo = self.cleaned_data.get('codigo_cupon')
         if not codigo:
             return 0
         
         cupon = Cupon.objects.get(codigo=codigo)
         
-        if cupon.tipo == 'PORCENTAJE':
-            # Descuento porcentual
-            descuento = (Decimal(cupon.valor) / 100) * Decimal(self.precio_reserva)
-        else:
-            # Descuento de monto fijo
-            descuento = min(Decimal(cupon.valor), Decimal(self.precio_reserva))
-            
+        # Solo descuento porcentual
+        descuento = (Decimal(cupon.valor) / 100) * Decimal(self.precio_reserva)
         return descuento
     
     def aplicar_cupon(self, reserva):
