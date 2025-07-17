@@ -1021,35 +1021,30 @@ def eliminar_cupon(request, cupon_id):
         return redirect('listar_cupones')
     
     if request.method == 'POST':
-        # Verificar la confirmación
-        confirmacion = request.POST.get('confirmacion')
-        if confirmacion == 'confirmar_eliminacion':
-            # Si el cupón está asociado a una reserva en PENDIENTE_PAGO, liberarlo
-            if cupon.reserva_uso and cupon.reserva_uso.estado == 'PENDIENTE_PAGO':
-                # Liberar el cupón de la reserva
-                reserva = cupon.reserva_uso
-                reserva.cupon_aplicado = None
-                reserva.descuento_aplicado = 0
-                reserva.precio_antes_descuento = None
-                # Recalcular precio total sin descuento
-                if reserva.precio_antes_descuento:
-                    reserva.precio_total = reserva.precio_antes_descuento
-                reserva.save()
-                
-                # Limpiar la asociación en el cupón
-                cupon.reserva_uso = None
-                cupon.usado = False
-                cupon.save()
+        # Si el cupón está asociado a una reserva en PENDIENTE_PAGO, liberarlo
+        if cupon.reserva_uso and cupon.reserva_uso.estado == 'PENDIENTE_PAGO':
+            # Liberar el cupón de la reserva
+            reserva = cupon.reserva_uso
+            reserva.cupon_aplicado = None
+            reserva.descuento_aplicado = 0
+            reserva.precio_antes_descuento = None
+            # Recalcular precio total sin descuento
+            if reserva.precio_antes_descuento:
+                reserva.precio_total = reserva.precio_antes_descuento
+            reserva.save()
             
-            # Eliminar el cupón
-            codigo_cupon = cupon.codigo
-            cliente_nombre = cupon.cliente.nombre
-            cupon.delete()
-            
-            messages.success(request, f"El cupón {codigo_cupon} del cliente {cliente_nombre} ha sido eliminado exitosamente.")
-            return redirect('listar_cupones')
-        else:
-            messages.error(request, "Debe confirmar la eliminación del cupón.")
+            # Limpiar la asociación en el cupón
+            cupon.reserva_uso = None
+            cupon.usado = False
+            cupon.save()
+        
+        # Eliminar el cupón
+        codigo_cupon = cupon.codigo
+        cliente_nombre = cupon.cliente.nombre
+        cupon.delete()
+        
+        messages.success(request, f"El cupón {codigo_cupon} del cliente {cliente_nombre} ha sido eliminado exitosamente.")
+        return redirect('listar_cupones')
     
     context = {
         'cupon': cupon,
