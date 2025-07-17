@@ -2,15 +2,66 @@
 {% load static %}
 {% load usuarios_tags %}
 
+{% block extra_css %}
+<style>
+    /* Estilos para botones de acción mejorados */
+    .btn-outline-primary:hover, .btn-outline-success:hover, .btn-outline-danger:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        transition: all 0.2s ease-in-out;
+    }
+    
+    .btn-outline-primary {
+        border-color: #0d6efd;
+        color: #0d6efd;
+    }
+    
+    .btn-outline-primary:hover {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+        color: white;
+    }
+    
+    .btn-outline-success {
+        border-color: #198754;
+        color: #198754;
+    }
+    
+    .btn-outline-success:hover {
+        background-color: #198754;
+        border-color: #198754;
+        color: white;
+    }
+    
+    .btn-outline-danger {
+        border-color: #dc3545;
+        color: #dc3545;
+    }
+    
+    .btn-outline-danger:hover {
+        background-color: #dc3545;
+        border-color: #dc3545;
+        color: white;
+    }
+    
+    /* Efecto de hover más suave para los botones de acción */
+    .d-flex.gap-1 .btn {
+        transition: all 0.2s ease-in-out;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid mt-4">
     <div class="card">
         <div class="card-header bg-primary text-white">
             <div class="d-flex justify-content-between align-items-center">
                 <h3 class="mb-0">{{ titulo }}</h3>
-                <a href="{% url 'crear_cliente' %}" class="btn btn-light btn-sm">
-                    <i class="fas fa-plus me-1"></i> Nuevo Cliente
-                </a>
+                {% if not es_admin %}
+                    <a href="{% url 'crear_cliente' %}" class="btn btn-light btn-sm">
+                        <i class="fas fa-plus me-1"></i> Nuevo Cliente
+                    </a>
+                {% endif %}
             </div>
         </div>
         
@@ -109,16 +160,33 @@
                                     </div>
                                 </td>
                                 <td>
-                                    <div class="btn-group btn-group-sm">
-                                        <a href="{% url 'editar_cliente' cliente.id %}" class="btn btn-warning" title="Editar">
-                                            <i class="fas fa-edit"></i>
+                                    <div class="d-flex gap-1 justify-content-center">
+                                        <!-- Botón Editar -->
+                                        <a href="{% url 'editar_cliente' cliente.id %}" 
+                                           class="btn btn-outline-primary btn-sm d-flex align-items-center" 
+                                           title="Editar información del cliente"
+                                           data-bs-toggle="tooltip" data-bs-placement="top">
+                                            <i class="fas fa-edit me-1"></i>
+                                            <span class="d-none d-md-inline">Editar</span>
                                         </a>
-                                        <a href="{% url 'eliminar_cliente' cliente.id %}" class="btn btn-danger" title="Eliminar">
-                                            <i class="fas fa-trash-alt"></i>
+                                        
+                                        <!-- Botón Eliminar -->
+                                        <a href="{% url 'eliminar_cliente' cliente.id %}" 
+                                           class="btn btn-outline-danger btn-sm d-flex align-items-center" 
+                                           title="Eliminar cliente del sistema"
+                                           data-bs-toggle="tooltip" data-bs-placement="top">
+                                            <i class="fas fa-trash-alt me-1"></i>
+                                            <span class="d-none d-md-inline">Eliminar</span>
                                         </a>
+                                        
+                                        <!-- Botón Crear Cupón (solo admin) -->
                                         {% if es_admin %}
-                                        <a href="{% url 'crear_cupon' cliente.id %}" class="btn btn-info" title="Crear Cupón">
-                                            <i class="fas fa-ticket-alt"></i>
+                                        <a href="{% url 'crear_cupon' cliente.id %}" 
+                                           class="btn btn-outline-success btn-sm d-flex align-items-center" 
+                                           title="Crear un cupón de descuento para este cliente"
+                                           data-bs-toggle="tooltip" data-bs-placement="top">
+                                            <i class="fas fa-gift me-1"></i>
+                                            <span class="d-none d-lg-inline">Cupón</span>
                                         </a>
                                         {% endif %}
                                     </div>
@@ -176,6 +244,12 @@
 <script>
     // Mantener los parámetros de búsqueda al paginar
     document.addEventListener("DOMContentLoaded", function() {
+        // Inicializar tooltips de Bootstrap
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+        
         const paginationLinks = document.querySelectorAll('.pagination a');
         const searchParams = new URLSearchParams(window.location.search);
         

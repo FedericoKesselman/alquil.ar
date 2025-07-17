@@ -6,6 +6,8 @@ from django.db.models.signals import pre_save
 from django.dispatch import receiver
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from django.core.mail import EmailMessage
+from django.conf import settings
 
 # Aca van las declaraciones de las tablas de la base de datos
 
@@ -192,6 +194,18 @@ class Usuario(AbstractUser):
     )
     def __str__(self):
         return f"{self.nombre} ({self.email})"
+    
+    def get_full_name(self):
+        """Retorna el nombre completo del usuario"""
+        # Si tiene first_name y last_name definidos, usarlos
+        if self.first_name and self.last_name:
+            return f"{self.first_name} {self.last_name}"
+        # De lo contrario, usar el campo nombre personalizado
+        elif self.nombre:
+            return self.nombre
+        # Como último recurso, usar el username
+        else:
+            return self.username
         
     def _redondear_a_medio(self, valor):
         """
@@ -325,5 +339,98 @@ class Cupon(models.Model):
             raise ValidationError("La fecha de vencimiento debe ser futura.")
             
         # Validar que el cliente sea de tipo CLIENTE
-        if hasattr(self, 'cliente') and self.cliente.tipo != 'CLIENTE':
-            raise ValidationError("Los cupones solo pueden ser asignados a clientes.")
+        if self.cliente_id and self.cliente.tipo != 'CLIENTE':
+            raise ValidationError("El cupón solo puede asignarse a usuarios de tipo CLIENTE.")
+    
+    def enviar_notificacion_cupon_creado(self):
+        """Envía un correo electrónico al cliente notificando que se le ha asignado un nuevo cupón"""
+        try:
+            # Determinar el texto del valor según el tipo de cupón
+            if self.tipo == 'PORCENTAJE':
+                valor_texto = f"{self.valor}% de descuento"
+                valor_display = f"{self.valor}%"
+            else:
+                valor_texto = f"${self.valor} de descuento"
+                valor_display = f"${self.valor:,.2f}"
+            
+            # Formatear la fecha de vencimiento
+            fecha_vencimiento_str = self.fecha_vencimiento.strftime('%d/%m/%Y')
+            
+            # Crear el mensaje con formato HTML
+            mensaje = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <h2 style="color: #2c3e50;">¡Nuevo Cupón de Descuento Asignado!</h2>
+                <p>Estimado/a {self.cliente.get_full_name()},</p>
+                <p>Nos complace informarle que se le ha asignado un nuevo cupón de descuento en Alquil.ar:</p>
+                
+                <div style="background-color: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 5px solid #28a745;">
+                    <h3 style="color: #28a745; margin-top: 0;">🎟️ Detalles del Cupón</h3>
+                    <ul style="list-style: none; padding: 0;">
+                        <li style="margin: 8px 0;"><strong>Código:</strong> <span style="background-color: #f8f9fa; padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 1.1em;">{self.codigo}</span></li>
+                        <li style="margin: 8px 0;"><strong>Descuento:</strong> {valor_display}</li>
+                        <li style="margin: 8px 0;"><strong>Fecha de vencimiento:</strong> {fecha_vencimiento_str}</li>
+                    </ul>
+                </div>
+                
+                <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                    <h4 style="color: #495057; margin-top: 0;">💡 ¿Cómo usar tu cupón?</h4>
+                    <ol>
+                        <li>Selecciona la maquinaria que deseas alquilar</li>
+                        <li>Completa los datos de tu reserva</li>
+                        <li>En el paso de confirmación, selecciona alguno de tus cupones disponibles</strong></li>
+                        <li>¡Disfruta tu descuento de {valor_display}!</li>
+                    </ol>
+                </div>
+                
+                <div style="background-color: #fff3cd; padding: 12px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107;">
+                    <p style="margin: 0; color: #856404;"><strong>⚠️ Recordatorio:</strong> Este cupón vence el {fecha_vencimiento_str}. ¡No olvides usarlo antes de esa fecha!</p>
+                </div>
+                
+                <p>Gracias por confiar en Alquil.ar para sus necesidades de alquiler de maquinaria.</p>
+                
+                <p style="color: #666; font-size: 0.9em; margin-top: 30px;">
+                    Si tiene alguna consulta sobre este cupón, no dude en contactarnos.<br>
+                    Saludos cordiales,<br>
+                    El equipo de Alquil.ar
+                </p>
+            </body>
+            </html>
+            """
+            
+            # Configurar el email
+            subject = f'¡Nuevo Cupón de Descuento Disponible! - {valor_display}'
+            from_email = settings.EMAIL_HOST_USER
+            to_email = self.cliente.email
+            
+            # Crear el mensaje
+            email = EmailMessage(
+                subject=subject,
+                body=mensaje,
+                from_email=from_email,
+                to=[to_email]
+            )
+            email.content_subtype = "html"  # Indicar que el contenido es HTML
+            
+            # Enviar el email
+            email.send()
+            return True
+            
+        except Exception as e:
+            print(f"Error al enviar email de notificación de cupón: {str(e)}")
+            return False
+    
+    def save(self, *args, **kwargs):
+        """Override del método save para enviar email cuando se crea un nuevo cupón"""
+        # Verificar si es un nuevo cupón (no tiene pk)
+        is_new = self.pk is None
+        
+        # Llamar al método save original
+        super().save(*args, **kwargs)
+        
+        # Si es un nuevo cupón, enviar email de notificación
+        if is_new:
+            try:
+                self.enviar_notificacion_cupon_creado()
+            except Exception as e:
+                print(f"Error al enviar notificación de cupón creado: {str(e)}")

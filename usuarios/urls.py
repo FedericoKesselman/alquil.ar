@@ -41,5 +41,6 @@ urlpatterns = [
     # URLs para gestión de cupones
     path('admin/crear-cupon/<int:cliente_id>/', views.crear_cupon_view, name='crear_cupon'),
     path('admin/cupones/', views.listar_cupones_view, name='listar_cupones'),
+    path('admin/cupones/eliminar/<int:cupon_id>/', views.eliminar_cupon, name='eliminar_cupon'),
     path('api/cupones/validar/<str:codigo>/', views.validar_cupon_view, name='validar_cupon'),
 ]

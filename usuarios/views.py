@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from .models import Usuario
+from .models import Usuario, Cupon
 from .forms import (
     LoginForm, 
     EmpleadoForm, 
@@ -888,9 +888,10 @@ def crear_cupon_view(request, cliente_id=None):
             
             messages.success(
                 request, 
-                f'Cupón creado correctamente para {cliente.nombre}. '
+                f'Cupón creado correctamente para {cliente.get_full_name()}. '
                 f'Código: {codigo} - {"Porcentaje" if tipo == "PORCENTAJE" else "Monto"}: '
-                f'{"{}%".format(valor) if tipo == "PORCENTAJE" else "${:,.2f}".format(valor)}'
+                f'{"{}%".format(valor) if tipo == "PORCENTAJE" else "${:,.2f}".format(valor)}. '
+                f'Se ha enviado una notificación por email al cliente.'
             )
             return redirect('listar_cupones')
     else:
@@ -915,8 +916,6 @@ def listar_cupones_view(request):
     """
     from .models import Cupon
     
-    # Obtener todos los clientes para el filtro
-    clientes = Usuario.objects.filter(tipo='CLIENTE')
     today = timezone.now().date()
     
     # Filtrar cupones según los parámetros de búsqueda
@@ -932,11 +931,6 @@ def listar_cupones_view(request):
         elif estado == 'usado':
             cupones = cupones.filter(usado=True)
     
-    # Filtrar por cliente
-    cliente_id = request.GET.get('cliente_id')
-    if cliente_id:
-        cupones = cupones.filter(cliente_id=cliente_id)
-        
     # Filtrar por tipo
     tipo = request.GET.get('tipo')
     if tipo:
@@ -946,9 +940,7 @@ def listar_cupones_view(request):
         'cupones': cupones,
         'hay_cupones': cupones.exists(),
         'estado': estado,
-        'cliente_id': cliente_id,
         'tipo': tipo,
-        'clientes': clientes,
         'today': today,  # Para comparar en la plantilla
     })
 
@@ -1009,4 +1001,61 @@ def validar_cupon_view(request, codigo):
         return JsonResponse({'valid': False, 'error': 'Cupón no encontrado'}, status=404)
     except Exception as e:
         return JsonResponse({'valid': False, 'error': str(e)}, status=500)
+
+@login_required
+@solo_admin
+def eliminar_cupon(request, cupon_id):
+    """
+    Vista para eliminar un cupón emitido.
+    Solo los administradores pueden eliminar cupones.
+    No se pueden eliminar cupones ya utilizados.
+    """
+    cupon = get_object_or_404(Cupon, id=cupon_id)
+    
+    # Verificar que el cupón no esté usado
+    # Considerar también si está asociado a una reserva que no esté en PENDIENTE_PAGO
+    cupon_utilizado = cupon.usado and cupon.reserva_uso and cupon.reserva_uso.estado != 'PENDIENTE_PAGO'
+    
+    if cupon_utilizado:
+        messages.error(request, "No se puede eliminar un cupón que ya ha sido utilizado.")
+        return redirect('listar_cupones')
+    
+    if request.method == 'POST':
+        # Verificar la confirmación
+        confirmacion = request.POST.get('confirmacion')
+        if confirmacion == 'confirmar_eliminacion':
+            # Si el cupón está asociado a una reserva en PENDIENTE_PAGO, liberarlo
+            if cupon.reserva_uso and cupon.reserva_uso.estado == 'PENDIENTE_PAGO':
+                # Liberar el cupón de la reserva
+                reserva = cupon.reserva_uso
+                reserva.cupon_aplicado = None
+                reserva.descuento_aplicado = 0
+                reserva.precio_antes_descuento = None
+                # Recalcular precio total sin descuento
+                if reserva.precio_antes_descuento:
+                    reserva.precio_total = reserva.precio_antes_descuento
+                reserva.save()
+                
+                # Limpiar la asociación en el cupón
+                cupon.reserva_uso = None
+                cupon.usado = False
+                cupon.save()
+            
+            # Eliminar el cupón
+            codigo_cupon = cupon.codigo
+            cliente_nombre = cupon.cliente.nombre
+            cupon.delete()
+            
+            messages.success(request, f"El cupón {codigo_cupon} del cliente {cliente_nombre} ha sido eliminado exitosamente.")
+            return redirect('listar_cupones')
+        else:
+            messages.error(request, "Debe confirmar la eliminación del cupón.")
+    
+    context = {
+        'cupon': cupon,
+        'titulo': 'Eliminar Cupón',
+        'today': timezone.now().date()
+    }
+    
+    return render(request, 'usuarios/eliminar_cupon.html', context)
 

@@ -1,5 +1,43 @@
 {% extends 'base.html' %}
 
+{% block extra_css %}
+<style>
+    /* Estilos para botones de acción mejorados */
+    .btn-outline-primary:hover, .btn-outline-danger:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        transition: all 0.2s ease-in-out;
+    }
+    
+    .btn-outline-primary {
+        border-color: #0d6efd;
+        color: #0d6efd;
+    }
+    
+    .btn-outline-primary:hover {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+        color: white;
+    }
+    
+    .btn-outline-danger {
+        border-color: #dc3545;
+        color: #dc3545;
+    }
+    
+    .btn-outline-danger:hover {
+        background-color: #dc3545;
+        border-color: #dc3545;
+        color: white;
+    }
+    
+    /* Efecto de hover más suave para los botones de acción */
+    .d-flex.gap-1 .btn {
+        transition: all 0.2s ease-in-out;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid mt-4">
     <div class="card">
@@ -35,12 +73,23 @@
                                 <td>{{ empleado.telefono }}</td>
                                 <td>{{ empleado.sucursal.nombre|default:"-" }}</td>
                                 <td>
-                                    <div class="btn-group btn-group-sm">
-                                        <a href="{% url 'editar_empleado' empleado.id %}" class="btn btn-warning" title="Editar">
-                                            <i class="fas fa-edit"></i>
+                                    <div class="d-flex gap-1 justify-content-center">
+                                        <!-- Botón Editar -->
+                                        <a href="{% url 'editar_empleado' empleado.id %}" 
+                                           class="btn btn-outline-primary btn-sm d-flex align-items-center" 
+                                           title="Editar información del empleado"
+                                           data-bs-toggle="tooltip" data-bs-placement="top">
+                                            <i class="fas fa-edit me-1"></i>
+                                            <span class="d-none d-md-inline">Editar</span>
                                         </a>
-                                        <a href="{% url 'eliminar_empleado' empleado.id %}" class="btn btn-danger" title="Eliminar">
-                                            <i class="fas fa-trash-alt"></i>
+                                        
+                                        <!-- Botón Eliminar -->
+                                        <a href="{% url 'eliminar_empleado' empleado.id %}" 
+                                           class="btn btn-outline-danger btn-sm d-flex align-items-center" 
+                                           title="Eliminar empleado del sistema"
+                                           data-bs-toggle="tooltip" data-bs-placement="top">
+                                            <i class="fas fa-trash-alt me-1"></i>
+                                            <span class="d-none d-md-inline">Eliminar</span>
                                         </a>
                                     </div>
                                 </td>
@@ -91,4 +140,16 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Inicializar tooltips de Bootstrap
+    document.addEventListener("DOMContentLoaded", function() {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+</script>
 {% endblock %}

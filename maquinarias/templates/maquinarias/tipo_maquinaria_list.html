@@ -1,12 +1,112 @@
-{% extends 'base.html' %} {% block content %}
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+    /* Estilos para botones de tipos de maquinaria mejorados */
+    .btn-primary:hover, .btn-sm:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        transition: all 0.3s ease-in-out;
+    }
+    
+    .btn-primary {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+        transition: all 0.3s ease-in-out;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .btn-primary:hover {
+        background-color: #0b5ed7;
+        border-color: #0a58ca;
+    }
+    
+    .btn-primary::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+        transition: left 0.5s;
+    }
+    
+    .btn-primary:hover::before {
+        left: 100%;
+    }
+    
+    /* Efectos para botones de acción */
+    .btn-outline-info, .btn-outline-danger {
+        transition: all 0.2s ease-in-out;
+    }
+    
+    .btn-outline-info {
+        border-color: #0dcaf0;
+        color: #0dcaf0;
+    }
+    
+    .btn-outline-info:hover {
+        background-color: #0dcaf0;
+        border-color: #0dcaf0;
+        color: #000;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(13, 202, 240, 0.3);
+    }
+    
+    .btn-outline-danger {
+        border-color: #dc3545;
+        color: #dc3545;
+    }
+    
+    .btn-outline-danger:hover {
+        background-color: #dc3545;
+        border-color: #dc3545;
+        color: white;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+    }
+    
+    /* Efecto para contenedores de botones */
+    .d-flex.gap-1 .btn {
+        transition: all 0.2s ease-in-out;
+    }
+    
+    /* Efecto de pulsación */
+    .btn:active {
+        transform: scale(0.98);
+    }
+    
+    /* Estilo para el encabezado */
+    .header-section {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
 <div class="container mt-4">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>Tipos de Maquinaria</h2>
-    {% if user.is_staff %}
-    <a href="{% url 'tipo_maquinaria_create' %}" class="btn btn-primary">
-      <i class="fas fa-plus"></i> Nuevo Tipo
-    </a>
-    {% endif %}
+  <div class="header-section">
+    <div class="d-flex justify-content-between align-items-center">
+      <h2 class="mb-0">
+        <i class="fas fa-tags me-2 text-primary"></i>
+        Tipos de Maquinaria
+      </h2>
+      {% if user.is_staff %}
+      <a href="{% url 'tipo_maquinaria_create' %}" 
+         class="btn btn-primary btn-lg shadow-sm d-flex align-items-center"
+         title="Crear nuevo tipo de maquinaria"
+         data-bs-toggle="tooltip" data-bs-placement="left">
+        <i class="fas fa-plus me-2"></i>
+        <span class="d-none d-md-inline">Nuevo Tipo</span>
+      </a>
+      {% endif %}
+    </div>
   </div>
 
   {% if messages %}
@@ -35,19 +135,23 @@
           <td>{{ tipo.descripcion|default:"-" }}</td>
           {% if user.is_staff %}
           <td>
-            <a
-              href="{% url 'tipo_maquinaria_update' tipo.pk %}"
-              class="btn btn-sm btn-info"
-            >
-              <i class="fas fa-edit"></i>
-            </a>
-            <a
-              href="{% url 'tipo_maquinaria_delete' tipo.pk %}"
-              class="btn btn-sm btn-danger"
-              onclick="return confirm('¿Está seguro que desea eliminar este tipo de maquinaria?')"
-            >
-              <i class="fas fa-trash"></i>
-            </a>
+            <div class="d-flex gap-1">
+              <a href="{% url 'tipo_maquinaria_update' tipo.pk %}"
+                 class="btn btn-sm btn-outline-info d-flex align-items-center"
+                 title="Editar tipo de maquinaria"
+                 data-bs-toggle="tooltip">
+                <i class="fas fa-edit"></i>
+                <span class="d-none d-lg-inline ms-1">Editar</span>
+              </a>
+              <a href="{% url 'tipo_maquinaria_delete' tipo.pk %}"
+                 class="btn btn-sm btn-outline-danger d-flex align-items-center"
+                 title="Eliminar tipo de maquinaria"
+                 data-bs-toggle="tooltip"
+                 onclick="return confirm('¿Está seguro que desea eliminar este tipo de maquinaria?')">
+                <i class="fas fa-trash"></i>
+                <span class="d-none d-lg-inline ms-1">Eliminar</span>
+              </a>
+            </div>
           </td>
           {% endif %}
         </tr>
@@ -62,4 +166,14 @@
     </table>
   </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar tooltips de Bootstrap
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+</script>
 {% endblock %}

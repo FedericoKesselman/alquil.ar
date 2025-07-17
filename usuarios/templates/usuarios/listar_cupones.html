@@ -2,13 +2,105 @@
 
 {% block title %}Listado de Cupones{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Estilos para botones de acción mejorados */
+    .btn-outline-danger:hover, .btn-success:hover, .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        transition: all 0.2s ease-in-out;
+    }
+    
+    .btn-outline-danger {
+        border-color: #dc3545;
+        color: #dc3545;
+    }
+    
+    .btn-outline-danger:hover {
+        background-color: #dc3545;
+        border-color: #dc3545;
+        color: white;
+    }
+    
+    .btn-success, .btn-primary {
+        transition: all 0.2s ease-in-out;
+    }
+    
+    .btn-primary {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+    }
+    
+    .btn-primary:hover {
+        background-color: #0b5ed7;
+        border-color: #0a58ca;
+    }
+    
+    /* Efecto para elementos protegidos */
+    .text-muted {
+        font-size: 0.875rem;
+        font-style: italic;
+    }
+    
+    /* Mejoras para el formulario de filtros */
+    .card-body .row.align-items-end {
+        gap: 0;
+    }
+    
+    .card-body .row.align-items-end.g-3 {
+        --bs-gutter-x: 1rem;
+        --bs-gutter-y: 1rem;
+    }
+    
+    .form-select, .btn {
+        height: calc(2.375rem + 2px); /* Altura consistente */
+    }
+    
+    /* Asegurar que el botón tenga la misma altura que los selects */
+    .d-flex.align-items-end .btn {
+        height: calc(2.375rem + 2px);
+        line-height: 1.5;
+    }
+    
+    /* Efecto hover para selectores */
+    .form-select:focus {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    
+    /* Mejoras para botones en tabla */
+    .btn-outline-info {
+        border-color: #0dcaf0;
+        color: #0dcaf0;
+        transition: all 0.2s ease-in-out;
+    }
+    
+    .btn-outline-info:hover {
+        background-color: #0dcaf0;
+        border-color: #0dcaf0;
+        color: #000;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(13, 202, 240, 0.25);
+    }
+    
+    /* Controlar overflow en celdas de tabla */
+    td {
+        max-width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    /* Permitir que ciertos elementos no se corten */
+    .text-nowrap {
+        white-space: nowrap !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2><i class="fas fa-ticket-alt me-2"></i>Listado de Cupones</h2>
-        <a href="{% url 'listar_clientes' %}" class="btn btn-primary">
-            <i class="fas fa-users me-2"></i>Seleccionar Cliente para Cupón
-        </a>
     </div>
     
     <!-- Filtros -->
@@ -18,9 +110,9 @@
         </div>
         <div class="card-body">
             <form method="get">
-                <div class="row">
+                <div class="row align-items-end g-3">
                     <!-- Estado del cupón -->
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                         <label for="estado" class="form-label">Estado:</label>
                         <select name="estado" id="estado" class="form-select">
                             <option value="">Todos</option>
@@ -31,7 +123,7 @@
                     </div>
                     
                     <!-- Tipo de cupón -->
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                         <label for="tipo" class="form-label">Tipo:</label>
                         <select name="tipo" id="tipo" class="form-select">
                             <option value="">Todos</option>
@@ -40,21 +132,9 @@
                         </select>
                     </div>
                     
-                    <!-- Cliente -->
-                    <div class="col-md-3">
-                        <label for="cliente_id" class="form-label">Cliente:</label>
-                        <select name="cliente_id" id="cliente_id" class="form-select">
-                            <option value="">Todos los clientes</option>
-                            {% for cliente in clientes %}
-                                <option value="{{ cliente.id }}" {% if cliente_id == cliente.id|stringformat:"i" %}selected{% endif %}>
-                                    {{ cliente.nombre }} ({{ cliente.email }})
-                                </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <div class="col-md-3 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary w-100">
+                    <!-- Botón de aplicar filtros -->
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary shadow-sm flex-fill">
                             <i class="fas fa-search me-2"></i>Aplicar Filtros
                         </button>
                     </div>
@@ -79,6 +159,7 @@
                                 <th>Fecha Creación</th>
                                 <th>Fecha Vencimiento</th>
                                 <th>Reserva Uso</th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -113,11 +194,31 @@
                                     <td>{{ cupon.fecha_vencimiento|date:"d/m/Y" }}</td>
                                     <td>
                                         {% if cupon.reserva_uso and cupon.reserva_uso.estado != 'PENDIENTE_PAGO' %}
-                                            <a href="{% url 'reservas:detalle_reserva' cupon.reserva_uso.id %}" class="btn btn-sm btn-outline-info">
-                                                Ver Reserva #{{ cupon.reserva_uso.id }}
+                                            <a href="{% url 'reservas:detalle_reserva' cupon.reserva_uso.id %}" 
+                                               class="btn btn-sm btn-outline-info text-nowrap">
+                                                <i class="fas fa-eye me-1"></i>
+                                                <span class="d-none d-md-inline">Ver Reserva </span>#{{ cupon.reserva_uso.id }}
                                             </a>
                                         {% else %}
                                             -
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if cupon.usado and cupon.reserva_uso and cupon.reserva_uso.estado != 'PENDIENTE_PAGO' %}
+                                            <!-- Cupón utilizado, no se puede eliminar -->
+                                            <div class="d-flex align-items-center justify-content-center text-muted">
+                                                <i class="fas fa-lock me-1"></i>
+                                                <small>No eliminable</small>
+                                            </div>
+                                        {% else %}
+                                            <!-- Cupón no utilizado o asociado a reserva pendiente de pago, se puede eliminar -->
+                                            <a href="{% url 'eliminar_cupon' cupon.id %}" 
+                                               class="btn btn-outline-danger btn-sm d-flex align-items-center justify-content-center"
+                                               title="Eliminar cupón definitivamente"
+                                               data-bs-toggle="tooltip" data-bs-placement="top">
+                                                <i class="fas fa-trash-alt me-1"></i>
+                                                <span class="d-none d-lg-inline">Eliminar</span>
+                                            </a>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -134,4 +235,16 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Inicializar tooltips de Bootstrap
+    document.addEventListener("DOMContentLoaded", function() {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+</script>
 {% endblock %}

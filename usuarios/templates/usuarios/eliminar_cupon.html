@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+
+{% block title %}Eliminar Cupón{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-danger text-white">
+                    <h3 class="card-title mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Confirmar Eliminación de Cupón
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-danger">
+                        <h5><i class="fas fa-warning me-2"></i>¡Atención!</h5>
+                        <p class="mb-0">Esta acción es <strong>irreversible</strong>. Una vez eliminado el cupón, no podrá ser recuperado.</p>
+                    </div>
+
+                    <h5>Información del cupón a eliminar:</h5>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <p><strong>Código:</strong> <code>{{ cupon.codigo }}</code></p>
+                            <p><strong>Cliente:</strong> {{ cupon.cliente.nombre }}</p>
+                            <p><strong>Email del cliente:</strong> {{ cupon.cliente.email }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Tipo:</strong> 
+                                {% if cupon.tipo == 'PORCENTAJE' %}
+                                    <span class="badge bg-info">Porcentaje</span>
+                                {% else %}
+                                    <span class="badge bg-success">Monto Fijo</span>
+                                {% endif %}
+                            </p>
+                            <p><strong>Valor:</strong> 
+                                {% if cupon.tipo == 'PORCENTAJE' %}
+                                    {{ cupon.valor }}%
+                                {% else %}
+                                    ${{ cupon.valor }}
+                                {% endif %}
+                            </p>
+                            <p><strong>Estado:</strong> 
+                                {% if cupon.usado and cupon.reserva_uso and cupon.reserva_uso.estado != 'PENDIENTE_PAGO' %}
+                                    <span class="badge bg-secondary">Utilizado</span>
+                                {% elif cupon.fecha_vencimiento < today %}
+                                    <span class="badge bg-danger">Vencido</span>
+                                {% else %}
+                                    <span class="badge bg-success">Vigente</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <p><strong>Fecha de creación:</strong> {{ cupon.fecha_creacion|date:"d/m/Y H:i" }}</p>
+                            <p><strong>Fecha de vencimiento:</strong> {{ cupon.fecha_vencimiento|date:"d/m/Y" }}</p>
+                            
+                            {% if cupon.reserva_uso and cupon.reserva_uso.estado == 'PENDIENTE_PAGO' %}
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>Nota:</strong> Este cupón está asociado a una reserva en estado "Pendiente de Pago". 
+                                    Al eliminar el cupón, se liberará de esa reserva y el descuento no se aplicará.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="form-check mb-4">
+                            <input class="form-check-input" type="checkbox" value="confirmar_eliminacion" 
+                                   id="confirmacion" name="confirmacion" required>
+                            <label class="form-check-label text-danger fw-bold" for="confirmacion">
+                                Confirmo que entiendo que esta acción es irreversible y deseo eliminar este cupón definitivamente.
+                            </label>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'listar_cupones' %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-danger" id="btnEliminar" disabled>
+                                <i class="fas fa-trash me-2"></i>Eliminar Cupón Definitivamente
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Habilitar/deshabilitar el botón de eliminar según el checkbox
+document.getElementById('confirmacion').addEventListener('change', function() {
+    document.getElementById('btnEliminar').disabled = !this.checked;
+});
+</script>
+{% endblock %}
