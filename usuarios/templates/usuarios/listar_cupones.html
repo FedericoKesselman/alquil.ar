@@ -101,7 +101,7 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if cupon.usado %}
+                                        {% if cupon.usado and cupon.reserva_uso and cupon.reserva_uso.estado != 'PENDIENTE_PAGO' %}
                                             <span class="badge bg-secondary">Utilizado</span>
                                         {% elif cupon.fecha_vencimiento < today %}
                                             <span class="badge bg-danger">Vencido</span>
@@ -112,8 +112,8 @@
                                     <td>{{ cupon.fecha_creacion|date:"d/m/Y H:i" }}</td>
                                     <td>{{ cupon.fecha_vencimiento|date:"d/m/Y" }}</td>
                                     <td>
-                                        {% if cupon.reserva_uso %}
-                                            <a href="{% url 'detalle_reserva' cupon.reserva_uso.id %}" class="btn btn-sm btn-outline-info">
+                                        {% if cupon.reserva_uso and cupon.reserva_uso.estado != 'PENDIENTE_PAGO' %}
+                                            <a href="{% url 'reservas:detalle_reserva' cupon.reserva_uso.id %}" class="btn btn-sm btn-outline-info">
                                                 Ver Reserva #{{ cupon.reserva_uso.id }}
                                             </a>
                                         {% else %}

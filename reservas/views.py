@@ -940,11 +940,14 @@ def detalle_reserva(request, reserva_id):
     """Vista para ver los detalles de una reserva"""
     if request.user.is_staff:
         reserva = get_object_or_404(Reserva, id=reserva_id)
+        is_admin_view = True
     else:
         reserva = get_object_or_404(Reserva, id=reserva_id, cliente=request.user)
+        is_admin_view = False
     
     context = {
-        'reserva': reserva
+        'reserva': reserva,
+        'is_admin_view': is_admin_view
     }
     
     # Si la reserva está pendiente de pago, generar preferencia de Mercado Pago
@@ -1031,7 +1034,7 @@ def editar_reserva(request, reserva_id):
         if form.is_valid():
             form.save()
             messages.success(request, 'Reserva actualizada exitosamente.')
-            return redirect('detalle_reserva', reserva_id=reserva.id)
+            return redirect('reservas:detalle_reserva', reserva_id=reserva.id)
     else:
         form = EditarReservaForm(instance=reserva, usuario=request.user)
     

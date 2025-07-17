@@ -9,9 +9,29 @@
         <div class="col-md-8 offset-md-2">
             <div class="card">
                 <div class="card-header">
-                    <h3 class="card-title">Detalle de Reserva #{{ reserva.id }}</h3>
+                    {% if is_admin_view %}
+                        <h3 class="card-title">Detalle de Reserva #{{ reserva.id }} - Vista Administrador</h3>
+                    {% else %}
+                        <h3 class="card-title">Detalle de Reserva #{{ reserva.id }}</h3>
+                    {% endif %}
                 </div>
                 <div class="card-body">
+                    <!-- Información del Cliente (solo para admin) -->
+                    {% if is_admin_view %}
+                        <h4>Información del Cliente</h4>
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <p><strong>Nombre:</strong> {{ reserva.cliente.nombre }}</p>
+                                <p><strong>Email:</strong> {{ reserva.cliente.email }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>DNI:</strong> {{ reserva.cliente.dni|default:"No especificado" }}</p>
+                                <p><strong>Teléfono:</strong> {{ reserva.cliente.telefono|default:"No especificado" }}</p>
+                            </div>
+                        </div>
+                        <hr>
+                    {% endif %}
+
                     <!-- Estado de la Reserva -->
                     <div class="alert {% if reserva.estado == 'CONFIRMADA' %}alert-success{% elif reserva.estado == 'PENDIENTE_PAGO' %}alert-warning{% elif reserva.estado == 'CANCELADA' %}alert-danger{% else %}alert-info{% endif %}">
                         <strong>Estado:</strong> {{ reserva.get_estado_display }}
@@ -49,8 +69,8 @@
                         </div>
                     </div>
 
-                    <!-- Pago con Mercado Pago -->
-                    {% if reserva.estado == 'PENDIENTE_PAGO' %}
+                    <!-- Pago con Mercado Pago (solo para clientes) -->
+                    {% if reserva.estado == 'PENDIENTE_PAGO' and not is_admin_view %}
                         <div class="mt-4">
                             <h4>Proceder al pago</h4>
                             <div id="walletBrick_container"></div>
@@ -76,25 +96,33 @@
                     {% endif %}
 
                     <!-- Acciones -->
-                    <div class="mt-4">
-                        {% if reserva.estado != 'CANCELADA' and reserva.estado != 'FINALIZADA' %}
-                            {% if reserva.is_active and user.tipo == 'CLIENTE' %}
-                                <!-- Mostrar botón deshabilitado con tooltip para reservas activas -->
-                                <button type="button" class="btn btn-danger" disabled data-bs-toggle="tooltip" 
-                                        data-bs-placement="top" title="No se pueden cancelar reservas activas">
-                                    <i class="fas fa-times"></i> Cancelar reserva
-                                </button>
-                            {% else %}
-                                <a href="{% url 'reservas:cancelar_reserva' reserva.id %}" class="btn btn-danger">
-                                    <i class="fas fa-times"></i> Cancelar reserva
-                                </a>
+                    {% if not is_admin_view %}
+                        <div class="mt-4">
+                            {% if reserva.estado != 'CANCELADA' and reserva.estado != 'FINALIZADA' %}
+                                {% if reserva.is_active and user.tipo == 'CLIENTE' %}
+                                    <!-- Mostrar botón deshabilitado con tooltip para reservas activas -->
+                                    <button type="button" class="btn btn-danger" disabled data-bs-toggle="tooltip" 
+                                            data-bs-placement="top" title="No se pueden cancelar reservas activas">
+                                        <i class="fas fa-times"></i> Cancelar reserva
+                                    </button>
+                                {% else %}
+                                    <a href="{% url 'reservas:cancelar_reserva' reserva.id %}" class="btn btn-danger">
+                                        <i class="fas fa-times"></i> Cancelar reserva
+                                    </a>
+                                {% endif %}
                             {% endif %}
-                        {% endif %}
 
-                        <a href="{% url 'reservas:lista_reservas' %}" class="btn btn-secondary">
-                            <i class="fas fa-arrow-left"></i> Volver a mis reservas
-                        </a>
-                    </div>
+                            <a href="{% url 'reservas:lista_reservas' %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Volver a mis reservas
+                            </a>
+                        </div>
+                    {% else %}
+                        <div class="mt-4">
+                            <a href="javascript:history.back()" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Volver
+                            </a>
+                        </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -103,7 +131,7 @@
 {% endblock %}
 
 {% block extra_js %}
-{% if reserva.estado == 'PENDIENTE_PAGO' %}
+{% if reserva.estado == 'PENDIENTE_PAGO' and not is_admin_view %}
 <script src="https://sdk.mercadopago.com/js/v2"></script>
 <script>
     const publicKey = "{{ MP_PUBLIC_KEY }}";
