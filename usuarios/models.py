@@ -329,9 +329,9 @@ class Cupon(models.Model):
         if self.valor <= 0:
             raise ValidationError("El valor del cupón debe ser mayor a cero.")
             
-        # Validar que los porcentajes estén entre 1 y 100
-        if self.tipo == 'PORCENTAJE' and (self.valor < 1 or self.valor > 100):
-            raise ValidationError("El porcentaje debe estar entre 1 y 100.")
+        # Validar que los porcentajes estén entre 1 y 99
+        if self.tipo == 'PORCENTAJE' and (self.valor < 1 or self.valor > 99):
+            raise ValidationError("El porcentaje debe estar entre 1 y 99.")
             
         # Validar que la fecha de vencimiento sea futura
         today = timezone.now().date()

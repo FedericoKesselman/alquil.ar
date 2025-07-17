@@ -775,8 +775,8 @@ class CrearCuponForm(forms.Form):
         valor = cleaned_data.get('valor')
         
         if tipo and valor:
-            if tipo == 'PORCENTAJE' and (valor < 1 or valor > 100):
-                self.add_error('valor', "El porcentaje debe estar entre 1 y 100.")
+            if tipo == 'PORCENTAJE' and (valor < 1 or valor > 99):
+                self.add_error('valor', "El porcentaje debe estar entre 1 y 99.")
         
         return cleaned_data
     
